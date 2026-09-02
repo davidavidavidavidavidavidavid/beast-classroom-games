@@ -9,7 +9,8 @@ dependencies beyond Google Fonts), sharing a common design system.
 **Built and tested:**
 - `scuttle-addition-subtraction.html` — closest-to-target, build 1 number/round
 - `scuttle-product.html` — split shared dice into 2 numbers, multiply, smallest-sum-over-threshold wins
-- `scuttle-menu.html` — hub/landing page with an NES-style boot sequence, links out to each game
+- `pop-addition.html` — one shared digit revealed at a time, sequential/irrevocable placement into inside-blanks or throwaways, closest-to-target-without-busting wins (busting = instant loss). Not yet linked from `scuttle-menu.html`.
+- `scuttle-menu.html` — hub/landing page with an NES-style boot sequence, links out to each game (Scuttle games only so far — see above)
 
 **Designed but not built** (see `/design/` folder):
 - `beeline-board-mockup.html` — Connect-4-style claiming grid (new component)
@@ -34,9 +35,11 @@ components/
                                place-value slots). Non-Scuttle games won't link it.
   (future: claim-grid.css, risk-meter.css, flip-card.css — one per new
    engine family, extracted from the /design/ mockups when first built for real)
-scuttle-*.html               <- Each game: a couple of <link> tags to the shared
+<game>-<variant>.html       <- Each game: a couple of <link> tags to the shared
                                CSS, plus a SMALL <style> block for whatever's
                                genuinely unique to that game (10-20 lines, not 300)
+                               See "File naming convention" below for how
+                               <game> and <variant> are chosen.
 scuttle-menu.html            <- Hub page
 design/                      <- Mockups + the catalog CSV, reference material only
 ```
@@ -45,6 +48,22 @@ design/                      <- Mockups + the catalog CSV, reference material on
 full copy of the CSS" specifically so a future design change is a one-file
 edit, not a 100-file edit. Preserve this — when adding a new game, prefer
 reusing/extending the shared files over re-inlining styles.
+
+## File naming convention
+
+Game files are named `<game-name>-<variant>.html`, where the prefix is the
+**actual game's name** — never "scuttle" used as a catch-all for every game in
+this project. Pop is a different game from Scuttle. Beeline is a different
+game from both. Its files are `pop-addition.html`, `pop-subtraction.html`,
+etc. — never `scuttle-pop-addition.html` or similar. This is a hard
+constraint, not a style preference: it's what lets a filename tell you which
+game engine a file belongs to at a glance, even as the catalog grows toward
+~50 base games.
+
+(The existing `scuttle-*.html` files predate this rule and are exempt —
+`scuttle-addition-subtraction.html` and `scuttle-product.html` are correctly
+named, since Scuttle genuinely is their game name. It applies starting with
+the next game built.)
 
 ## Design system conventions (locked in — don't re-derive)
 
@@ -59,10 +78,10 @@ reusing/extending the shared files over re-inlining styles.
 - **Buttons press into their own shadow** on `:active` (translate by the exact
   shadow offset, shadow drops to 0) — that's the core tactile interaction,
   reused everywhere.
-- **Kicker chip pattern:** every game has an H1 "SCUTTLE" + a bordered kicker
-  chip naming the specific variant + a free-text tagline stating that
-  variant's actual objective. Don't force every game's win condition into one
-  sentence shape.
+- **Kicker chip pattern:** every game has an H1 naming the *game* (SCUTTLE,
+  POP, ...) + a bordered kicker chip naming the specific variant + a
+  free-text tagline stating that variant's actual objective. Don't force
+  every game's win condition into one sentence shape.
 
 ## Bot AI philosophy — read this before writing any bot logic
 
@@ -84,6 +103,33 @@ reusing/extending the shared files over re-inlining styles.
   trials.** See the pattern in the build history — a plain Node script,
   no browser needed, run before ever touching the HTML.
 
+## Code conventions
+
+So any future game — or an audit script — can find "the bot logic" or "the
+win logic" by name alone, without reading the whole file, these names are
+fixed across every game:
+
+- **`st`** — the game state object. Always this name, never `state`/`gameState`/etc.
+- **`botChooseRound(...)`** — the bot's per-round decision entry point.
+  Signature varies per game's needs (Add/Sub's is `(round, digits, n1,
+  target, difficulty)`, Product's is `(round, digits, d1, d2, runningSum,
+  target, difficulty)`), but the name and its role — the single place
+  difficulty is dispatched on (`if (difficulty==='easy') ...`) — stay fixed.
+- **`showScreen(name)`, `startMatch()`, `startRound()`** — screen/lifecycle
+  functions. Always these names.
+- **`DIFF_DESC`, `DIFF_NAME`** — difficulty metadata constants (description
+  string and display name, keyed by `'easy'|'medium'|'hard'`).
+- **`decideWinner(...)`** — win-condition logic lives in a standalone, pure
+  function by this name. It takes whatever final values it needs as
+  arguments (e.g. Add/Sub: `decideWinner(humanDist, botDist)`; Product:
+  `decideWinner(humanSum, botSum, target)`) and returns `'human'`, `'bot'`,
+  or `'tie'` — zero DOM access, zero side effects. It's called from the
+  reveal button's click handler; the comparison logic doesn't live inside
+  that handler. This is what makes Testing methodology point 4 below
+  possible without a browser: a plain Node script can `new Function(...)`
+  the extracted script and call `decideWinner` directly with edge-case
+  inputs.
+
 ## Testing methodology
 
 For every new game, before considering it done:
@@ -96,6 +142,8 @@ For every new game, before considering it done:
 4. Test the *edge cases* of win-condition logic explicitly (e.g. both-over,
    both-under, one-over-one-under, exact ties) — these are where copy-pasted
    assumptions from a previous game's different win condition tend to hide.
+   Do this as a standalone unit test directly against `decideWinner` (see
+   Code conventions above) — no browser or jsdom needed, since it's pure.
 
 ## Known traps from this project's history
 
@@ -115,8 +163,11 @@ For every new game, before considering it done:
 
 ## Suggested next steps, in priority order
 
-1. **Pop** — closest reuse of existing code (dice → blank slots → bust-if-
-   over-target). ~11 content variants from one engine.
+1. **More Pop variants** — `pop-addition.html` is built; ~10 more content
+   variants (subtraction, other blank/throwaway counts, etc.) reuse the same
+   engine (`legalTargets`/bot tiers/`decideWinner` all generalize on
+   `insideLens`/`throwaways`/`target` already — see that file). Also: link
+   `pop-addition.html` from `scuttle-menu.html`, which doesn't know about it yet.
 2. **Beeline** — biggest variant payoff (~15 variants) but needs the new
    claim-grid component (mocked up in `/design/beeline-board-mockup.html`).
 3. **Remainder / Difference Scuttle** — near-identical engine to Product

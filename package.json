@@ -1,0 +1,13 @@
+{
+  "name": "scuttle-project",
+  "version": "1.0.0",
+  "description": "Beast Classroom digital games — test harness (jsdom smoke tests + decideWinner unit tests)",
+  "private": true,
+  "scripts": {
+    "test": "node test/decide-winner.addition-subtraction.test.js && node test/decide-winner.product.test.js && node test/decide-winner.pop-addition.test.js && node test/smoke-addition-subtraction.test.js && node test/smoke-product.test.js && node test/smoke-pop-addition.test.js"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "jsdom": "^30.0.1"
+  }
+}

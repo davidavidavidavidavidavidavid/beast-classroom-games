@@ -225,6 +225,10 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 .result-status { font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
 .result-status.over { color: var(--color-correct); }
 .result-status.under { color: var(--color-text-tertiary); }
+/* Bust-condition games (Pop family): "over" here means popped, so the
+   good/bad color mapping flips relative to .over/.under above. */
+.result-status.safe { color: var(--color-correct); }
+.result-status.busted { color: var(--color-error); }
 #winner-banner { font-family: var(--font-sans); font-weight: 800; text-align: center; font-size: 19px; line-height: 1.5; margin: 16px 0 6px; color: var(--color-text-primary); }
 
 /* ---------- utility ---------- */

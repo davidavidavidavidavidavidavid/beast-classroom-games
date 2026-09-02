@@ -16,7 +16,7 @@
 
   <h1>SCUTTLE</h1>
   <div class="kicker-wrap"><span class="kicker">Addition &amp; Subtraction</span></div>
-  <div id="tagline">Get as close as you can to <b id="target-tag">500</b>.</div>
+  <div id="tagline" class="tagline">Get as close as you can to <b id="target-tag">500</b>.</div>
 
   <div id="top-bar">
     <div class="pill-group">
@@ -30,12 +30,12 @@
   <!-- SETTINGS SCREEN -->
   <div class="card" id="screen-settings">
     <div class="section-label">Bot difficulty</div>
-    <div class="diff-row">
+    <div class="chip-row">
       <button class="chip" data-diff="easy">Easy</button>
       <button class="chip" data-diff="medium">Medium</button>
       <button class="chip" data-diff="hard">Hard</button>
     </div>
-    <div id="diff-desc"></div>
+    <div id="diff-desc" class="desc-line"></div>
 
     <div class="section-label">Target number</div>
     <div class="target-row">
@@ -95,12 +95,12 @@
   <div class="card hidden" id="screen-compute">
     <div class="section-label" style="text-align:center;">Reorder, pick +/−, then solve</div>
     <div class="equation-row" id="equation-row"></div>
-    <div id="answer-row">
+    <div id="answer-row" class="answer-row">
       <label for="answer-input">Total:</label>
-      <input type="number" id="answer-input" inputmode="numeric" placeholder="?"/>
+      <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?"/>
       <button class="primary" id="check-btn">Check</button>
     </div>
-    <div id="hint-line"></div>
+    <div id="hint-line" class="hint-line"></div>
     <div id="compute-msg" class="feedback-msg"></div>
     <div class="center hidden" id="reveal-wrap">
       <button class="primary" id="reveal-btn">Reveal results →</button>
@@ -301,12 +301,12 @@ function showScreen(name){
 
 /* ---------------- settings screen ---------------- */
 function renderDiffChips(){
-  document.querySelectorAll('.diff-row [data-diff]').forEach(btn=>{
+  document.querySelectorAll('.chip-row [data-diff]').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
   });
   el('diff-desc').textContent = DIFF_DESC[st.difficulty];
 }
-document.querySelectorAll('.diff-row [data-diff]').forEach(btn=>{
+document.querySelectorAll('.chip-row [data-diff]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
 });
 el('random-target-btn').addEventListener('click', ()=>{
@@ -630,6 +630,13 @@ function formatEquation(nums, baseIdx, others, signs){
   return `${base} ${sign1} ${o1} ${sign2} ${o2}`;
 }
 
+/* ---------------- win condition (pure — see CLAUDE.md Code conventions) ---------------- */
+// Closest to target wins; exact ties are friendly (both win).
+function decideWinner(humanDist, botDist){
+  if (humanDist === botDist) return 'tie';
+  return humanDist < botDist ? 'human' : 'bot';
+}
+
 el('reveal-btn').addEventListener('click', ()=>{
   const finalR3 = st.botMeta[2];
   const botTotal = finalR3.total;
@@ -648,11 +655,13 @@ el('reveal-btn').addEventListener('click', ()=>{
   el('bot-total').textContent = botTotal;
   el('bot-dist').textContent = `${botDist} away from ${st.target}`;
 
+  const winner = decideWinner(humanDist, botDist);
+
   const banner = el('winner-banner');
-  if (humanDist === botDist){
+  if (winner === 'tie'){
     banner.textContent = "It's a tie — you both win! 🤝";
     st.score.ties++;
-  } else if (humanDist < botDist){
+  } else if (winner === 'human'){
     banner.textContent = 'You win this match! 🎉';
     st.score.human++;
   } else {

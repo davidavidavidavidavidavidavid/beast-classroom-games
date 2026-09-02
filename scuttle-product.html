@@ -29,7 +29,7 @@
 
   <h1>SCUTTLE</h1>
   <div class="kicker-wrap"><span class="kicker">Product</span></div>
-  <div id="tagline">Score the smallest sum over <b id="target-tag">1,000</b> — or the biggest sum if nobody clears it.</div>
+  <div id="tagline" class="tagline">Score the smallest sum over <b id="target-tag">1,000</b> — or the biggest sum if nobody clears it.</div>
 
   <div id="top-bar">
     <div class="pill-group">
@@ -605,6 +605,18 @@ function flashSumMsg(text, isError){
   }
 }
 
+/* ---------------- win condition (pure — see CLAUDE.md Code conventions) ---------------- */
+// Smallest total still over the target wins; if neither total clears the
+// target, the largest total wins instead. Exact ties are friendly (both win).
+function decideWinner(humanSum, botSum, target){
+  const humanOver = humanSum > target;
+  const botOver = botSum > target;
+  if (humanOver && botOver) return humanSum===botSum ? 'tie' : (humanSum<botSum ? 'human':'bot');
+  if (humanOver && !botOver) return 'human';
+  if (!humanOver && botOver) return 'bot';
+  return humanSum===botSum ? 'tie' : (humanSum>botSum ? 'human':'bot');
+}
+
 /* ---------------- reveal ---------------- */
 el('sum-reveal-btn').addEventListener('click', ()=>{
   st.finalBotSum = st.botProducts.reduce((a,b)=>a+b,0);
@@ -619,11 +631,7 @@ el('sum-reveal-btn').addEventListener('click', ()=>{
   el('bot-status').textContent = botOver ? 'Over the minimum' : 'Under the minimum';
   el('bot-status').className = 'result-status ' + (botOver?'over':'under');
 
-  let winner;
-  if (humanOver && botOver) winner = st.finalHumanSum===st.finalBotSum ? 'tie' : (st.finalHumanSum<st.finalBotSum ? 'human':'bot');
-  else if (humanOver && !botOver) winner = 'human';
-  else if (!humanOver && botOver) winner = 'bot';
-  else winner = st.finalHumanSum===st.finalBotSum ? 'tie' : (st.finalHumanSum>st.finalBotSum ? 'human':'bot');
+  const winner = decideWinner(st.finalHumanSum, st.finalBotSum, target);
 
   const banner = el('winner-banner');
   if (winner==='tie'){ banner.textContent = "It's a tie — you both win! 🤝"; st.score.ties++; }

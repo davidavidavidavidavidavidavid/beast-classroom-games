@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pop: Addition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/dice-slot.css">
+<style>
+  /* ---- Pop-specific: blank groups (a player's inside number + their
+     throwaways), the '+' separator between addends, and the single
+     currently-rolled digit. Everything else — the .slot tile itself,
+     cards, buttons, answer-checking, reveal — is shared. ---- */
+  .blank-group { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+  .group-label { text-align: center; font-family: var(--font-sans); font-size: 13px; font-weight: 700; letter-spacing: 0.3px; color: var(--color-text-tertiary); text-transform: uppercase; margin: 10px 0 4px; }
+  .plus-sign { font-size: 22px; font-weight: 800; color: var(--color-text-secondary); padding: 0 2px; }
+  .bot-mirror { margin-top: 16px; padding-top: 14px; border-top: 2px dashed var(--color-border-tertiary); opacity: 0.75; }
+  .bot-mirror .slot { cursor: default; }
+  #current-digit-wrap { display: flex; justify-content: center; margin: 4px 0 6px; min-height: 74px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>POP</h1>
+  <div class="kicker-wrap"><span class="kicker">Addition</span></div>
+  <div id="tagline" class="tagline">Land as close as you can to <b id="target-tag">50</b> without going over — going over pops your balloon.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill">You <b id="s-wins">0</b> · Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Format</div>
+    <div class="chip-row" id="format-row">
+      <button class="chip" data-format="2+1">_ _  +  _</button>
+      <button class="chip" data-format="2+2">_ _  +  _ _</button>
+    </div>
+    <div class="desc-line" id="format-desc"></div>
+
+    <div class="section-label">Bot difficulty</div>
+    <div class="chip-row" id="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+    <div class="desc-line" id="diff-desc"></div>
+
+    <div class="section-label">Target number</div>
+    <div class="target-row">
+      <input type="number" id="target-input" value="50" min="0" inputmode="numeric"/>
+      <label class="small">land as close as you can without going over</label>
+    </div>
+    <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      The die is rolled one digit at a time — everyone sees the same digit at once. Each time a digit
+      comes up, write it into one of <strong>your own</strong> remaining blanks: an inside blank (it
+      counts toward your number) or a throw-away (it doesn't). Once written, a digit can never be moved
+      or erased. Keep going until every blank is full. Whoever's inside number lands <strong>closest to
+      the target without going over</strong> wins — going over pops your balloon and you lose outright,
+      no matter how close you were. Ties are friendly! A rolled 0 can't fill the leading blank of your
+      number while a throw-away or another blank is still open — there's nowhere better for it once
+      everything else is full. The bot always adds correctly, but how well it decides inside-vs-throwaway
+      changes with difficulty.
+    </div>
+  </div>
+
+  <!-- ROUND SCREEN -->
+  <div class="card hidden" id="screen-round">
+    <div id="blanks-wrap">
+      <div class="group-label">Your number</div>
+      <div class="blank-group" id="human-inside"></div>
+      <div class="group-label">Throw away</div>
+      <div class="blank-group" id="human-throw"></div>
+
+      <div class="bot-mirror">
+        <div class="group-label">Bot's number</div>
+        <div class="blank-group" id="bot-inside"></div>
+        <div class="group-label">Bot's throw away</div>
+        <div class="blank-group" id="bot-throw"></div>
+      </div>
+    </div>
+
+    <div id="current-digit-wrap" class="hidden"></div>
+
+    <div id="roll-btn-wrap">
+      <button class="primary" id="roll-btn">🎲 Roll</button>
+    </div>
+
+    <div id="msg" class="feedback-msg"></div>
+  </div>
+
+  <!-- COMPUTE SCREEN -->
+  <div class="card hidden" id="screen-compute">
+    <div class="section-label" style="text-align:center;">Add up your number</div>
+    <div class="equation-line" id="compute-equation"></div>
+    <div id="answer-row" class="answer-row">
+      <label for="answer-input">Total:</label>
+      <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?"/>
+      <button class="primary" id="check-btn">Check</button>
+    </div>
+    <div id="hint-line" class="hint-line"></div>
+    <div id="compute-msg" class="feedback-msg"></div>
+    <div class="center hidden" id="reveal-wrap">
+      <button class="primary" id="reveal-btn">Reveal results →</button>
+    </div>
+  </div>
+
+  <!-- REVEAL SCREEN -->
+  <div class="card hidden" id="screen-reveal">
+    <div class="compare-grid">
+      <div class="side human">
+        <h3>You</h3>
+        <div class="result-total" id="human-total"></div>
+        <div class="result-status" id="human-status"></div>
+      </div>
+      <div class="side bot">
+        <h3>Bot</h3>
+        <div class="result-total" id="bot-total"></div>
+        <div class="result-status" id="bot-status"></div>
+      </div>
+    </div>
+    <div id="winner-banner"></div>
+    <div class="btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ---------------- blank-structure helpers ----------------
+   Ported from test/pop-addition-bot-simulation.js after that script's
+   head-to-head tier check passed — see CLAUDE.md Bot AI philosophy. */
+
+function rollDie(){ return Math.floor(Math.random()*10); }
+function randInt(n){ return Math.floor(Math.random()*n); }
+
+// Place value of an inside position: leftmost digit of an L-digit addend is
+// worth 10^(L-1), rightmost is worth 10^0.
+function placeWeight(pos, insideLens){
+  if (pos.kind !== 'inside') return 0;
+  const len = insideLens[pos.addend];
+  return Math.pow(10, len - 1 - pos.idx);
+}
+
+function emptyPositions(state){
+  const out = [];
+  state.inside.forEach((arr,a) => arr.forEach((v,i) => { if (v===null) out.push({kind:'inside', addend:a, idx:i}); }));
+  state.throw.forEach((v,i) => { if (v===null) out.push({kind:'throw', idx:i}); });
+  return out;
+}
+
+function isLeadingPos(pos, insideLens){
+  return pos.kind==='inside' && pos.idx===0 && insideLens[pos.addend] > 1;
+}
+
+// Legality rule for where a rolled digit may go. Scuttle's "block only if a
+// nonzero alternative currently exists" doesn't transfer here: Scuttle sees
+// its whole digit pool before deciding, Pop sees one digit at a time with no
+// idea what's still coming. The rule adopted instead: a rolled 0 may not
+// fill an empty *leading* inside-blank while any other kind of empty blank
+// (a non-leading inside position, or a throwaway) still exists — since
+// there's always somewhere less costly to put it. A 0 is only forced into a
+// leading blank when every remaining empty blank is itself a leading blank
+// (so there genuinely is no better option left).
+function legalTargets(digit, state, insideLens){
+  const empties = emptyPositions(state);
+  if (digit !== 0) return empties;
+  const nonLeading = empties.filter(p => !isLeadingPos(p, insideLens));
+  return nonLeading.length > 0 ? nonLeading : empties;
+}
+
+function samePos(a, b){
+  if (a.kind !== b.kind) return false;
+  return a.kind === 'inside' ? (a.addend===b.addend && a.idx===b.idx) : (a.idx===b.idx);
+}
+
+function committedInsideSum(state, insideLens){
+  let sum = 0;
+  state.inside.forEach((arr,a) => arr.forEach((v,i) => {
+    if (v !== null) sum += v * placeWeight({kind:'inside',addend:a,idx:i}, insideLens);
+  }));
+  return sum;
+}
+
+function remainingInsideWeight(state, insideLens){
+  let w = 0;
+  state.inside.forEach((arr,a) => arr.forEach((v,i) => {
+    if (v === null) w += placeWeight({kind:'inside',addend:a,idx:i}, insideLens);
+  }));
+  return w;
+}
+
+function isComplete(state){
+  return state.inside.every(arr => arr.every(v=>v!==null)) && state.throw.every(v=>v!==null);
+}
+
+function emptyState(insideLens, throwaways){
+  return { inside: insideLens.map(len => Array(len).fill(null)), throw: Array(throwaways).fill(null) };
+}
+function cloneState(state){
+  return { inside: state.inside.map(a=>a.slice()), throw: state.throw.slice() };
+}
+function place(state, pos, digit){
+  const next = cloneState(state);
+  if (pos.kind==='inside') next.inside[pos.addend][pos.idx] = digit;
+  else next.throw[pos.idx] = digit;
+  return next;
+}
+
+// Which physical throwaway slot a digit lands in never affects the final
+// sum — they're interchangeable. Collapse them to one representative choice
+// so bot decisions don't waste effort distinguishing options that are
+// actually identical in outcome.
+function distinctChoices(digit, state, insideLens){
+  const legal = legalTargets(digit, state, insideLens);
+  const insideChoices = legal.filter(p => p.kind === 'inside');
+  const throwChoice = legal.find(p => p.kind === 'throw') || null;
+  const choices = insideChoices.slice();
+  if (throwChoice) choices.push(throwChoice);
+  return choices;
+}
+
+/* ---------------- bot strategies ---------------- */
+
+function botEasyPop(digit, state, insideLens){
+  const choices = distinctChoices(digit, state, insideLens);
+  return choices[randInt(choices.length)];
+}
+
+// Medium: fill your most significant remaining inside blank with today's
+// digit if that still projects to land at-or-under target assuming future
+// digits average out to 5 (the midpoint of 0-9); otherwise bin it in a
+// throwaway. Simple and human-plausible — verified empirically (not just
+// assumed) in test/pop-addition-bot-simulation.js, per CLAUDE.md.
+function botMediumPop(digit, state, insideLens, target){
+  const choices = distinctChoices(digit, state, insideLens);
+  if (choices.length === 1) return choices[0];
+  const insideChoices = choices.filter(c => c.kind === 'inside');
+  const throwChoice = choices.find(c => c.kind === 'throw') || null;
+  if (insideChoices.length === 0) return throwChoice;
+
+  insideChoices.sort((a,b) => placeWeight(b,insideLens) - placeWeight(a,insideLens));
+  const bestSlot = insideChoices[0];
+  const weight = placeWeight(bestSlot, insideLens);
+
+  const committed = committedInsideSum(state, insideLens);
+  const projectedNow = committed + digit*weight;
+  const remainingAfter = remainingInsideWeight(state, insideLens) - weight;
+  const projectedWithAvgFuture = projectedNow + remainingAfter * 5;
+
+  if (!throwChoice || projectedWithAvgFuture <= target) return bestSlot;
+  return throwChoice;
+}
+
+function rolloutScore(state, insideLens, target){
+  let s = state;
+  while (!isComplete(s)){
+    const d = rollDie();
+    const choice = botMediumPop(d, s, insideLens, target);
+    s = place(s, choice, d);
+  }
+  const sum = committedInsideSum(s, insideLens);
+  return sum > target ? -1000 : -(target - sum);
+}
+
+// Hard: Monte Carlo lookahead. For each legal placement of the current
+// digit, simulate many random completions of the rest of the game (using
+// Medium's heuristic as the rollout policy for future rolls) and pick the
+// option with the best average outcome — busting scores a large fixed
+// penalty, so this naturally weighs bust probability against closeness,
+// similar in spirit to Scuttle's Hard bot.
+function botHardPop(digit, state, insideLens, target, trials){
+  const choices = distinctChoices(digit, state, insideLens);
+  if (choices.length === 1) return choices[0];
+  let best = null;
+  for (const choice of choices){
+    const placed = place(state, choice, digit);
+    let total = 0;
+    for (let t=0; t<trials; t++) total += rolloutScore(placed, insideLens, target);
+    const avg = total/trials;
+    if (!best || avg > best.avg) best = { choice, avg };
+  }
+  return best.choice;
+}
+
+// The fixed entry point every difficulty dispatches through (see CLAUDE.md
+// Code conventions) — here a per-*roll* decision rather than per-round,
+// since Pop reveals one digit at a time instead of Scuttle's whole pool at
+// once.
+function botChooseRound(digit, state, insideLens, target, difficulty){
+  if (difficulty === 'easy') return botEasyPop(digit, state, insideLens);
+  if (difficulty === 'medium') return botMediumPop(digit, state, insideLens, target);
+  return botHardPop(digit, state, insideLens, target, 120);
+}
+
+/* ---------------- win condition (pure — see CLAUDE.md Code conventions) ---------------- */
+// Smallest-distance-under-target wins; going over is an outright loss
+// regardless of margin. Simultaneous bust isn't covered by the source
+// rules (they only describe one player's own bust as a loss, not how to
+// compare two busts) — treated as a friendly tie, consistent with every
+// other tie in this project.
+function decideWinner(humanSum, humanBusted, botSum, botBusted, target){
+  if (humanBusted && botBusted) return 'tie';
+  if (humanBusted) return 'bot';
+  if (botBusted) return 'human';
+  const humanDist = target - humanSum;
+  const botDist = target - botSum;
+  if (humanDist === botDist) return 'tie';
+  return humanDist < botDist ? 'human' : 'bot';
+}
+
+const FORMATS = {
+  '2+1': { insideLens:[2,1], throwaways:2, target:50,  desc: 'Two blanks plus one blank ( _ _  +  _ ) — max possible sum is 108.' },
+  '2+2': { insideLens:[2,2], throwaways:2, target:100, desc: 'Two blanks plus two blanks ( _ _  +  _ _ ) — max possible sum is 198.' },
+};
+const DIFF_DESC = {
+  easy: 'Drops every rolled digit into a random open blank — inside or throw-away.',
+  medium: 'Fills its biggest remaining place value first, but bins a digit as a throw-away once it would risk going over.',
+  hard: 'Simulates thousands of ways the rest of the rolls could go before deciding where each digit goes.'
+};
+const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- state ---------------- */
+let st = {
+  format: '2+1',
+  difficulty: 'medium',
+  target: 50,
+  insideLens: [2,1],
+  throwaways: 2,
+  totalBlanks: 5,
+  round: 1, // Pop-Addition is single-round; kept for parity with the shared convention / future multi-round Pop variants
+  human: null,
+  bot: null,
+  currentDigit: null,
+  rollsDone: 0,
+  wrongAttempts: 0,
+  finalHumanSum: null,
+  score: { human:0, bot:0, ties:0 }
+};
+
+/* ---------------- element refs ---------------- */
+const el = id => document.getElementById(id);
+const screens = { settings: el('screen-settings'), round: el('screen-round'), compute: el('screen-compute'), reveal: el('screen-reveal') };
+function showScreen(name){
+  Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
+}
+
+/* ---------------- settings screen ---------------- */
+function renderFormatChips(){
+  document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.format === st.format);
+  });
+  el('format-desc').textContent = FORMATS[st.format].desc;
+  el('target-input').value = FORMATS[st.format].target;
+}
+document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.format = btn.dataset.format; renderFormatChips(); });
+});
+function renderDiffChips(){
+  document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  el('diff-desc').textContent = DIFF_DESC[st.difficulty];
+}
+document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
+el('start-btn').addEventListener('click', ()=>{
+  const fmt = FORMATS[st.format];
+  const t = parseInt(el('target-input').value, 10);
+  st.target = isNaN(t) ? fmt.target : Math.max(0, t);
+  st.insideLens = fmt.insideLens.slice();
+  st.throwaways = fmt.throwaways;
+  st.totalBlanks = st.insideLens.reduce((s,l)=>s+l, 0) + st.throwaways;
+  st.score = { human:0, bot:0, ties:0 };
+  updateScorePills();
+  el('target-tag').textContent = st.target;
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', ()=> showScreen('settings'));
+el('change-settings-btn').addEventListener('click', ()=> showScreen('settings'));
+renderFormatChips();
+renderDiffChips();
+
+function updateScorePills(){
+  el('s-wins').textContent = st.score.human;
+  el('s-bwins').textContent = st.score.bot;
+  el('s-ties').textContent = st.score.ties;
+}
+
+/* ---------------- match / round flow ---------------- */
+function startMatch(){
+  st.round = 1;
+  showScreen('round');
+  startRound();
+}
+
+function startRound(){
+  st.human = emptyState(st.insideLens, st.throwaways);
+  st.bot = emptyState(st.insideLens, st.throwaways);
+  st.rollsDone = 0;
+  st.currentDigit = null;
+  st.wrongAttempts = 0;
+  el('roll-btn-wrap').classList.remove('hidden');
+  el('current-digit-wrap').classList.add('hidden');
+  el('current-digit-wrap').innerHTML = '';
+  flashMsg('', false);
+  renderBlanks();
+}
+
+function flashMsg(text, isError){
+  const m = el('msg');
+  m.textContent = text;
+  // toggle a modifier class rather than replacing className outright, so
+  // the base .feedback-msg styling is never silently dropped
+  m.classList.toggle('error', !!isError);
+}
+
+el('roll-btn').addEventListener('click', ()=>{
+  el('roll-btn-wrap').classList.add('hidden');
+  rollNextDigit();
+});
+
+function buildDie(value){
+  const wrap = document.createElement('div');
+  wrap.className = 'die-wrap';
+  const shape = document.createElement('div'); shape.className = 'die-shape';
+  const num = document.createElement('div'); num.className = 'die-num'; num.textContent = value;
+  wrap.appendChild(shape); wrap.appendChild(num);
+  return wrap;
+}
+
+function rollNextDigit(){
+  el('current-digit-wrap').classList.remove('hidden');
+  const wrap = el('current-digit-wrap');
+  let ticks = 0;
+  const spin = setInterval(()=>{
+    wrap.innerHTML = '';
+    wrap.appendChild(buildDie(randInt(10)));
+    ticks++;
+    if (ticks > 6){
+      clearInterval(spin);
+      const digit = randInt(10);
+      st.currentDigit = digit;
+      wrap.innerHTML = '';
+      wrap.appendChild(buildDie(digit));
+      // shared roll: the bot sees and places the same digit right away
+      st.bot = place(st.bot, botChooseRound(digit, st.bot, st.insideLens, st.target, st.difficulty), digit);
+      renderBlanks();
+    }
+  }, 70);
+}
+
+function handleSlotClick(pos){
+  if (st.currentDigit === null) return;
+  const legal = legalTargets(st.currentDigit, st.human, st.insideLens);
+  if (!legal.some(p => samePos(p, pos))){
+    flashMsg("A rolled 0 can't start a number while another blank is still open — try a throw-away or a different blank first.", true);
+    return;
+  }
+  const digit = st.currentDigit;
+  st.human = place(st.human, pos, digit);
+  st.currentDigit = null;
+  st.rollsDone++;
+  el('current-digit-wrap').classList.add('hidden');
+  el('current-digit-wrap').innerHTML = '';
+  flashMsg('', false);
+  renderBlanks();
+
+  if (st.rollsDone < st.totalBlanks){
+    setTimeout(rollNextDigit, 450);
+  } else {
+    setTimeout(goToCompute, 600);
+  }
+}
+
+function renderInsideGroup(containerId, stateSide, clickable){
+  const row = el(containerId);
+  row.innerHTML = '';
+  st.insideLens.forEach((len, a) => {
+    if (a > 0){
+      const plus = document.createElement('span');
+      plus.className = 'plus-sign';
+      plus.textContent = '+';
+      row.appendChild(plus);
+    }
+    for (let i=0; i<len; i++){
+      const digit = stateSide.inside[a][i];
+      const s = document.createElement('div');
+      s.className = 'slot' + (digit !== null ? ' filled' : '');
+      s.textContent = digit !== null ? digit : '';
+      if (clickable && digit === null){
+        s.addEventListener('click', ()=> handleSlotClick({kind:'inside', addend:a, idx:i}));
+      }
+      row.appendChild(s);
+    }
+  });
+}
+
+function renderThrowGroup(containerId, stateSide, clickable){
+  const row = el(containerId);
+  row.innerHTML = '';
+  stateSide.throw.forEach((digit, i) => {
+    const s = document.createElement('div');
+    s.className = 'slot' + (digit !== null ? ' filled' : '');
+    s.textContent = digit !== null ? digit : '';
+    if (clickable && digit === null){
+      s.addEventListener('click', ()=> handleSlotClick({kind:'throw', idx:i}));
+    }
+    row.appendChild(s);
+  });
+}
+
+function renderBlanks(){
+  renderInsideGroup('human-inside', st.human, true);
+  renderThrowGroup('human-throw', st.human, true);
+  renderInsideGroup('bot-inside', st.bot, false);
+  renderThrowGroup('bot-throw', st.bot, false);
+}
+
+/* ---------------- compute (answer-check) phase ---------------- */
+function formatInsideEquation(state, insideLens){
+  return state.inside.map(arr => arr.join('')).join(' + ');
+}
+
+function goToCompute(){
+  showScreen('compute');
+  st.wrongAttempts = 0;
+  el('answer-input').value = '';
+  el('answer-input').disabled = false;
+  el('check-btn').disabled = false;
+  el('compute-msg').textContent = '';
+  el('hint-line').textContent = '';
+  el('reveal-wrap').classList.add('hidden');
+  el('compute-equation').textContent = formatInsideEquation(st.human, st.insideLens) + ' = ?';
+}
+
+el('check-btn').addEventListener('click', checkAnswer);
+el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+
+function checkAnswer(){
+  const guess = parseInt(el('answer-input').value, 10);
+  const correct = committedInsideSum(st.human, st.insideLens);
+  if (isNaN(guess)){
+    flashComputeMsg('Type in a total first.', true);
+    return;
+  }
+  if (guess === correct){
+    flashComputeMsg('That checks out!', false);
+    el('reveal-wrap').classList.remove('hidden');
+    el('answer-input').disabled = true;
+    el('check-btn').disabled = true;
+    st.finalHumanSum = correct;
+  } else {
+    st.wrongAttempts++;
+    flashComputeMsg("That's not quite right — check your work.", true);
+    if (st.wrongAttempts >= 2){
+      el('hint-line').textContent = `Hint: ${formatInsideEquation(st.human, st.insideLens)} = ${correct}`;
+    }
+  }
+}
+
+function flashComputeMsg(text, isError){
+  const m = el('compute-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+/* ---------------- reveal ---------------- */
+el('reveal-btn').addEventListener('click', ()=>{
+  const humanSum = st.finalHumanSum;
+  const botSum = committedInsideSum(st.bot, st.insideLens);
+  const humanBusted = humanSum > st.target;
+  const botBusted = botSum > st.target;
+
+  el('human-total').textContent = humanSum;
+  el('human-status').textContent = humanBusted ? `Popped — ${humanSum - st.target} over` : (humanSum===st.target ? 'Exactly on target!' : `${st.target - humanSum} under`);
+  el('human-status').className = 'result-status ' + (humanBusted ? 'busted' : 'safe');
+
+  el('bot-total').textContent = botSum;
+  el('bot-status').textContent = botBusted ? `Popped — ${botSum - st.target} over` : (botSum===st.target ? 'Exactly on target!' : `${st.target - botSum} under`);
+  el('bot-status').className = 'result-status ' + (botBusted ? 'busted' : 'safe');
+
+  const winner = decideWinner(humanSum, humanBusted, botSum, botBusted, st.target);
+
+  const banner = el('winner-banner');
+  if (winner === 'tie'){
+    banner.textContent = (humanBusted && botBusted) ? 'Both balloons popped — a tie!' : "It's a tie — you both win! 🤝";
+    st.score.ties++;
+  } else if (winner === 'human'){
+    banner.textContent = botBusted ? "Bot's balloon popped — you win! 🎉" : 'You win this match! 🎉';
+    st.score.human++;
+  } else {
+    banner.textContent = humanBusted ? 'Your balloon popped — bot wins.' : 'Bot wins this match.';
+    st.score.bot++;
+  }
+  updateScorePills();
+  showScreen('reveal');
+});
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen('settings');
+</script>
+</body>
+</html>
