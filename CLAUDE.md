@@ -10,7 +10,7 @@ dependencies beyond Google Fonts), sharing a common design system.
 - `scuttle-addition-subtraction.html` — closest-to-target, build 1 number/round
 - `scuttle-product.html` — split shared dice into 2 numbers, multiply, smallest-sum-over-threshold wins
 - `pop-addition.html` — one shared digit revealed at a time, sequential/irrevocable placement into inside-blanks or throwaways, closest-to-target-without-busting wins (busting = instant loss).
-- `pop-subtraction.html` — same Pop engine, generalized to a *signed* place-value per inside addend (minuend positive, subtrahend negative) so the inside value is minuend − subtrahend and can go negative. Bot tiers re-verified from scratch for this, not assumed from Addition Pop (see `test/pop-subtraction-bot-simulation.js`).
+- `pop-subtraction.html` — same Pop engine, generalized to a *signed* place-value per inside addend (minuend positive, subtrahend negative) so the inside value is minuend − subtrahend. Busting has two causes here, not one: going over the target, OR the difference coming out negative (both are an outright pop, per the real rules — a negative result is NOT just "far below target," it shipped that way once and got caught/fixed, see Known Traps). Bot tiers re-verified from scratch, not assumed from Addition Pop (see `test/pop-subtraction-bot-simulation.js`).
 - `beeline-product.html` — turn-based, deterministic, no dice: two shared tokens move along a 1-9 row, their product gets marked on a fixed 36-cell grid, first to connect four in a row wins. A genuinely different game shape than Scuttle/Pop (adversarial, perfect-information) — see Bot AI philosophy below for how that changed the bot design and verification approach. New shared component: `components/claim-grid.css`.
 - `scuttle-menu.html` — hub/landing page with an NES-style boot sequence, links out to each game, grouped under "Scuttle"/"Pop"/"Beeline" section labels. Rebranded from "SCUTTLE" to "BEAST" for the H1/boot-logo/`<title>` (the boot sequence's own "BEAST CLASSROOM presents" byline was already the real umbrella brand — this just brought the logo/H1 in line with it) now that it hosts three different games; the per-family section labels ("Scuttle", "Pop", "Beeline") correctly kept their own names.
 
@@ -180,6 +180,22 @@ For every new game, before considering it done:
 - **Leading zeros:** any digit-arrangement game needs a "can't start with 0
   unless forced" rule (check the whole shared digit pool, not just the
   current number, since digits are often split across two numbers).
+- **A catalog's mechanic summary can be identical across variants that
+  are NOT actually identical.** `pop-subtraction.html` shipped (and got
+  committed) with only one bust cause — going over the target — because
+  that's the only cause Addition Pop has, and the catalog's one-line
+  summary ("different expression template") gave no reason to suspect
+  Subtraction Pop's bust rule was different in kind, not just in formula.
+  The real Teacher Instructions doc says a *negative* difference busts
+  the balloon too, exactly like going over does — caught only when the
+  full doc for every Pop variant was fetched at once and read end to end,
+  not by pattern-matching "same engine family" from the catalog. Fixed:
+  `isBusted()` now checks both directions, and Medium/Hard's risk
+  projections check both bounds, not just the upper one — see
+  `test/pop-subtraction-bot-simulation.js`. **When a family's variants
+  share an engine, still read each variant's own rules text for its win
+  condition specifically — "same expression-building mechanic" does not
+  imply "same bust condition."**
 - **A rules doc describes mechanics, not a physical board's exact spatial
   layout.** Product Beeline's 36-cell grid arrangement in `beeline-
   product.html` (which value sits in which cell) is a placeholder I
@@ -210,17 +226,49 @@ For every new game, before considering it done:
 ## Suggested next steps, in priority order
 
 1. **More Pop variants** — `pop-addition.html` and `pop-subtraction.html`
-   are built; ~9 more per the catalog. `insideLens`/`insideSigns`/
-   `throwaways`/`target` already generalize to any number of signed
-   addends, so **Expression** and **Big Number Pop** (still just a linear
-   sum/difference of blanks) are direct reuse. **Perimeter Pop** needs one
-   real extension: a per-addend *coefficient*, not just a ±1 sign (e.g. a
-   rectangle's perimeter is `2*length + 2*width`) — still a linear
-   combination, so the same engine shape, just generalize sign→coefficient
-   and re-verify the bots. **Multiplication Pop** and the Fraction/Mixed-
-   Number variants are NOT this engine — they need a product, not a linear
-   combination — so design those closer to Product Scuttle's engine, and
-   don't force-fit them into `committedInsideSum`.
+   are built; ~9 more per the catalog. The catalog's one-line mechanic
+   summary is identical for every one of these ("different expression
+   template") and is NOT enough to design from — it hid that Subtraction
+   Pop's real bust rule has two causes (fixed after shipping wrong once,
+   see Known Traps), so the real Teacher Instructions text was fetched for
+   the base game + every variant below before writing any of this list.
+   Don't build any of these from the catalog line alone.
+   - **Expression Pop**: a fixed, longer +/- sequence than Add/Sub Pop
+     (e.g. `_ _ + _ _ − _`), optionally with parentheses in later grades
+     (skip parentheses for v1, note it as a stretch). Direct reuse of
+     `insideLens`/`insideSigns`/`committedInsideSum` (already supports any
+     number of signed addends) — but it has the SAME two-cause bust rule
+     as Subtraction Pop (over target, OR a negative running value), so
+     port `isBusted`, not just the addend-sign machinery.
+   - **Perimeter Pop**: a shape's side lengths (rectangle = 2 distinct
+     lengths, each used twice; later triangle/pentagon = more distinct
+     sides). Needs one real engine extension: a per-addend integer
+     *coefficient* (generalize `insideSigns`'s ±1 to e.g. `[2,2]` for a
+     rectangle), not just sign — still a linear combination, so the same
+     engine shape, just generalize and re-verify the bots. Only ONE bust
+     cause here (over target) — side lengths can't go negative.
+   - **Big Number Pop is NOT this engine at all** (corrected — an earlier
+     version of this note wrongly called it "direct reuse"). It's a
+     single number (no addition/subtraction), and its base rule has no
+     bust-if-over condition — the "Two Winners" modification explicitly
+     awards a closest-below AND a closest-above winner, which only makes
+     sense if going over isn't a loss in the base game. This is Scuttle
+     Add/Sub's plain closest-to-target win condition wearing Pop's
+     sequential-one-digit-at-a-time UI — a real hybrid, design it as such.
+   - **Powers of Ten Pop** has no target number at all, and its win
+     condition is a secret-decimal-placement + ranking/elimination scheme
+     ("largest pops, then largest of the remaining wins") — nothing like
+     any engine built so far. Design fresh.
+   - **Multiplication Pop** draws from a depleting half-deck of cards
+     (digits become unavailable once drawn), not a repeatable die roll —
+     a genuinely new resource-tracking mechanic on top of needing a
+     product (Product Scuttle's engine, not `committedInsideSum`).
+   - **Fraction/Mixed-Number variants** (Fraction Multiplication,
+     Fraction Add/Sub, Mixed Number Multiplication, Mixed Number Add/Sub)
+     all need real fraction math (multiply, add/subtract unlike
+     denominators, simplify) and fractional display — a new component,
+     not a value-function swap. Don't lump these in as "just another Pop
+     variant."
 2. **More Beeline variants** — `beeline-product.html` (the one-row case) is
    built; ~14 more per the catalog, most needing the *two-row* case
    (Addition/Difference Beeline are the natural next pick: one token per

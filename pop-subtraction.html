@@ -68,7 +68,9 @@
       or erased. Keep going until every blank is full. Your inside number is the first blank group
       <strong>minus</strong> the second — that difference is what's compared to the target. Whoever's
       difference lands <strong>closest to the target without going over</strong> wins — going over pops
-      your balloon and you lose outright, no matter how close you were. Ties are friendly! A rolled 0
+      your balloon and you lose outright, no matter how close you were. Subtracting more than you have
+      pops your balloon too — a negative difference is an automatic loss, not just a bad score. Ties are
+      friendly! A rolled 0
       can't fill the leading blank of either inside number while a throw-away or another blank is still
       open — there's nowhere better for it once everything else is full. The bot always subtracts
       correctly, but how well it decides inside-vs-throwaway changes with difficulty.
@@ -259,7 +261,10 @@ function botMediumPop(digit, state, insideLens, insideSigns, target){
   const remainingAfter = remainingInsideWeight(state, insideLens, insideSigns) - weight;
   const projectedWithAvgFuture = projectedNow + remainingAfter * 5;
 
-  if (!throwChoice || projectedWithAvgFuture <= target) return bestSlot;
+  // Safe means projecting to land within [0, target] — going negative
+  // busts exactly like exceeding target does, so the same projection gets
+  // checked against both bounds, not just the upper one.
+  if (!throwChoice || (projectedWithAvgFuture >= 0 && projectedWithAvgFuture <= target)) return bestSlot;
   return throwChoice;
 }
 
@@ -271,7 +276,7 @@ function rolloutScore(state, insideLens, insideSigns, target){
     s = place(s, choice, d);
   }
   const sum = committedInsideSum(s, insideLens, insideSigns);
-  return sum > target ? -1000 : -(target - sum);
+  return (sum > target || sum < 0) ? -1000 : -(target - sum);
 }
 
 // Hard: Monte Carlo lookahead, identical in structure to Addition Pop's —
@@ -302,10 +307,14 @@ function botChooseRound(digit, state, insideLens, insideSigns, target, difficult
 }
 
 /* ---------------- win condition (pure — see CLAUDE.md Code conventions) ---------------- */
-// Same shape as Addition Pop, unchanged: target - insideValue still
-// measures "how far below target," correctly even when insideValue goes
-// negative (a very negative difference just reads as very far below
-// target, not a bust — busting only happens from going OVER).
+// Same shape as Addition Pop, and decideWinner itself is unchanged — but
+// unlike Addition Pop, "busted" here has two distinct causes (see
+// isBusted() above): going over the target, OR the difference itself
+// coming out negative. Per the real rules, a negative difference pops the
+// balloon exactly like exceeding target does — it does NOT just read as
+// "far below target." Callers are responsible for computing `humanBusted`/
+// `botBusted` with both conditions; by the time a non-busted sum reaches
+// the distance math below, it's guaranteed to be in [0, target].
 function decideWinner(humanSum, humanBusted, botSum, botBusted, target){
   if (humanBusted && botBusted) return 'tie';
   if (humanBusted) return 'bot';
@@ -320,7 +329,7 @@ const FORMATS = {
   '2-1': { insideLens:[2,1], insideSigns:[1,-1], throwaways:2, target:50,
     desc: 'Two blanks minus one blank ( _ _  −  _ ) — always a positive difference, 1 to 99.' },
   '2-2': { insideLens:[2,2], insideSigns:[1,-1], throwaways:2, target:40,
-    desc: 'Two blanks minus two blanks ( _ _  −  _ _ ) — the difference can go negative, -89 to 89.' },
+    desc: 'Two blanks minus two blanks ( _ _  −  _ _ ) — the subtrahend can exceed the minuend (a negative difference pops your balloon too), so the safe range is 0 to 89.' },
 };
 const DIFF_DESC = {
   easy: 'Drops every rolled digit into a random open blank — inside or throw-away.',
@@ -588,18 +597,30 @@ function flashComputeMsg(text, isError){
 }
 
 /* ---------------- reveal ---------------- */
+// Busting has two distinct causes here (unlike Addition Pop): going over
+// the target, or the difference itself coming out negative (subtracting
+// more than the minuend had) — the real rules treat both as an outright
+// pop, regardless of margin.
+function isBusted(sum, target){ return sum > target || sum < 0; }
+function statusText(sum, target){
+  if (sum > target) return `Popped — ${sum - target} over`;
+  if (sum < 0) return 'Popped — negative difference!';
+  if (sum === target) return 'Exactly on target!';
+  return `${target - sum} under`;
+}
+
 el('reveal-btn').addEventListener('click', ()=>{
   const humanSum = st.finalHumanSum;
   const botSum = committedInsideSum(st.bot, st.insideLens, st.insideSigns);
-  const humanBusted = humanSum > st.target;
-  const botBusted = botSum > st.target;
+  const humanBusted = isBusted(humanSum, st.target);
+  const botBusted = isBusted(botSum, st.target);
 
   el('human-total').textContent = humanSum;
-  el('human-status').textContent = humanBusted ? `Popped — ${humanSum - st.target} over` : (humanSum===st.target ? 'Exactly on target!' : `${st.target - humanSum} under`);
+  el('human-status').textContent = statusText(humanSum, st.target);
   el('human-status').className = 'result-status ' + (humanBusted ? 'busted' : 'safe');
 
   el('bot-total').textContent = botSum;
-  el('bot-status').textContent = botBusted ? `Popped — ${botSum - st.target} over` : (botSum===st.target ? 'Exactly on target!' : `${st.target - botSum} under`);
+  el('bot-status').textContent = statusText(botSum, st.target);
   el('bot-status').className = 'result-status ' + (botBusted ? 'busted' : 'safe');
 
   const winner = decideWinner(humanSum, humanBusted, botSum, botBusted, st.target);

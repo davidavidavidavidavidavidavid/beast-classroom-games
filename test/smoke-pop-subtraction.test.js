@@ -120,18 +120,22 @@ async function main() {
   const result = runInPage(dom, () => {
     const humanSum = st.finalHumanSum;
     const botSum = committedInsideSum(st.bot, st.insideLens, st.insideSigns);
+    // isBusted (real page function) covers both bust causes: over target,
+    // or the difference itself coming out negative.
+    const humanBusted = isBusted(humanSum, st.target);
+    const botBusted = isBusted(botSum, st.target);
     return {
       target: st.target,
       humanSum,
       botSum,
-      humanBusted: humanSum > st.target,
-      botBusted: botSum > st.target,
+      humanBusted,
+      botBusted,
       shownHumanTotal: Number(el('human-total').textContent),
       shownBotTotal: Number(el('bot-total').textContent),
       humanStatusClass: el('human-status').className,
       botStatusClass: el('bot-status').className,
       banner: el('winner-banner').textContent,
-      computedWinner: decideWinner(humanSum, humanSum > st.target, botSum, botSum > st.target, st.target),
+      computedWinner: decideWinner(humanSum, humanBusted, botSum, botBusted, st.target),
     };
   });
 
@@ -144,6 +148,26 @@ async function main() {
     ? 'tie'
     : (result.banner.toLowerCase().includes('you win') ? 'human' : 'bot');
   assert.strictEqual(bannerWinner, result.computedWinner, "the banner shown should agree with decideWinner's verdict on the real sums/bust flags");
+
+  // --- Deterministic probe of the negative-difference bust rule ---
+  // The real playthrough above may or may not happen to land on a
+  // negative sum, so this checks isBusted/statusText/decideWinner
+  // directly against synthetic values, exercising the real page
+  // functions rather than reimplementing the rule.
+  const negProbe = runInPage(dom, () => ({
+    negativeIsBusted: isBusted(-5, st.target),
+    zeroIsSafe: isBusted(0, st.target),
+    overIsBusted: isBusted(st.target + 1, st.target),
+    onTargetIsSafe: isBusted(st.target, st.target),
+    negativeStatusText: statusText(-5, st.target),
+    negativeBeatsNothing: decideWinner(-5, isBusted(-5, st.target), 10, isBusted(10, st.target), st.target),
+  }));
+  assert.strictEqual(negProbe.negativeIsBusted, true, 'a negative difference must be busted, per the real rules (not just "far below target")');
+  assert.strictEqual(negProbe.zeroIsSafe, false, 'exactly zero is not negative and not over target — should be safe');
+  assert.strictEqual(negProbe.overIsBusted, true, 'exceeding target should still bust, same as before this fix');
+  assert.strictEqual(negProbe.onTargetIsSafe, false, 'landing exactly on target should still be safe');
+  assert.strictEqual(negProbe.negativeStatusText, 'Popped — negative difference!', 'the status text should name the actual cause, not describe it as merely "under" target');
+  assert.strictEqual(negProbe.negativeBeatsNothing, 'bot', 'a busted negative sum must lose outright to any safe sum, regardless of numeric distance to target');
 
   console.log('  ✅ pop-subtraction.html: full playthrough smoke test passed');
   console.log(`     leading-zero block verified | throw-away used: yes | minuend-subtrahend math verified | target=${result.target} | human ${result.humanSum} (${result.humanBusted ? 'BUSTED' : 'safe'}) | bot ${result.botSum} (${result.botBusted ? 'BUSTED' : 'safe'}) | winner=${result.computedWinner}`);

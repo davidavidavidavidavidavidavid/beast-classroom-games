@@ -3,14 +3,23 @@
  * tiers. Run BEFORE writing pop-subtraction.html, per CLAUDE.md's Bot AI
  * philosophy.
  *
- * This is NOT just a copy of Addition Pop's engine. Subtraction needs the
- * second operand's digits to count *negatively* toward the inside value
- * (minuend - subtrahend), via a signed place-weight per addend rather than
- * every addend being purely additive. That changes what "risky" means for
- * Medium's heuristic — a big digit in a *subtracted* slot is safe (it drives
- * the value down, away from busting), the opposite of an added slot — so
- * Medium's formula is re-derived here, not assumed to carry over, and gets
- * the same empirical head-to-head check as Addition Pop's did.
+ * This is NOT just a copy of Addition Pop's engine, in two ways:
+ *  1. Subtraction needs the second operand's digits to count *negatively*
+ *     toward the inside value (minuend - subtrahend), via a signed
+ *     place-weight per addend rather than every addend being purely
+ *     additive — a big digit in a subtracted slot pulls the value DOWN,
+ *     the opposite of an added slot.
+ *  2. Busting has TWO distinct causes here, not one: going over the
+ *     target (same as Addition Pop), OR the difference coming out
+ *     negative (subtracting more than the minuend had) — per the real
+ *     Teacher Instructions doc, both are an outright pop. A big digit in
+ *     a subtracted slot is only safe up to a point — pull the value down
+ *     too far and it busts too, just from the other direction. Medium's
+ *     projection formula and Hard's rollout scoring both check against
+ *     BOTH bounds (0 and target), not just the upper one.
+ * Neither of these was assumed to carry over from Addition Pop — both got
+ * the same empirical head-to-head check mandated by CLAUDE.md's Bot AI
+ * philosophy.
  *
  * Run: node test/pop-subtraction-bot-simulation.js
  */
@@ -122,7 +131,10 @@ function botMediumPop(digit, state, insideLens, insideSigns, target) {
   const remainingAfter = remainingInsideWeight(state, insideLens, insideSigns) - weight;
   const projectedWithAvgFuture = projectedNow + remainingAfter * 5;
 
-  if (!throwChoice || projectedWithAvgFuture <= target) return bestSlot;
+  // Safe means projecting to land within [0, target] — going negative
+  // busts exactly like exceeding target does (see decideWinner below), so
+  // the same projection gets checked against both bounds.
+  if (!throwChoice || (projectedWithAvgFuture >= 0 && projectedWithAvgFuture <= target)) return bestSlot;
   return throwChoice;
 }
 
@@ -134,7 +146,7 @@ function rolloutScore(state, insideLens, insideSigns, target) {
     s = place(s, choice, d);
   }
   const sum = committedInsideSum(s, insideLens, insideSigns);
-  return sum > target ? -1000 : -(target - sum);
+  return (sum > target || sum < 0) ? -1000 : -(target - sum);
 }
 
 function botHardPop(digit, state, insideLens, insideSigns, target, trials) {
@@ -157,9 +169,15 @@ function botChooseRound(digit, state, insideLens, insideSigns, target, difficult
   return botHardPop(digit, state, insideLens, insideSigns, target, 120);
 }
 
-/* ---------------- win condition (pure) — identical shape to Addition Pop;
-   target - insideValue still measures "how far below target," and stays
-   correct even when insideValue goes negative. ---------------- */
+// Busting has two distinct causes here (unlike Addition Pop): going over
+// the target, or the difference itself coming out negative. Per the real
+// rules both are an outright pop, so callers must OR both conditions into
+// humanBusted/botBusted before calling decideWinner (see isBusted below).
+function isBusted(sum, target) { return sum > target || sum < 0; }
+
+/* ---------------- win condition (pure) — same shape as Addition Pop;
+   decideWinner itself is unchanged. By the time a non-busted sum reaches
+   the distance math below, isBusted() guarantees it's in [0, target]. ---------------- */
 function decideWinner(humanSum, humanBusted, botSum, botBusted, target) {
   if (humanBusted && botBusted) return 'tie';
   if (humanBusted) return 'bot';
@@ -187,7 +205,7 @@ function playMatch(insideLens, insideSigns, throwaways, target, diffA, diffB) {
   }
   const sumA = committedInsideSum(a, insideLens, insideSigns);
   const sumB = committedInsideSum(b, insideLens, insideSigns);
-  return decideWinner(sumA, sumA > target, sumB, sumB > target, target);
+  return decideWinner(sumA, isBusted(sumA, target), sumB, isBusted(sumB, target), target);
 }
 
 function headToHead(insideLens, insideSigns, throwaways, target, diffA, diffB, matches) {
