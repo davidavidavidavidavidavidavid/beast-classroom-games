@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scuttle: Addition &amp; Subtraction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Press Start 2P for the title only; Rubik for all UI, body text, and math -->
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/dice-slot.css">
+</head>
+<body>
+<div id="app">
+
+  <h1>SCUTTLE</h1>
+  <div class="kicker-wrap"><span class="kicker">Addition &amp; Subtraction</span></div>
+  <div id="tagline">Get as close as you can to <b id="target-tag">500</b>.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Round <b id="s-round">1</b>/3</div>
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill">You <b id="s-wins">0</b> · Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS SCREEN -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Bot difficulty</div>
+    <div class="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+    <div id="diff-desc"></div>
+
+    <div class="section-label">Target number</div>
+    <div class="target-row">
+      <input type="number" id="target-input" value="500" min="0" max="999" inputmode="numeric"/>
+      <label class="small">the number to land closest to</label>
+    </div>
+    <div class="btn-row">
+      <button id="random-target-btn">🎲 Random target</button>
+      <button class="primary" id="start-btn">Start game</button>
+    </div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      Each round, roll three digits and arrange them into a 3-digit number — you choose which digit goes in the
+      hundreds, tens, and ones place. (The hundreds place can't be a 0, unless every digit you rolled is a 0.)
+      After three rounds you'll have three numbers. Put them in whatever order you like, then choose to
+      <strong>add or subtract</strong> the second and third from the first, and type in the total.
+      Whoever's total lands <strong>closest</strong> to the target wins. Exact ties are friendly — you both win!
+      The bot always calculates correctly, but how well it <em>arranges its digits</em> changes with difficulty.
+    </div>
+  </div>
+
+  <!-- PERSISTENT SCOREBOARD: visible for the whole match, from round 1 through reveal -->
+  <div class="card hidden" id="scorecard">
+    <div class="sc-head"><span></span><span class="you-h">You</span><span class="bot-h">Bot</span></div>
+    <div class="sc-row"><span class="rd-label">Round 1</span><span class="sc-val you empty" id="sc-you-1">–</span><span class="sc-val bot empty" id="sc-bot-1">–</span></div>
+    <div class="sc-row"><span class="rd-label">Round 2</span><span class="sc-val you empty" id="sc-you-2">–</span><span class="sc-val bot empty" id="sc-bot-2">–</span></div>
+    <div class="sc-row"><span class="rd-label">Round 3</span><span class="sc-val you empty" id="sc-you-3">–</span><span class="sc-val bot empty" id="sc-bot-3">–</span></div>
+  </div>
+
+  <!-- ROUND SCREEN -->
+  <div class="card hidden" id="screen-round">
+    <div id="round-label">Round <span id="r-num">1</span> of 3</div>
+
+    <div id="roll-btn-wrap">
+      <button class="primary" id="roll-btn">🎲 Roll dice</button>
+    </div>
+
+    <div id="dice-row" class="hidden"></div>
+
+    <div id="slots-wrap" class="hidden">
+      <div class="slot-labels"><span>Hun</span><span>Ten</span><span>One</span></div>
+      <div id="slots-row"></div>
+    </div>
+
+    <div id="lock-wrap" class="hidden">
+      <button class="primary" id="lock-btn" disabled>Lock in number</button>
+    </div>
+
+    <div id="msg" class="feedback-msg"></div>
+
+    <div class="center hidden" id="next-round-wrap" style="margin-top:12px;">
+      <button class="primary" id="next-round-btn">Next round →</button>
+    </div>
+  </div>
+
+  <!-- COMPUTE SCREEN -->
+  <div class="card hidden" id="screen-compute">
+    <div class="section-label" style="text-align:center;">Reorder, pick +/−, then solve</div>
+    <div class="equation-row" id="equation-row"></div>
+    <div id="answer-row">
+      <label for="answer-input">Total:</label>
+      <input type="number" id="answer-input" inputmode="numeric" placeholder="?"/>
+      <button class="primary" id="check-btn">Check</button>
+    </div>
+    <div id="hint-line"></div>
+    <div id="compute-msg" class="feedback-msg"></div>
+    <div class="center hidden" id="reveal-wrap">
+      <button class="primary" id="reveal-btn">Reveal results →</button>
+    </div>
+  </div>
+
+  <!-- REVEAL SCREEN -->
+  <div class="card hidden" id="screen-reveal">
+    <div class="compare-grid">
+      <div class="side human">
+        <h3>You</h3>
+        <div class="result-eq" id="human-eq"></div>
+        <div class="result-total" id="human-total"></div>
+        <div class="result-dist" id="human-dist"></div>
+      </div>
+      <div class="side bot">
+        <h3>Bot</h3>
+        <div class="result-eq" id="bot-eq"></div>
+        <div class="result-total" id="bot-total"></div>
+        <div class="result-dist" id="bot-dist"></div>
+      </div>
+    </div>
+    <div id="winner-banner"></div>
+    <div class="btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ---------------- core math helpers ---------------- */
+function rollDie(){ return Math.floor(Math.random()*10); }
+function rollThree(){ return [rollDie(), rollDie(), rollDie()]; }
+
+const IDX_PERMS = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+
+// Unique 3-digit values from arranging `digits`. Leading zeros (a 0 in the
+// hundreds place) are excluded unless every digit is a 0, in which case
+// there is no valid alternative and we fall back to allowing it.
+function uniquePerms(digits){
+  const seen = new Set(); const out = [];
+  for (const p of IDX_PERMS){
+    const d0 = digits[p[0]], d1 = digits[p[1]], d2 = digits[p[2]];
+    if (d0 === 0) continue;
+    const val = d0*100 + d1*10 + d2;
+    if (!seen.has(val)){ seen.add(val); out.push(val); }
+  }
+  if (out.length === 0){
+    for (const p of IDX_PERMS){
+      const val = digits[p[0]]*100 + digits[p[1]]*10 + digits[p[2]];
+      if (!seen.has(val)){ seen.add(val); out.push(val); }
+    }
+  }
+  return out;
+}
+
+// Every achievable final result: for each way to arrange round-3's digits,
+// pick which of the three numbers sits "first" (no sign choice) and freely
+// add/subtract the other two. This mirrors the human's ability to reorder
+// all three numbers before choosing operators. Returned sorted best-first.
+function allRound3Combos(n1, n2, digits3, target){
+  const perms = uniquePerms(digits3);
+  const combos = [];
+  for (const v of perms){
+    const nums = [n1, n2, v];
+    for (let baseIdx=0; baseIdx<3; baseIdx++){
+      const others = [0,1,2].filter(i => i!==baseIdx);
+      for (const s1 of [1,-1]){
+        for (const s2 of [1,-1]){
+          const total = nums[baseIdx] + s1*nums[others[0]] + s2*nums[others[1]];
+          const dist = Math.abs(total-target);
+          combos.push({ v, baseIdx, others, signs:[s1,s2], total, dist });
+        }
+      }
+    }
+  }
+  combos.sort((a,b) => a.dist - b.dist);
+  return combos;
+}
+
+// Fully-informed optimum for the final roll. Used for planning (the Monte
+// Carlo lookahead below always assumes this exact play) and for Medium/Hard's
+// actual round-3 decision, since by round 3 nothing is left to chance.
+function evalRound3(n1, n2, digits3, target){
+  const combos = allRound3Combos(n1, n2, digits3, target);
+  const best = combos[0];
+  return { v: best.v, combo: best, dist: best.dist, total: best.total };
+}
+
+// Easy's actual round-3 decision: even with full information, it doesn't
+// reliably find the single best answer — it settles for either the best or
+// the next-best achievable total, picked at random.
+function evalRound3Easy(n1, n2, digits3, target){
+  const combos = allRound3Combos(n1, n2, digits3, target);
+  const bestDist = combos[0].dist;
+  const secondIdx = combos.findIndex(c => c.dist > bestDist);
+  const pool = secondIdx === -1 ? [combos[0]] : [combos[0], combos[secondIdx]];
+  const chosen = pool[randInt(pool.length)];
+  return { v: chosen.v, combo: chosen, dist: chosen.dist, total: chosen.total };
+}
+
+/* ---------------- bot strategies (rounds 1 & 2 only) ---------------- */
+function randInt(n){ return Math.floor(Math.random()*n); }
+
+function botEasy(digits){
+  const perms = uniquePerms(digits);
+  return perms[randInt(perms.length)];
+}
+
+// Medium is deliberately myopic: it aims every number at a flat "fair
+// share" of the target and never reasons about how it might reorder or
+// re-sign numbers later. That reasoning is reserved for Hard.
+function botMedium(digits, target){
+  const perms = uniquePerms(digits);
+  let best = null;
+  for (const v of perms){
+    const d = Math.abs(v - target/3);
+    if (!best || d < best.d) best = { v, d };
+  }
+  return best.v;
+}
+
+// Hard bot: approximates the true expected value of each choice by sampling
+// many possible future rolls, rather than reasoning about only one target.
+function hardEvalRound2(n1, digits2, target, innerSamples){
+  const perms = uniquePerms(digits2);
+  let best = null;
+  for (const v2 of perms){
+    let sum = 0;
+    for (let i=0;i<innerSamples;i++){
+      const r3 = evalRound3(n1, v2, rollThree(), target);
+      sum += r3.dist;
+    }
+    const avg = sum/innerSamples;
+    if (!best || avg < best.avg) best = { v2, avg };
+  }
+  return best.v2;
+}
+
+function hardEvalRound1(digits1, target, outerSamples, innerSamples){
+  const perms = uniquePerms(digits1);
+  let best = null;
+  for (const v1 of perms){
+    let sum = 0;
+    for (let i=0;i<outerSamples;i++){
+      const v2 = hardEvalRound2(v1, rollThree(), target, innerSamples);
+      const r3 = evalRound3(v1, v2, rollThree(), target);
+      sum += r3.dist;
+    }
+    const avg = sum/outerSamples;
+    if (!best || avg < best.avg) best = { v1, avg };
+  }
+  return best.v1;
+}
+
+function botChooseRound(round, digits, n1, target, difficulty){
+  if (difficulty === 'easy') return botEasy(digits);
+  if (difficulty === 'medium') return botMedium(digits, target);
+  if (round === 1) return hardEvalRound1(digits, target, 45, 55);
+  return hardEvalRound2(n1, digits, target, 220);
+}
+
+const DIFF_DESC = {
+  easy: "Shuffles its digits at random, and even at the end sometimes settles for its second-best total instead of the best.",
+  medium: "Aims each number at a fair share of the target — steady, not deep.",
+  hard: "Simulates thousands of possible future rolls before committing to a number."
+};
+const DIFF_NAME = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+
+/* ---------------- state ---------------- */
+let st = {
+  difficulty: 'medium',
+  target: 500,
+  round: 1,
+  humanNums: [],
+  botNums: [],
+  botMeta: [],
+  roll: null,
+  slotAssignment: [null,null,null],
+  score: { human: 0, bot: 0, ties: 0 },
+  order: [0,1,2],   // display order of humanNums for the compute phase
+  ops: [1,1],       // signs applied to displayed position 1 and 2
+  wrongAttempts: 0,
+  finalHumanTotal: null
+};
+
+/* ---------------- element refs ---------------- */
+const el = id => document.getElementById(id);
+const screens = { settings: el('screen-settings'), round: el('screen-round'), compute: el('screen-compute'), reveal: el('screen-reveal') };
+function showScreen(name){
+  Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
+  // The scoreboard stays visible for the whole match (round -> compute -> reveal)
+  // and is only tucked away while the player is on the settings screen.
+  el('scorecard').classList.toggle('hidden', name === 'settings');
+}
+
+/* ---------------- settings screen ---------------- */
+function renderDiffChips(){
+  document.querySelectorAll('.diff-row [data-diff]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  el('diff-desc').textContent = DIFF_DESC[st.difficulty];
+}
+document.querySelectorAll('.diff-row [data-diff]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+el('random-target-btn').addEventListener('click', ()=>{
+  el('target-input').value = 100 + randInt(900);
+});
+el('how-link').addEventListener('click', ()=>{
+  el('rules-box').classList.toggle('hidden');
+});
+el('start-btn').addEventListener('click', ()=>{
+  const t = parseInt(el('target-input').value, 10);
+  st.target = isNaN(t) ? 500 : Math.max(0, Math.min(999, t));
+  st.score = { human:0, bot:0, ties:0 };
+  updateScorePills();
+  el('target-tag').textContent = st.target;
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', ()=>{ showScreen('settings'); });
+el('change-settings-btn').addEventListener('click', ()=>{ showScreen('settings'); });
+renderDiffChips();
+
+function updateScorePills(){
+  el('s-wins').textContent = st.score.human;
+  el('s-bwins').textContent = st.score.bot;
+  el('s-ties').textContent = st.score.ties;
+}
+
+/* ---------------- persistent scoreboard ---------------- */
+function resetScorecard(){
+  for (let i=1;i<=3;i++){
+    const y = el('sc-you-'+i), b = el('sc-bot-'+i);
+    y.textContent = '–'; y.classList.add('empty');
+    b.textContent = '–'; b.classList.add('empty');
+  }
+}
+function updateScorecard(){
+  st.humanNums.forEach((v,i)=>{
+    const y = el('sc-you-'+(i+1));
+    y.textContent = v; y.classList.remove('empty');
+  });
+  st.botNums.forEach((v,i)=>{
+    const b = el('sc-bot-'+(i+1));
+    b.textContent = v; b.classList.remove('empty');
+  });
+}
+
+/* ---------------- match / round flow ---------------- */
+function startMatch(){
+  st.round = 1;
+  st.humanNums = [];
+  st.botNums = [];
+  st.botMeta = [];
+  st.order = [0,1,2];
+  st.ops = [1,1];
+  el('s-round').textContent = st.round;
+  resetScorecard();
+  showScreen('round');
+  startRound();
+}
+
+function startRound(){
+  st.roll = null;
+  st.slotAssignment = [null,null,null];
+  el('r-num').textContent = st.round;
+  el('roll-btn-wrap').classList.remove('hidden');
+  el('dice-row').classList.add('hidden');
+  el('slots-wrap').classList.add('hidden');
+  el('lock-wrap').classList.add('hidden');
+  el('next-round-wrap').classList.add('hidden');
+  el('msg').textContent = '';
+  el('msg').className = '';
+}
+
+el('roll-btn').addEventListener('click', rollDice);
+function rollDice(){
+  el('roll-btn-wrap').classList.add('hidden');
+  el('dice-row').classList.remove('hidden');
+
+  let ticks = 0;
+  const diceRow = el('dice-row');
+  const spin = setInterval(()=>{
+    diceRow.innerHTML = '';
+    for (let i=0;i<3;i++){
+      diceRow.appendChild(buildDie(randInt(10), false, false));
+    }
+    ticks++;
+    if (ticks > 6){
+      clearInterval(spin);
+      st.roll = rollThree();
+      renderDice();
+      el('slots-wrap').classList.remove('hidden');
+      el('lock-wrap').classList.remove('hidden');
+      renderSlots();
+    }
+  }, 70);
+}
+
+function buildDie(value, used, pickable){
+  const wrap = document.createElement('div');
+  wrap.className = 'die-wrap' + (used ? ' used' : '') + (pickable ? ' pickable' : '');
+  const shape = document.createElement('div');
+  shape.className = 'die-shape';
+  const num = document.createElement('div');
+  num.className = 'die-num';
+  num.textContent = value;
+  wrap.appendChild(shape);
+  wrap.appendChild(num);
+  return wrap;
+}
+
+function renderDice(){
+  const diceRow = el('dice-row');
+  diceRow.innerHTML = '';
+  st.roll.forEach((val, i)=>{
+    const used = st.slotAssignment.includes(i);
+    const d = buildDie(val, used, !used);
+    if (!used) d.addEventListener('click', ()=> placeDigit(i));
+    diceRow.appendChild(d);
+  });
+}
+
+function flashRoundMsg(text, cls){
+  const m = el('msg');
+  m.textContent = text;
+  m.className = cls || 'error';
+}
+
+function placeDigit(rollIndex){
+  const emptySlot = st.slotAssignment.findIndex(s => s === null);
+  if (emptySlot === -1) return;
+
+  if (emptySlot === 0 && st.roll[rollIndex] === 0){
+    const unplaced = [0,1,2].filter(i => !st.slotAssignment.includes(i));
+    const hasNonZeroAlt = unplaced.some(i => i !== rollIndex && st.roll[i] !== 0);
+    if (hasNonZeroAlt){
+      flashRoundMsg("The hundreds place can't start with 0 — place a different digit there first.");
+      return;
+    }
+  }
+
+  flashRoundMsg('', '');
+  st.slotAssignment[emptySlot] = rollIndex;
+  renderDice();
+  renderSlots();
+}
+
+function clearSlot(slotIndex){
+  if (st.slotAssignment[slotIndex] === null) return;
+  st.slotAssignment[slotIndex] = null;
+  flashRoundMsg('', '');
+  renderDice();
+  renderSlots();
+}
+
+function renderSlots(){
+  const row = el('slots-row');
+  row.innerHTML = '';
+  st.slotAssignment.forEach((rollIdx, i)=>{
+    const s = document.createElement('div');
+    s.className = 'slot' + (rollIdx !== null ? ' filled' : '');
+    s.textContent = rollIdx !== null ? st.roll[rollIdx] : '';
+    s.addEventListener('click', ()=> clearSlot(i));
+    row.appendChild(s);
+  });
+  el('lock-btn').disabled = st.slotAssignment.some(s => s === null);
+}
+
+el('lock-btn').addEventListener('click', lockInRound);
+function lockInRound(){
+  const humanVal = 100*st.roll[st.slotAssignment[0]] + 10*st.roll[st.slotAssignment[1]] + st.roll[st.slotAssignment[2]];
+  st.humanNums.push(humanVal);
+
+  let botVal, botExtra = null;
+  if (st.round === 3){
+    const n1 = st.botNums[0], n2 = st.botNums[1];
+    const r3 = (st.difficulty === 'easy')
+      ? evalRound3Easy(n1, n2, st.roll, st.target)
+      : evalRound3(n1, n2, st.roll, st.target);
+    botVal = r3.v; botExtra = r3;
+  } else {
+    const n1 = st.botNums[0] || null;
+    botVal = botChooseRound(st.round, st.roll, n1, st.target, st.difficulty);
+  }
+  st.botNums.push(botVal);
+  st.botMeta.push(botExtra);
+
+  updateScorecard();
+
+  el('lock-wrap').classList.add('hidden');
+  el('slots-wrap').classList.add('hidden');
+  el('dice-row').classList.add('hidden');
+
+  if (st.round < 3){
+    el('next-round-wrap').classList.remove('hidden');
+  } else {
+    setTimeout(goToCompute, 500);
+  }
+}
+
+el('next-round-btn').addEventListener('click', ()=>{
+  st.round++;
+  el('s-round').textContent = st.round;
+  startRound();
+});
+
+/* ---------------- compute (reorder + operator + answer) phase ---------------- */
+function goToCompute(){
+  showScreen('compute');
+  st.order = [0,1,2];
+  st.ops = [1,1];
+  st.wrongAttempts = 0;
+  el('answer-input').value = '';
+  el('answer-input').disabled = false;
+  el('check-btn').disabled = false;
+  el('compute-msg').textContent = '';
+  el('hint-line').textContent = '';
+  el('reveal-wrap').classList.add('hidden');
+  renderEquation();
+}
+
+function swapOrder(posA, posB){
+  const tmp = st.order[posA];
+  st.order[posA] = st.order[posB];
+  st.order[posB] = tmp;
+  st.wrongAttempts = 0;
+  el('compute-msg').textContent = '';
+  el('hint-line').textContent = '';
+  renderEquation();
+}
+
+function renderEquation(){
+  const displayed = st.order.map(i => st.humanNums[i]);
+  const row = el('equation-row');
+  row.innerHTML = '';
+
+  displayed.forEach((val, pos) => {
+    const tile = document.createElement('div');
+    tile.className = 'eq-tile';
+
+    const numEl = document.createElement('div');
+    numEl.className = 'eq-num';
+    numEl.textContent = val;
+    tile.appendChild(numEl);
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'reorder-btns';
+    const leftBtn = document.createElement('button');
+    leftBtn.className = 'small'; leftBtn.textContent = '\u25C0';
+    leftBtn.disabled = (pos === 0);
+    leftBtn.addEventListener('click', ()=> swapOrder(pos, pos-1));
+    const rightBtn = document.createElement('button');
+    rightBtn.className = 'small'; rightBtn.textContent = '\u25B6';
+    rightBtn.disabled = (pos === displayed.length-1);
+    rightBtn.addEventListener('click', ()=> swapOrder(pos, pos+1));
+    btnRow.appendChild(leftBtn); btnRow.appendChild(rightBtn);
+    tile.appendChild(btnRow);
+
+    row.appendChild(tile);
+
+    if (pos < displayed.length-1){
+      const opBtn = document.createElement('button');
+      opBtn.className = 'op-btn';
+      opBtn.textContent = st.ops[pos] === 1 ? '+' : '\u2212';
+      opBtn.addEventListener('click', ()=>{ st.ops[pos] *= -1; renderEquation(); });
+      row.appendChild(opBtn);
+    }
+  });
+
+  const eq = document.createElement('div'); eq.className='eq-num'; eq.style.paddingTop='8px'; eq.textContent='=';
+  row.appendChild(eq);
+}
+
+el('check-btn').addEventListener('click', checkAnswer);
+el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+
+function currentHumanCorrectTotal(){
+  const [a,b,c] = st.order.map(i => st.humanNums[i]);
+  return a + st.ops[0]*b + st.ops[1]*c;
+}
+
+function checkAnswer(){
+  const guess = parseInt(el('answer-input').value, 10);
+  if (isNaN(guess)){
+    flashComputeMsg('Type in a total first.', true);
+    return;
+  }
+  const correct = currentHumanCorrectTotal();
+  if (guess === correct){
+    flashComputeMsg('That checks out!', false);
+    el('reveal-wrap').classList.remove('hidden');
+    document.querySelectorAll('.op-btn, .reorder-btns button').forEach(b => b.disabled = true);
+    el('answer-input').disabled = true;
+    el('check-btn').disabled = true;
+    st.finalHumanTotal = correct;
+  } else {
+    st.wrongAttempts++;
+    flashComputeMsg("That's not quite right — check your work.", true);
+    if (st.wrongAttempts >= 2){
+      const [a,b] = st.order.map(i => st.humanNums[i]);
+      el('hint-line').textContent = `Hint: ${a} ${st.ops[0]===1?'+':'\u2212'} ${b} = ${a+st.ops[0]*b}, then ${st.ops[1]===1?'add':'subtract'} the last number.`;
+    }
+  }
+}
+
+function flashComputeMsg(text, isError){
+  const m = el('compute-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+/* ---------------- reveal ---------------- */
+function formatEquation(nums, baseIdx, others, signs){
+  const base = nums[baseIdx];
+  const o1 = nums[others[0]], o2 = nums[others[1]];
+  const sign1 = signs[0] === 1 ? '+' : '\u2212';
+  const sign2 = signs[1] === 1 ? '+' : '\u2212';
+  return `${base} ${sign1} ${o1} ${sign2} ${o2}`;
+}
+
+el('reveal-btn').addEventListener('click', ()=>{
+  const finalR3 = st.botMeta[2];
+  const botTotal = finalR3.total;
+
+  const humanDist = Math.abs(st.finalHumanTotal - st.target);
+  const botDist = Math.abs(botTotal - st.target);
+
+  const [a,b,c] = st.order.map(i => st.humanNums[i]);
+  const humanEq = `${a} ${st.ops[0]===1?'+':'\u2212'} ${b} ${st.ops[1]===1?'+':'\u2212'} ${c}`;
+  const botEq = formatEquation(st.botNums, finalR3.combo.baseIdx, finalR3.combo.others, finalR3.combo.signs);
+
+  el('human-eq').textContent = humanEq;
+  el('human-total').textContent = st.finalHumanTotal;
+  el('human-dist').textContent = `${humanDist} away from ${st.target}`;
+  el('bot-eq').textContent = botEq;
+  el('bot-total').textContent = botTotal;
+  el('bot-dist').textContent = `${botDist} away from ${st.target}`;
+
+  const banner = el('winner-banner');
+  if (humanDist === botDist){
+    banner.textContent = "It's a tie — you both win! 🤝";
+    st.score.ties++;
+  } else if (humanDist < botDist){
+    banner.textContent = 'You win this match! 🎉';
+    st.score.human++;
+  } else {
+    banner.textContent = 'Bot wins this match.';
+    st.score.bot++;
+  }
+  updateScorePills();
+  showScreen('reveal');
+});
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen('settings');
+</script>
+</body>
+</html>

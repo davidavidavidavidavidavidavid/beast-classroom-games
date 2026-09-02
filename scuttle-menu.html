@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scuttle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<style>
+  * { overflow-x: hidden; }
+
+  /* ============ BOOT SCREEN ============ */
+  #boot-screen {
+    position: fixed; inset: 0;
+    background: #0a0a0a;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px;
+    z-index: 100;
+    cursor: pointer;
+    transition: opacity 0.4s ease;
+  }
+  #boot-screen.fade-out { opacity: 0; pointer-events: none; }
+  #boot-scanlines {
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0px, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 3px);
+  }
+  #boot-flash {
+    position: absolute; inset: 0; background: #fff;
+    animation: bootFlash 0.35s ease-out forwards;
+  }
+  @keyframes bootFlash { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+  #boot-presents {
+    font-family: var(--font-sans); font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    font-size: 12px; color: #8b96a1;
+    opacity: 0; animation: fadeUp 0.5s ease-out 0.4s forwards;
+  }
+  #boot-byline {
+    font-family: var(--font-pixel); font-size: 4.2vw; letter-spacing: 1px;
+    opacity: 0; animation: fadeUp 0.5s ease-out 0.75s forwards;
+  }
+  @media (min-width: 500px) { #boot-byline { font-size: 16px; } }
+  #boot-byline .brand-red { color: var(--color-beast-red); }
+  #boot-byline .brand-blue { color: var(--color-beast-blue); }
+  #boot-logo {
+    font-family: var(--font-pixel); font-size: 15vw; max-font-size: 64px; color: var(--color-beast-red);
+    opacity: 0; transform: scale(0.5);
+    animation: logoIn 0.6s cubic-bezier(.2,1.5,.4,1) 1.15s forwards;
+  }
+  @media (min-width: 500px) { #boot-logo { font-size: 56px; } }
+  #boot-prompt {
+    font-family: var(--font-sans); font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    font-size: 14px; color: #eef3f8;
+    opacity: 0; animation: fadeUp 0.4s ease-out 2s forwards, blink 1s step-start 2.4s infinite;
+  }
+  @keyframes fadeUp { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
+  @keyframes blink { 50% { opacity: 0.15; } }
+
+  /* ============ MENU SCREEN ============ */
+  #menu-screen { max-width: 640px; margin: 0 auto; padding: 2rem 1rem; opacity: 0; }
+  #menu-screen.visible { opacity: 1; animation: fadeUp 0.5s ease-out; }
+
+  h1.logo {
+    font-family: var(--font-pixel); font-size: 26px; text-align: center; color: var(--color-beast-red);
+    letter-spacing: -0.5px;
+  }
+  #menu-tagline { font-size: 16px; color: var(--color-text-secondary); text-align: center; margin-bottom: 1.8rem; }
+
+  .variant-list { display: flex; flex-direction: column; gap: 14px; }
+
+  .variant-card {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--color-background-primary);
+    border: var(--border-w) solid var(--color-ink);
+    border-radius: 4px;
+    box-shadow: var(--shadow-card);
+    padding: 1rem 1.1rem;
+    position: relative;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .variant-card.active { cursor: pointer; }
+  .variant-card.active:active { transform: translate(6px,6px); box-shadow: 0 0 0 var(--color-ink); }
+  .variant-card.active:focus-visible { outline: 3px solid var(--color-beast-blue); outline-offset: 2px; }
+  .variant-card.locked { opacity: 0.55; }
+
+  .variant-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+  .variant-name { font-size: 19px; font-weight: 800; }
+  .variant-desc { font-size: 14.5px; color: var(--color-text-secondary); line-height: 1.4; }
+  .variant-std { font-size: 12.5px; color: var(--color-text-tertiary); margin-top: 6px; font-weight: 600; }
+
+  .badge {
+    flex-shrink: 0; font-size: 12px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase;
+    padding: 4px 9px; border-radius: 4px; border: 2px solid var(--color-ink); white-space: nowrap;
+  }
+  .badge.play { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+  .badge.soon { background: var(--color-background-secondary); color: var(--color-text-tertiary); }
+
+  #menu-footer { text-align: center; font-size: 13px; color: var(--color-text-tertiary); margin-top: 1.8rem; }
+</style>
+</head>
+<body>
+
+  <div id="boot-screen">
+    <div id="boot-scanlines"></div>
+    <div id="boot-flash"></div>
+    <div id="boot-presents">presents</div>
+    <div id="boot-byline"><span class="brand-red">BEAST</span> <span class="brand-blue">CLASSROOM</span></div>
+    <div id="boot-logo">SCUTTLE</div>
+    <div id="boot-prompt">Tap to start</div>
+  </div>
+
+  <div id="menu-screen">
+    <h1 class="logo">SCUTTLE</h1>
+    <div class="kicker-wrap"><span class="kicker">Choose your game</span></div>
+    <div id="menu-tagline">Seven ways to practice number fluency. Bot opponents included.</div>
+
+    <div class="variant-list">
+
+      <a class="variant-card active" href="scuttle-addition-subtraction.html">
+        <div class="variant-top">
+          <span class="variant-name">Addition &amp; Subtraction</span>
+          <span class="badge play">Play →</span>
+        </div>
+        <div class="variant-desc">Build three numbers, then add and subtract your way as close as possible to a target.</div>
+        <div class="variant-std">Standard 3.NBT.A.2</div>
+      </a>
+
+      <a class="variant-card active" href="scuttle-product.html">
+        <div class="variant-top">
+          <span class="variant-name">Product</span>
+          <span class="badge play">Play →</span>
+        </div>
+        <div class="variant-desc">Split your digits into two numbers, multiply, and stack up the smallest sum over the minimum.</div>
+        <div class="variant-std">Standard 4.NBT.B.4</div>
+      </a>
+
+      <div class="variant-card locked" aria-disabled="true">
+        <div class="variant-top">
+          <span class="variant-name">Remainder</span>
+          <span class="badge soon">Coming soon</span>
+        </div>
+        <div class="variant-desc">Divide your numbers and score using what's left over.</div>
+      </div>
+
+      <div class="variant-card locked" aria-disabled="true">
+        <div class="variant-top">
+          <span class="variant-name">Difference</span>
+          <span class="badge soon">Coming soon</span>
+        </div>
+        <div class="variant-desc">Subtract to land as close as possible to a target number.</div>
+      </div>
+
+      <div class="variant-card locked" aria-disabled="true">
+        <div class="variant-top">
+          <span class="variant-name">Decimal</span>
+          <span class="badge soon">Coming soon</span>
+        </div>
+        <div class="variant-desc">Place value practice with a decimal point in the mix.</div>
+      </div>
+
+      <div class="variant-card locked" aria-disabled="true">
+        <div class="variant-top">
+          <span class="variant-name">Super Product</span>
+          <span class="badge soon">Coming soon</span>
+        </div>
+        <div class="variant-desc">Bigger rolls, bigger products — multiplication for advanced players.</div>
+      </div>
+
+      <div class="variant-card locked" aria-disabled="true">
+        <div class="variant-top">
+          <span class="variant-name">Super Decimal</span>
+          <span class="badge soon">Coming soon</span>
+        </div>
+        <div class="variant-desc">Multiply numbers with a decimal point for advanced players.</div>
+      </div>
+
+    </div>
+
+    <div id="menu-footer">More variants unlock as they're built.</div>
+  </div>
+
+<script>
+  const boot = document.getElementById('boot-screen');
+  const menu = document.getElementById('menu-screen');
+  let advanced = false;
+
+  function playChime(){
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523.25, 659.25, 783.99];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.06, ctx.currentTime + i*0.09);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i*0.09 + 0.15);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(ctx.currentTime + i*0.09);
+        osc.stop(ctx.currentTime + i*0.09 + 0.16);
+      });
+    } catch (e) { /* audio not available/blocked — ignore silently */ }
+  }
+
+  function advanceToMenu(){
+    if (advanced) return;
+    advanced = true;
+    playChime();
+    boot.classList.add('fade-out');
+    setTimeout(() => {
+      boot.style.display = 'none';
+      menu.classList.add('visible');
+    }, 400);
+  }
+
+  boot.addEventListener('click', advanceToMenu);
+  window.addEventListener('keydown', advanceToMenu, { once: true });
+  setTimeout(advanceToMenu, 4500);
+</script>
+</body>
+</html>

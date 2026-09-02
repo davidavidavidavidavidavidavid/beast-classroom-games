@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pig — push-your-luck mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --color-beast-red: #cd2027; --color-beast-blue: #125392;
+    --color-beast-red-bg: rgba(205,32,39,0.07); --color-beast-blue-bg: rgba(18,83,146,0.07);
+    --color-background-primary: #ffffff; --color-background-secondary: #eef3f8;
+    --color-text-primary: #202020; --color-text-secondary: #5a6470; --color-text-tertiary: #8b96a1;
+    --color-correct: #2f8f4e; --color-ink: var(--color-text-primary); --border-w: 4px;
+    --font-sans: 'Rubik', system-ui, -apple-system, sans-serif; --font-pixel: 'Press Start 2P', var(--font-sans);
+    --shadow-card: 6px 6px 0 var(--color-ink); --shadow-btn: 4px 4px 0 var(--color-ink); --shadow-sm: 3px 3px 0 var(--color-ink);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --color-beast-red: #ff5b5f; --color-beast-blue: #5fa4e0;
+      --color-background-primary: #1b2530; --color-background-secondary: #10161e;
+      --color-text-primary: #eef3f8; --color-text-secondary: #a7b3bf; --color-text-tertiary: #78838e; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); background: var(--color-background-secondary); color: var(--color-text-primary);
+    min-height: 100vh; display: flex; justify-content: center; padding: 1rem; }
+  #app { max-width: 420px; width: 100%; margin: auto; }
+  .card { background: var(--color-background-primary); border: var(--border-w) solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-card); padding: 1.3rem 1.1rem; margin-bottom: 1.2rem; }
+  h1 { font-family: var(--font-pixel); font-size: 22px; text-align: center; color: var(--color-beast-red); }
+  .kicker-wrap { display: flex; justify-content: center; margin: 8px 0 10px; }
+  .kicker { display: inline-block; background: var(--color-background-primary); border: 2px solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-sm); padding: 5px 14px; font-weight: 800; font-size: 14px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--color-beast-blue); }
+  #tagline { font-size: 15px; color: var(--color-text-secondary); text-align: center; margin-bottom: 1rem; }
+
+  /* ---- new component: banked-vs-at-risk score stack ---- */
+  .score-stack { display: flex; gap: 10px; margin-bottom: 16px; }
+  .score-box { flex: 1; border: 2px solid var(--color-ink); border-radius: 4px; padding: 10px; text-align: center; box-shadow: var(--shadow-sm); }
+  .score-box.banked { background: var(--color-beast-blue-bg); border-color: var(--color-beast-blue); }
+  .score-box.risk { background: var(--color-background-secondary); }
+  .score-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--color-text-tertiary); margin-bottom: 4px; }
+  .score-num { font-size: 28px; font-weight: 800; }
+  .score-box.banked .score-num { color: var(--color-beast-blue); }
+  .score-box.risk .score-num { color: var(--color-text-primary); transition: transform 0.15s; }
+  .score-box.risk.bump .score-num { transform: scale(1.25); color: var(--color-correct); }
+
+  /* ---- die + bust flash ---- */
+  #die-wrap { display: flex; justify-content: center; margin-bottom: 14px; }
+  #die {
+    width: 64px; height: 64px; border: var(--border-w) solid var(--color-ink); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 800;
+    background: var(--color-background-primary); box-shadow: var(--shadow-btn); transition: transform 0.1s;
+  }
+  #die.rolling { animation: shake 0.4s linear; }
+  #die.bust { background: var(--color-beast-red); color: #fff; border-color: var(--color-beast-red); }
+  @keyframes shake { 0%,100%{transform:rotate(0);} 25%{transform:rotate(-8deg);} 75%{transform:rotate(8deg);} }
+
+  #bust-banner { text-align: center; font-family: var(--font-pixel); font-size: 13px; color: var(--color-beast-red);
+    min-height: 22px; margin-bottom: 8px; opacity: 0; transition: opacity 0.2s; }
+  #bust-banner.show { opacity: 1; }
+
+  .btn-row { display: flex; gap: 10px; }
+  button.primary, button.secondary {
+    flex: 1; font-family: var(--font-sans); font-weight: 800; text-transform: uppercase; cursor: pointer;
+    border: var(--border-w) solid var(--color-ink); border-radius: 4px; padding: 0.75rem 0.5rem; font-size: 16px;
+    box-shadow: var(--shadow-btn);
+  }
+  button.primary { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+  button.secondary { background: var(--color-background-primary); color: var(--color-text-primary); }
+  button:active:not(:disabled) { transform: translate(4px,4px); box-shadow: 0 0 0 var(--color-ink); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+  #target-note { text-align: center; font-size: 13px; color: var(--color-text-tertiary); margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>SCUTTLE</h1>
+  <div class="kicker-wrap"><span class="kicker">Pig</span></div>
+  <div id="tagline">Roll to add points. Bank before you roll a 1 and lose them all.</div>
+
+  <div class="card">
+    <div class="score-stack">
+      <div class="score-box banked"><div class="score-label">Banked</div><div class="score-num" id="banked">24</div></div>
+      <div class="score-box risk"><div class="score-label">This turn</div><div class="score-num" id="risk">0</div></div>
+    </div>
+
+    <div id="die-wrap"><div id="die">–</div></div>
+    <div id="bust-banner">BUSTED!</div>
+
+    <div class="btn-row">
+      <button class="primary" id="roll-btn">Roll</button>
+      <button class="secondary" id="bank-btn" disabled>Bank it</button>
+    </div>
+    <div id="target-note">First to 50 banked points wins.</div>
+  </div>
+</div>
+
+<script>
+  let banked = 24, risk = 0;
+  const dieEl = document.getElementById('die');
+  const bankedEl = document.getElementById('banked');
+  const riskEl = document.getElementById('risk');
+  const riskBox = riskEl.closest('.score-box');
+  const bustBanner = document.getElementById('bust-banner');
+  const rollBtn = document.getElementById('roll-btn');
+  const bankBtn = document.getElementById('bank-btn');
+
+  function rand1to6(){ return 1 + Math.floor(Math.random()*6); }
+
+  rollBtn.addEventListener('click', () => {
+    dieEl.classList.remove('bust');
+    dieEl.classList.add('rolling');
+    bustBanner.classList.remove('show');
+    rollBtn.disabled = true; bankBtn.disabled = true;
+
+    setTimeout(() => {
+      dieEl.classList.remove('rolling');
+      const roll = rand1to6();
+      dieEl.textContent = roll;
+
+      if (roll === 1) {
+        dieEl.classList.add('bust');
+        bustBanner.classList.add('show');
+        risk = 0;
+        riskEl.textContent = risk;
+        bankBtn.disabled = true;
+      } else {
+        risk += roll;
+        riskEl.textContent = risk;
+        riskBox.classList.add('bump');
+        setTimeout(() => riskBox.classList.remove('bump'), 200);
+        bankBtn.disabled = false;
+      }
+      rollBtn.disabled = false;
+    }, 420);
+  });
+
+  bankBtn.addEventListener('click', () => {
+    banked += risk;
+    bankedEl.textContent = banked;
+    risk = 0;
+    riskEl.textContent = risk;
+    bankBtn.disabled = true;
+  });
+</script>
+</body>
+</html>

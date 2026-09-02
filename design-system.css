@@ -1,0 +1,233 @@
+/* ==========================================================================
+   BEAST CLASSROOM — SHARED DESIGN SYSTEM
+   Every game links this file. Edit ONCE here, every game updates.
+   Game-specific structural CSS (dice tiles, claim grids, etc.) stays in
+   that game's own <style> block or a shared /components/*.css file.
+   ========================================================================== */
+
+:root {
+  /* --- Beast Classroom brand --- */
+  --color-beast-red: #cd2027;
+  --color-beast-blue: #125392;
+  --color-beast-red-bg: rgba(205,32,39,0.07);
+  --color-beast-blue-bg: rgba(18,83,146,0.07);
+
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #eef3f8;
+  --color-text-primary: #202020;
+  --color-text-secondary: #5a6470;
+  --color-text-tertiary: #8b96a1;
+  --color-border-tertiary: rgba(18,83,146,0.12);
+
+  --color-correct: #2f8f4e;
+  --color-warn: #b8860b;
+  --color-error: var(--color-beast-red);
+
+  /* ink = the universal NES-style border/shadow color */
+  --color-ink: var(--color-text-primary);
+  --border-w: 4px;
+
+  --font-sans: 'Rubik', system-ui, -apple-system, sans-serif;
+  --font-pixel: 'Press Start 2P', var(--font-sans);
+
+  /* Classic NES.css hard offset "pixel shadow" — no blur, softened
+     with a slight border-radius so it doesn't look jagged at scale. */
+  --shadow-card: 6px 6px 0 var(--color-ink);
+  --shadow-btn: 4px 4px 0 var(--color-ink);
+  --shadow-sm: 3px 3px 0 var(--color-ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-beast-red: #ff5b5f;
+    --color-beast-blue: #5fa4e0;
+    --color-beast-red-bg: rgba(255,91,95,0.12);
+    --color-beast-blue-bg: rgba(95,164,224,0.12);
+
+    --color-background-primary: #1b2530;
+    --color-background-secondary: #10161e;
+    --color-text-primary: #eef3f8;
+    --color-text-secondary: #a7b3bf;
+    --color-text-tertiary: #78838e;
+    --color-border-tertiary: rgba(238,243,248,0.12);
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+}
+#app { max-width: 600px; width: 100%; margin: auto; }
+
+/* ---------- card shell ---------- */
+.card {
+  background: var(--color-background-primary);
+  border: var(--border-w) solid var(--color-ink);
+  border-radius: 4px;
+  box-shadow: var(--shadow-card);
+  padding: 1.4rem 1.2rem;
+  margin-bottom: 1.4rem;
+}
+
+/* ---------- header: title / kicker / tagline ---------- */
+h1 {
+  font-family: var(--font-pixel);
+  font-size: 23px;
+  line-height: 1.5;
+  text-align: center;
+  letter-spacing: -0.5px;
+  color: var(--color-beast-red);
+}
+.kicker-wrap { display: flex; justify-content: center; margin-top: 8px; margin-bottom: 10px; }
+.kicker {
+  display: inline-block;
+  background: var(--color-background-primary);
+  border: 2px solid var(--color-ink);
+  border-radius: 4px;
+  box-shadow: var(--shadow-sm);
+  padding: 5px 14px;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--color-beast-blue);
+}
+.tagline { font-family: var(--font-sans); font-size: 16px; font-weight: 500; color: var(--color-text-secondary); text-align: center; margin-top: 4px; margin-bottom: 0.9rem; }
+.tagline b { color: var(--color-text-primary); }
+
+/* ---------- buttons ---------- */
+button {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: var(--border-w) solid var(--color-ink);
+  border-radius: 4px;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  padding: 0.7rem 1.1rem;
+  font-size: 17px;
+  box-shadow: var(--shadow-btn);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+button:active:not(:disabled) { transform: translate(4px,4px); box-shadow: 0 0 0 var(--color-ink); }
+button:focus-visible { outline: 2px solid var(--color-beast-blue); outline-offset: 2px; }
+button.primary { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+button:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+button.chip.active { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+button.small { font-size: 17px; padding: 0.35rem 0.6rem; text-transform: none; letter-spacing: 0; box-shadow: var(--shadow-sm); }
+button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 0 0 0 var(--color-ink); }
+
+/* ---------- top bar / scoreboard pills ---------- */
+#top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 0.9rem; }
+.pill-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.stat-pill {
+  background: var(--color-background-primary);
+  border: 2px solid var(--color-ink);
+  border-radius: 4px;
+  box-shadow: var(--shadow-sm);
+  padding: 4px 10px;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.3px;
+  color: var(--color-text-secondary);
+}
+.stat-pill b { color: var(--color-text-primary); }
+#settings-btn { font-size: 14px; padding: 7px 11px; }
+
+/* ---------- settings screen scaffolding ---------- */
+.section-label { font-family: var(--font-sans); font-weight: 700; font-size: 17px; letter-spacing: 0.6px; color: var(--color-text-secondary); margin-bottom: 6px; text-transform: uppercase; }
+.chip-row { display: flex; gap: 8px; margin: 4px 0 10px; flex-wrap: wrap; }
+.chip-row button { flex: 1; min-width: 70px; }
+.desc-line { font-family: var(--font-sans); font-size: 15.5px; color: var(--color-text-secondary); min-height: 32px; margin-bottom: 12px; line-height: 1.4; }
+.target-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.target-row input {
+  width: 95px; font-size: 19px; font-family: var(--font-sans); font-weight: 700; text-align: center;
+  padding: 6px; border: 2px solid var(--color-ink); border-radius: 4px; box-shadow: var(--shadow-sm);
+  background: var(--color-background-primary); color: var(--color-text-primary);
+}
+label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color-text-secondary); }
+
+#rules-box { font-family: var(--font-sans); font-size: 15.5px; line-height: 1.6; color: var(--color-text-secondary); }
+#rules-box strong { color: var(--color-text-primary); }
+#how-link { display: block; text-align: center; font-family: var(--font-sans); text-transform: none; letter-spacing: normal; font-weight: 500; font-size: 15px; color: var(--color-text-tertiary); margin-top: 10px; background: none; border: none; box-shadow: none; text-decoration: underline; padding: 4px; }
+#how-link:active { transform: none; }
+
+/* ---------- persistent scoreboard ---------- */
+#scorecard { padding: 0.9rem 1rem; }
+.sc-head, .sc-row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; }
+.sc-head { font-family: var(--font-sans); font-size: 14px; font-weight: 700; letter-spacing: 0.4px; color: var(--color-text-tertiary); text-transform: uppercase; margin-bottom: 4px; }
+.sc-head .you-h { color: var(--color-beast-blue); }
+.sc-head .bot-h { color: var(--color-beast-red); }
+.sc-row { padding: 4px 0; border-top: 1px solid var(--color-border-tertiary); }
+.sc-row:first-of-type { border-top: none; }
+.sc-row .rd-label { font-family: var(--font-sans); font-size: 13.5px; color: var(--color-text-tertiary); }
+.sc-val { font-family: var(--font-sans); font-size: 22px; font-weight: 700; }
+.sc-val.you { color: var(--color-beast-blue); }
+.sc-val.bot { color: var(--color-beast-red); }
+.sc-val.empty { color: var(--color-text-tertiary); opacity: 0.5; }
+
+/* ---------- round label ---------- */
+#round-label { font-family: var(--font-sans); font-weight: 700; font-size: 17px; letter-spacing: 0.5px; color: var(--color-text-secondary); text-align: center; margin-bottom: 14px; text-transform: uppercase; }
+
+/* ---------- shared feedback message line (leading-zero warnings,
+   answer-check results — one visual language everywhere) ---------- */
+.feedback-msg { text-align: center; font-family: var(--font-sans); font-size: 15.5px; min-height: 20px; margin: 8px 0; color: var(--color-text-secondary); font-weight: 600; }
+.feedback-msg.error { color: var(--color-error); }
+.feedback-msg.success { color: var(--color-correct); }
+
+/* ---------- equation builder (reorderable number tiles + operators) ---------- */
+.eq-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.equation-row { display: flex; align-items: flex-start; justify-content: center; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+.eq-num { font-family: var(--font-sans); font-size: 26px; font-weight: 800; padding-top: 8px; }
+.reorder-btns { display: flex; gap: 3px; }
+.op-btn {
+  width: 40px; height: 40px; font-family: var(--font-sans); font-weight: 800; font-size: 18px;
+  display: flex; align-items: center; justify-content: center; padding: 0; margin-top: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.op-btn:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 0 0 0 var(--color-ink); }
+
+/* ---------- flat equation display (non-reorderable, e.g. "84 x 3 = ?") ---------- */
+.equation-line { text-align: center; font-family: var(--font-sans); font-size: 26px; font-weight: 800; margin: 10px 0; }
+
+/* ---------- answer entry ---------- */
+.answer-row { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.answer-row label { font-family: var(--font-sans); font-size: 15px; font-weight: 600; color: var(--color-text-secondary); }
+.answer-input {
+  width: 120px; font-size: 22px; text-align: center; font-family: var(--font-sans); font-weight: 800;
+  padding: 8px; border: 2px solid var(--color-ink); border-radius: 4px; box-shadow: var(--shadow-sm);
+  background: var(--color-background-primary); color: var(--color-text-primary);
+}
+.answer-input.shake { animation: shake 0.35s; border-color: var(--color-error); }
+@keyframes shake { 0%,100%{transform:translateX(0);} 25%{transform:translateX(-6px);} 75%{transform:translateX(6px);} }
+.hint-line { text-align: center; font-family: var(--font-sans); font-size: 14.5px; color: var(--color-text-tertiary); min-height: 18px; margin-bottom: 6px; }
+
+/* ---------- reveal screen ---------- */
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.side { border-radius: 4px; padding: 12px; border: 2px solid; }
+.side.human { background: var(--color-beast-blue-bg); border-color: var(--color-beast-blue); box-shadow: 3px 3px 0 var(--color-beast-blue); }
+.side.bot { background: var(--color-beast-red-bg); border-color: var(--color-beast-red); box-shadow: 3px 3px 0 var(--color-beast-red); }
+.side h3 { font-family: var(--font-sans); font-weight: 700; font-size: 15px; letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase; }
+.side.human h3 { color: var(--color-beast-blue); }
+.side.bot h3 { color: var(--color-beast-red); }
+.result-eq { font-family: var(--font-sans); font-size: 17px; color: var(--color-text-secondary); text-align: center; min-height: 20px; }
+.result-total { font-family: var(--font-sans); font-size: 32px; font-weight: 800; text-align: center; margin: 4px 0; }
+.result-dist, .result-status { font-family: var(--font-sans); font-size: 14px; text-align: center; color: var(--color-text-tertiary); }
+.result-status { font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+.result-status.over { color: var(--color-correct); }
+.result-status.under { color: var(--color-text-tertiary); }
+#winner-banner { font-family: var(--font-sans); font-weight: 800; text-align: center; font-size: 19px; line-height: 1.5; margin: 16px 0 6px; color: var(--color-text-primary); }
+
+/* ---------- utility ---------- */
+.hidden { display: none !important; }
+.center { text-align: center; }
+.btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }

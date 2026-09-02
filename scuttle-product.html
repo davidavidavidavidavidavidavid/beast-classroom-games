@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scuttle: Product</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/dice-slot.css">
+<style>
+  /* ---- Product-specific: the two-number-frame layout, unique to the
+     split-a-shared-roll-into-two-numbers mechanic ---- */
+  .product-frames { display: flex; align-items: flex-end; justify-content: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .num-frame { text-align: center; }
+  .frame-label { font-size: 13px; font-weight: 700; letter-spacing: 0.3px; color: var(--color-text-tertiary); text-transform: uppercase; margin-bottom: 6px; }
+  .frame-slots { display: flex; gap: 6px; }
+  .times-sign { font-size: 30px; font-weight: 800; padding-bottom: 12px; color: var(--color-text-secondary); }
+  /* smaller slots than the shared default, and empty slots aren't clickable
+     here (Product auto-fills leftmost-empty on die click) */
+  .slot { width: 46px; height: 54px; font-size: 24px; cursor: default; }
+  .slot.filled { cursor: pointer; }
+  .answer-input { width: 150px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>SCUTTLE</h1>
+  <div class="kicker-wrap"><span class="kicker">Product</span></div>
+  <div id="tagline">Score the smallest sum over <b id="target-tag">1,000</b> — or the biggest sum if nobody clears it.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Round <b id="s-round">1</b>/3</div>
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill">You <b id="s-wins">0</b> · Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Format</div>
+    <div class="chip-row" id="format-row">
+      <button class="chip" data-format="2x1">2 × 1</button>
+      <button class="chip" data-format="3x1">3 × 1</button>
+      <button class="chip" data-format="4x1">4 × 1</button>
+      <button class="chip" data-format="2x2">2 × 2</button>
+    </div>
+    <div class="desc-line" id="format-desc"></div>
+
+    <div class="section-label">Bot difficulty</div>
+    <div class="chip-row" id="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+    <div class="desc-line" id="diff-desc"></div>
+
+    <div class="section-label">Minimum sum</div>
+    <div class="target-row">
+      <input type="number" id="target-input" value="1000" min="0" inputmode="numeric"/>
+      <label class="small">smallest sum over this number wins</label>
+    </div>
+    <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      Each round, roll the dice and split the digits into <strong>two numbers</strong> — you choose which digits go
+      where, and in what order. (No number can start with a 0 unless every digit you rolled is a 0.) Multiply your
+      two numbers together — that's your score for the round. After three rounds, add your three round-scores together.
+      Whoever has the <strong>smallest total that's still over the minimum</strong> wins. If nobody clears the minimum,
+      the <strong>biggest</strong> total wins instead. Exact ties are friendly — you both win! The bot always calculates
+      correctly, but how well it splits and arranges its digits changes with difficulty.
+    </div>
+  </div>
+
+  <!-- PERSISTENT SCOREBOARD -->
+  <div class="card hidden" id="scorecard">
+    <div class="sc-head"><span></span><span class="you-h">You</span><span class="bot-h">Bot</span></div>
+    <div class="sc-row"><span class="rd-label">Round 1</span><span class="sc-val you empty" id="sc-you-1">–</span><span class="sc-val bot empty" id="sc-bot-1">–</span></div>
+    <div class="sc-row"><span class="rd-label">Round 2</span><span class="sc-val you empty" id="sc-you-2">–</span><span class="sc-val bot empty" id="sc-bot-2">–</span></div>
+    <div class="sc-row"><span class="rd-label">Round 3</span><span class="sc-val you empty" id="sc-you-3">–</span><span class="sc-val bot empty" id="sc-bot-3">–</span></div>
+  </div>
+
+  <!-- ROUND SCREEN -->
+  <div class="card hidden" id="screen-round">
+    <div id="round-label">Round <span id="r-num">1</span> of 3</div>
+
+    <div id="roll-btn-wrap">
+      <button class="primary" id="roll-btn">🎲 Roll dice</button>
+    </div>
+
+    <div id="dice-row" class="hidden"></div>
+
+    <div id="frames-wrap" class="hidden">
+      <div class="product-frames">
+        <div class="num-frame">
+          <div class="frame-label">Number 1</div>
+          <div class="frame-slots" id="slots-n1"></div>
+        </div>
+        <div class="times-sign">×</div>
+        <div class="num-frame">
+          <div class="frame-label">Number 2</div>
+          <div class="frame-slots" id="slots-n2"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="msg" class="feedback-msg"></div>
+
+    <div id="product-check-wrap" class="hidden">
+      <div class="equation-line" id="product-equation"></div>
+      <div class="answer-row">
+        <label for="product-answer-input">Product:</label>
+        <input type="number" class="answer-input" id="product-answer-input" inputmode="numeric" placeholder="?"/>
+        <button class="primary" id="product-check-btn">Check</button>
+      </div>
+      <div class="hint-line" id="product-hint-line"></div>
+      <div class="feedback-msg" id="product-msg"></div>
+    </div>
+
+    <div class="center hidden" id="next-round-wrap" style="margin-top:12px;">
+      <button class="primary" id="next-round-btn">Next round →</button>
+    </div>
+  </div>
+
+  <!-- SUM SCREEN -->
+  <div class="card hidden" id="screen-sum">
+    <div class="section-label" style="text-align:center;">Add up your three round scores</div>
+    <div class="equation-line" id="sum-equation"></div>
+    <div class="answer-row">
+      <label for="sum-answer-input">Total:</label>
+      <input type="number" class="answer-input" id="sum-answer-input" inputmode="numeric" placeholder="?"/>
+      <button class="primary" id="sum-check-btn">Check</button>
+    </div>
+    <div class="hint-line" id="sum-hint-line"></div>
+    <div class="feedback-msg" id="sum-msg"></div>
+    <div class="center hidden" id="sum-reveal-wrap" style="margin-top:12px;">
+      <button class="primary" id="sum-reveal-btn">Reveal results →</button>
+    </div>
+  </div>
+
+  <!-- REVEAL SCREEN -->
+  <div class="card hidden" id="screen-reveal">
+    <div class="compare-grid">
+      <div class="side human">
+        <h3>You</h3>
+        <div class="result-total" id="human-total"></div>
+        <div class="result-status" id="human-status"></div>
+      </div>
+      <div class="side bot">
+        <h3>Bot</h3>
+        <div class="result-total" id="bot-total"></div>
+        <div class="result-status" id="bot-status"></div>
+      </div>
+    </div>
+    <div id="winner-banner"></div>
+    <div class="btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ---------------- core helpers ---------------- */
+function rollDie(){ return Math.floor(Math.random()*10); }
+function rollN(n){ return Array.from({length:n}, rollDie); }
+function randInt(n){ return Math.floor(Math.random()*n); }
+
+function permutations(arr){
+  if (arr.length<=1) return [arr.slice()];
+  const out=[];
+  for (let i=0;i<arr.length;i++){
+    const rest = arr.slice(0,i).concat(arr.slice(i+1));
+    for (const p of permutations(rest)) out.push([arr[i]].concat(p));
+  }
+  return out;
+}
+function combinations(arr,k){
+  const results=[];
+  function helper(start, combo){
+    if (combo.length===k){ results.push(combo.slice()); return; }
+    for (let i=start;i<arr.length;i++){ combo.push(arr[i]); helper(i+1,combo); combo.pop(); }
+  }
+  helper(0,[]);
+  return results;
+}
+function buildNumber(digits, idxOrder){ return idxOrder.reduce((acc,i)=>acc*10+digits[i],0); }
+
+// Every valid way to split `digits` into a d1-digit and a d2-digit number
+// (no leading zeros, unless every digit is a 0 and there's no alternative).
+function enumerateProductOptions(digits, d1, d2){
+  const idx = digits.map((_,i)=>i);
+  const subsets = combinations(idx, d1);
+  const seen = new Set(); const results=[];
+  for (const subset of subsets){
+    const complement = idx.filter(i=>!subset.includes(i));
+    for (const p1 of permutations(subset)){
+      if (d1>1 && digits[p1[0]]===0) continue;
+      const num1 = buildNumber(digits,p1);
+      for (const p2 of permutations(complement)){
+        if (d2>1 && digits[p2[0]]===0) continue;
+        const num2 = buildNumber(digits,p2);
+        const key = num1+'x'+num2;
+        if (!seen.has(key)){ seen.add(key); results.push({num1,num2,product:num1*num2}); }
+      }
+    }
+  }
+  if (results.length===0){
+    for (const subset of subsets){
+      const complement = idx.filter(i=>!subset.includes(i));
+      for (const p1 of permutations(subset)){
+        const num1 = buildNumber(digits,p1);
+        for (const p2 of permutations(complement)){
+          const num2 = buildNumber(digits,p2);
+          const key = num1+'x'+num2;
+          if (!seen.has(key)){ seen.add(key); results.push({num1,num2,product:num1*num2}); }
+        }
+      }
+    }
+  }
+  return results;
+}
+
+/* ---------------- bot strategies ---------------- */
+function botEasyProduct(digits,d1,d2){
+  const options = enumerateProductOptions(digits,d1,d2);
+  return options[randInt(options.length)];
+}
+// Medium gives its single largest digit to whichever number has fewer
+// digits (that number acts as a multiplier, so a bigger digit there has
+// outsized leverage), then fills the rest in descending order. For equal
+// digit counts it interleaves. This is a decent, human-like heuristic —
+// not the guaranteed-best play Hard performs via exhaustive search.
+function botMediumProduct(digits,d1,d2){
+  const idx = digits.map((_,i)=>i);
+  idx.sort((a,b)=>digits[b]-digits[a]);
+  let p1=[], p2=[];
+  if (d1===d2){
+    idx.forEach((v,i)=> (i%2===0 ? p1 : p2).push(v));
+  } else {
+    const minorIsN1 = d1<d2;
+    const minorLen = Math.min(d1,d2), majorLen = Math.max(d1,d2);
+    const minor = idx.slice(0,minorLen);
+    const major = idx.slice(minorLen, minorLen+majorLen);
+    if (minorIsN1){ p1=minor; p2=major; } else { p1=major; p2=minor; }
+  }
+  const num1=buildNumber(digits,p1), num2=buildNumber(digits,p2);
+  return {num1,num2,product:num1*num2};
+}
+// Hard: exact brute force. Rounds 1-2 maximize the product outright. Round 3
+// picks the smallest total that still clears the minimum sum, or (if no
+// split can clear it) the largest total available, matching the real rule.
+function botHardProductRound(digits,d1,d2, runningSum, target, isFinalRound){
+  const options = enumerateProductOptions(digits,d1,d2);
+  if (!isFinalRound){
+    let best=options[0];
+    for (const o of options) if (o.product>best.product) best=o;
+    return best;
+  }
+  let bestOver=null, bestAny=null;
+  for (const o of options){
+    const total = runningSum+o.product;
+    if (total>target && (!bestOver || total<bestOver.total)) bestOver={...o,total};
+    if (!bestAny || total>bestAny.total) bestAny={...o,total};
+  }
+  return bestOver || bestAny;
+}
+function botChooseRound(round, digits, d1, d2, runningSum, target, difficulty){
+  if (difficulty==='easy') return botEasyProduct(digits,d1,d2);
+  if (difficulty==='medium') return botMediumProduct(digits,d1,d2);
+  return botHardProductRound(digits,d1,d2, runningSum, target, round===3);
+}
+
+const FORMATS = {
+  '2x1': { dice:3, d1:2, d2:1, target:1000,   desc: 'Roll 3 dice → make a 2-digit number times a 1-digit number.' },
+  '3x1': { dice:4, d1:3, d2:1, target:10000,  desc: 'Roll 4 dice → make a 3-digit number times a 1-digit number.' },
+  '4x1': { dice:5, d1:4, d2:1, target:100000, desc: 'Roll 5 dice → make a 4-digit number times a 1-digit number.' },
+  '2x2': { dice:4, d1:2, d2:2, target:10000,  desc: 'Roll 4 dice → make two 2-digit numbers.' },
+};
+const DIFF_DESC = {
+  easy: 'Splits and arranges its digits completely at random.',
+  medium: 'Gives its biggest digit to the smaller number, then fills in the rest — smart, not perfect.',
+  hard: 'Checks every possible split and arrangement, then plays the best one.'
+};
+const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- state ---------------- */
+let st = {
+  format: '2x1',
+  difficulty: 'medium',
+  target: 1000,
+  round: 1,
+  humanProducts: [], botProducts: [],
+  roll: null,
+  slotsN1: [], slotsN2: [],
+  score: { human:0, bot:0, ties:0 },
+  wrongAttempts: 0,
+  sumWrongAttempts: 0,
+  finalHumanSum: null,
+  finalBotSum: null
+};
+
+/* ---------------- element refs ---------------- */
+const el = id => document.getElementById(id);
+const screens = { settings: el('screen-settings'), round: el('screen-round'), sum: el('screen-sum'), reveal: el('screen-reveal') };
+function showScreen(name){
+  Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
+  el('scorecard').classList.toggle('hidden', name === 'settings');
+}
+
+/* ---------------- settings ---------------- */
+function renderFormatChips(){
+  document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.format === st.format);
+  });
+  el('format-desc').textContent = FORMATS[st.format].desc;
+  el('target-input').value = FORMATS[st.format].target;
+}
+document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.format = btn.dataset.format; renderFormatChips(); });
+});
+function renderDiffChips(){
+  document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  el('diff-desc').textContent = DIFF_DESC[st.difficulty];
+}
+document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
+el('start-btn').addEventListener('click', ()=>{
+  const t = parseInt(el('target-input').value, 10);
+  st.target = isNaN(t) ? FORMATS[st.format].target : Math.max(0, t);
+  st.score = { human:0, bot:0, ties:0 };
+  updateScorePills();
+  el('target-tag').textContent = st.target.toLocaleString();
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', ()=> showScreen('settings'));
+el('change-settings-btn').addEventListener('click', ()=> showScreen('settings'));
+renderFormatChips();
+renderDiffChips();
+
+function updateScorePills(){
+  el('s-wins').textContent = st.score.human;
+  el('s-bwins').textContent = st.score.bot;
+  el('s-ties').textContent = st.score.ties;
+}
+
+/* ---------------- scoreboard ---------------- */
+function resetScorecard(){
+  for (let i=1;i<=3;i++){
+    const y = el('sc-you-'+i), b = el('sc-bot-'+i);
+    y.textContent='–'; y.classList.add('empty');
+    b.textContent='–'; b.classList.add('empty');
+  }
+}
+function updateScorecard(){
+  st.humanProducts.forEach((v,i)=>{ const y=el('sc-you-'+(i+1)); y.textContent=v.toLocaleString(); y.classList.remove('empty'); });
+  st.botProducts.forEach((v,i)=>{ const b=el('sc-bot-'+(i+1)); b.textContent=v.toLocaleString(); b.classList.remove('empty'); });
+}
+
+/* ---------------- match / round flow ---------------- */
+function startMatch(){
+  st.round = 1;
+  st.humanProducts = []; st.botProducts = [];
+  el('s-round').textContent = st.round;
+  resetScorecard();
+  showScreen('round');
+  startRound();
+}
+function fmt(){ return FORMATS[st.format]; }
+
+function startRound(){
+  const {d1,d2} = fmt();
+  st.roll = null;
+  st.slotsN1 = Array(d1).fill(null);
+  st.slotsN2 = Array(d2).fill(null);
+  st.wrongAttempts = 0;
+  el('r-num').textContent = st.round;
+  el('roll-btn-wrap').classList.remove('hidden');
+  el('dice-row').classList.add('hidden');
+  el('frames-wrap').classList.add('hidden');
+  el('product-check-wrap').classList.add('hidden');
+  el('next-round-wrap').classList.add('hidden');
+  el('msg').textContent=''; el('msg').className='';
+  el('product-answer-input').value='';
+  el('product-hint-line').textContent='';
+  el('product-msg').textContent='';
+}
+
+el('roll-btn').addEventListener('click', rollDice);
+function rollDice(){
+  el('roll-btn-wrap').classList.add('hidden');
+  el('dice-row').classList.remove('hidden');
+  const diceCount = fmt().dice;
+
+  let ticks=0;
+  const diceRow = el('dice-row');
+  const spin = setInterval(()=>{
+    diceRow.innerHTML='';
+    for (let i=0;i<diceCount;i++) diceRow.appendChild(buildDie(randInt(10), false, false));
+    ticks++;
+    if (ticks>6){
+      clearInterval(spin);
+      st.roll = rollN(diceCount);
+      renderDice();
+      el('frames-wrap').classList.remove('hidden');
+      renderFrames();
+    }
+  }, 70);
+}
+
+function buildDie(value, used, pickable){
+  const wrap = document.createElement('div');
+  wrap.className = 'die-wrap' + (used?' used':'') + (pickable?' pickable':'');
+  const shape = document.createElement('div'); shape.className='die-shape';
+  const num = document.createElement('div'); num.className='die-num'; num.textContent=value;
+  wrap.appendChild(shape); wrap.appendChild(num);
+  return wrap;
+}
+
+function renderDice(){
+  const diceRow = el('dice-row');
+  diceRow.innerHTML='';
+  st.roll.forEach((val,i)=>{
+    const used = st.slotsN1.includes(i) || st.slotsN2.includes(i);
+    const d = buildDie(val, used, !used);
+    if (!used) d.addEventListener('click', ()=> placeDigit(i));
+    diceRow.appendChild(d);
+  });
+}
+
+function flashMsg(text, cls){ const m=el('msg'); m.textContent=text; m.className=cls||'error'; }
+
+// Clicking a die fills the leftmost empty box: Number 1's slots first (in
+// order), then Number 2's. To put a digit somewhere else, click a filled
+// slot to send it back to the pool, then click dice again in the order
+// that gets you the split you want.
+function nextEmptySlot(){
+  const n1Idx = st.slotsN1.findIndex(s => s===null);
+  if (n1Idx !== -1) return { frame:'n1', arr:st.slotsN1, index:n1Idx };
+  const n2Idx = st.slotsN2.findIndex(s => s===null);
+  if (n2Idx !== -1) return { frame:'n2', arr:st.slotsN2, index:n2Idx };
+  return null;
+}
+
+function placeDigit(rollIndex){
+  const target = nextEmptySlot();
+  if (!target) return;
+  if (target.index===0 && target.arr.length>1 && st.roll[rollIndex]===0){
+    const unplaced = st.roll.map((_,i)=>i).filter(i => !st.slotsN1.includes(i) && !st.slotsN2.includes(i));
+    const hasNonZeroAlt = unplaced.some(i => i!==rollIndex && st.roll[i]!==0);
+    if (hasNonZeroAlt){
+      flashMsg("That number can't start with 0 — place a different digit there first.");
+      return;
+    }
+  }
+  target.arr[target.index] = rollIndex;
+  flashMsg('','');
+  renderDice();
+  renderFrames();
+}
+
+function clearSlot(frameName, slotIndex){
+  const arr = frameName==='n1' ? st.slotsN1 : st.slotsN2;
+  if (arr[slotIndex]===null) return;
+  arr[slotIndex] = null;
+  flashMsg('','');
+  renderDice();
+  renderFrames();
+}
+
+function renderFrameSlots(containerId, frameName, arr){
+  const row = el(containerId);
+  row.innerHTML='';
+  arr.forEach((rollIdx,i)=>{
+    const s = document.createElement('div');
+    s.className = 'slot' + (rollIdx!==null ? ' filled' : '');
+    s.textContent = rollIdx!==null ? st.roll[rollIdx] : '';
+    if (rollIdx!==null) s.addEventListener('click', ()=> clearSlot(frameName,i));
+    row.appendChild(s);
+  });
+}
+
+function renderFrames(){
+  renderFrameSlots('slots-n1','n1',st.slotsN1);
+  renderFrameSlots('slots-n2','n2',st.slotsN2);
+  const full = !st.slotsN1.includes(null) && !st.slotsN2.includes(null);
+  if (full){
+    const num1 = buildNumber(st.roll, st.slotsN1);
+    const num2 = buildNumber(st.roll, st.slotsN2);
+    el('product-check-wrap').classList.remove('hidden');
+    el('product-equation').textContent = `${num1} × ${num2} = ?`;
+  } else {
+    el('product-check-wrap').classList.add('hidden');
+  }
+}
+
+el('product-check-btn').addEventListener('click', checkProduct);
+el('product-answer-input').addEventListener('keydown', e=>{ if (e.key==='Enter') checkProduct(); });
+function checkProduct(){
+  const guess = parseInt(el('product-answer-input').value, 10);
+  const num1 = buildNumber(st.roll, st.slotsN1);
+  const num2 = buildNumber(st.roll, st.slotsN2);
+  const correct = num1*num2;
+  if (isNaN(guess)){ flashProductMsg('Type in the product first.', true); return; }
+  if (guess===correct){
+    flashProductMsg('That checks out!', false);
+    lockInRound(num1, num2, correct);
+  } else {
+    st.wrongAttempts++;
+    flashProductMsg("That's not quite right — check your work.", true);
+    if (st.wrongAttempts>=2){
+      el('product-hint-line').textContent = `Hint: ${num1} × ${num2} = ${correct}`;
+    }
+  }
+}
+function flashProductMsg(text, isError){
+  const m = el('product-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('product-answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+function lockInRound(num1, num2, product){
+  st.humanProducts.push(product);
+
+  const {d1,d2} = fmt();
+  const runningBotSum = st.botProducts.reduce((a,b)=>a+b,0);
+  const choice = botChooseRound(st.round, st.roll, d1, d2, runningBotSum, st.target, st.difficulty);
+  st.botProducts.push(choice.product);
+
+  updateScorecard();
+
+  el('frames-wrap').classList.add('hidden');
+  el('dice-row').classList.add('hidden');
+  el('product-check-wrap').classList.add('hidden');
+
+  if (st.round<3){
+    el('next-round-wrap').classList.remove('hidden');
+  } else {
+    setTimeout(goToSum, 500);
+  }
+}
+
+el('next-round-btn').addEventListener('click', ()=>{
+  st.round++;
+  el('s-round').textContent = st.round;
+  startRound();
+});
+
+/* ---------------- sum phase ---------------- */
+function goToSum(){
+  showScreen('sum');
+  st.sumWrongAttempts = 0;
+  el('sum-answer-input').value='';
+  el('sum-answer-input').disabled=false;
+  el('sum-check-btn').disabled=false;
+  el('sum-hint-line').textContent='';
+  el('sum-msg').textContent='';
+  el('sum-reveal-wrap').classList.add('hidden');
+  const [p1,p2,p3] = st.humanProducts;
+  el('sum-equation').textContent = `${p1.toLocaleString()} + ${p2.toLocaleString()} + ${p3.toLocaleString()} = ?`;
+}
+
+el('sum-check-btn').addEventListener('click', checkSum);
+el('sum-answer-input').addEventListener('keydown', e=>{ if (e.key==='Enter') checkSum(); });
+function checkSum(){
+  const guess = parseInt(el('sum-answer-input').value, 10);
+  const [p1,p2,p3] = st.humanProducts;
+  const correct = p1+p2+p3;
+  if (isNaN(guess)){ flashSumMsg('Type in the total first.', true); return; }
+  if (guess===correct){
+    flashSumMsg('That checks out!', false);
+    st.finalHumanSum = correct;
+    el('sum-reveal-wrap').classList.remove('hidden');
+    el('sum-answer-input').disabled=true;
+    el('sum-check-btn').disabled=true;
+  } else {
+    st.sumWrongAttempts++;
+    flashSumMsg("That's not quite right — check your work.", true);
+    if (st.sumWrongAttempts>=2){
+      el('sum-hint-line').textContent = `Hint: ${p1.toLocaleString()} + ${p2.toLocaleString()} = ${(p1+p2).toLocaleString()}, then add ${p3.toLocaleString()}.`;
+    }
+  }
+}
+function flashSumMsg(text, isError){
+  const m = el('sum-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('sum-answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+/* ---------------- reveal ---------------- */
+el('sum-reveal-btn').addEventListener('click', ()=>{
+  st.finalBotSum = st.botProducts.reduce((a,b)=>a+b,0);
+  const target = st.target;
+  const humanOver = st.finalHumanSum>target;
+  const botOver = st.finalBotSum>target;
+
+  el('human-total').textContent = st.finalHumanSum.toLocaleString();
+  el('human-status').textContent = humanOver ? 'Over the minimum' : 'Under the minimum';
+  el('human-status').className = 'result-status ' + (humanOver?'over':'under');
+  el('bot-total').textContent = st.finalBotSum.toLocaleString();
+  el('bot-status').textContent = botOver ? 'Over the minimum' : 'Under the minimum';
+  el('bot-status').className = 'result-status ' + (botOver?'over':'under');
+
+  let winner;
+  if (humanOver && botOver) winner = st.finalHumanSum===st.finalBotSum ? 'tie' : (st.finalHumanSum<st.finalBotSum ? 'human':'bot');
+  else if (humanOver && !botOver) winner = 'human';
+  else if (!humanOver && botOver) winner = 'bot';
+  else winner = st.finalHumanSum===st.finalBotSum ? 'tie' : (st.finalHumanSum>st.finalBotSum ? 'human':'bot');
+
+  const banner = el('winner-banner');
+  if (winner==='tie'){ banner.textContent = "It's a tie — you both win! 🤝"; st.score.ties++; }
+  else if (winner==='human'){ banner.textContent = 'You win this match! 🎉'; st.score.human++; }
+  else { banner.textContent = 'Bot wins this match.'; st.score.bot++; }
+  updateScorePills();
+  showScreen('reveal');
+});
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen('settings');
+</script>
+</body>
+</html>

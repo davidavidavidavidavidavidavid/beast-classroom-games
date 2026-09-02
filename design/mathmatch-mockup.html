@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Math Match — card grid mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --color-beast-red: #cd2027; --color-beast-blue: #125392;
+    --color-beast-red-bg: rgba(205,32,39,0.07); --color-beast-blue-bg: rgba(18,83,146,0.07);
+    --color-background-primary: #ffffff; --color-background-secondary: #eef3f8;
+    --color-text-primary: #202020; --color-text-secondary: #5a6470; --color-text-tertiary: #8b96a1;
+    --color-correct: #2f8f4e; --color-ink: var(--color-text-primary); --border-w: 4px;
+    --font-sans: 'Rubik', system-ui, -apple-system, sans-serif; --font-pixel: 'Press Start 2P', var(--font-sans);
+    --shadow-card: 6px 6px 0 var(--color-ink); --shadow-btn: 4px 4px 0 var(--color-ink); --shadow-sm: 3px 3px 0 var(--color-ink);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --color-beast-red: #ff5b5f; --color-beast-blue: #5fa4e0;
+      --color-background-primary: #1b2530; --color-background-secondary: #10161e;
+      --color-text-primary: #eef3f8; --color-text-secondary: #a7b3bf; --color-text-tertiary: #78838e; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); background: var(--color-background-secondary); color: var(--color-text-primary);
+    min-height: 100vh; display: flex; justify-content: center; padding: 1rem; }
+  #app { max-width: 460px; width: 100%; margin: auto; }
+  .card-panel { background: var(--color-background-primary); border: var(--border-w) solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-card); padding: 1.3rem 1.1rem; margin-bottom: 1.2rem; }
+  h1 { font-family: var(--font-pixel); font-size: 22px; text-align: center; color: var(--color-beast-red); }
+  .kicker-wrap { display: flex; justify-content: center; margin: 8px 0 10px; }
+  .kicker { display: inline-block; background: var(--color-background-primary); border: 2px solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-sm); padding: 5px 14px; font-weight: 800; font-size: 14px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--color-beast-blue); }
+  #tagline { font-size: 15px; color: var(--color-text-secondary); text-align: center; margin-bottom: 1rem; }
+
+  .score-row { display: flex; justify-content: center; gap: 16px; font-weight: 800; font-size: 15px; margin-bottom: 14px; }
+  .score-row .you { color: var(--color-beast-blue); } .score-row .bot { color: var(--color-beast-red); }
+
+  /* ---- new component: flip cards ---- */
+  #card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .flip-card { aspect-ratio: 3/4; perspective: 600px; cursor: pointer; }
+  .flip-inner { position: relative; width: 100%; height: 100%; transition: transform 0.4s; transform-style: preserve-3d; }
+  .flip-card.flipped .flip-inner { transform: rotateY(180deg); }
+  .flip-card.matched .flip-inner { transform: rotateY(180deg); }
+  .face { position: absolute; inset: 0; backface-visibility: hidden; border: 2px solid var(--color-ink); border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-sm); }
+  .face-back { background: var(--color-beast-blue);
+    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.08) 0 6px, transparent 6px 12px); }
+  .face-front { background: var(--color-background-primary); transform: rotateY(180deg); font-weight: 800; font-size: 17px; }
+  .flip-card.matched .face-front { background: var(--color-beast-blue-bg); border-color: var(--color-beast-blue); color: var(--color-beast-blue); }
+  .flip-card.wrong .face-front { animation: shakeCard 0.35s; border-color: var(--color-beast-red); }
+  @keyframes shakeCard { 0%,100%{transform:rotateY(180deg) translateX(0);} 25%{transform:rotateY(180deg) translateX(-4px);} 75%{transform:rotateY(180deg) translateX(4px);} }
+
+  #status { text-align: center; font-size: 14px; color: var(--color-text-secondary); margin-top: 12px; min-height: 18px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>SCUTTLE</h1>
+  <div class="kicker-wrap"><span class="kicker">Math Match · Ten Apart</span></div>
+  <div id="tagline">Flip two cards. Numbers 10 apart with the same ones digit match.</div>
+
+  <div class="card-panel">
+    <div class="score-row"><span class="you">You: <span id="you-score">1</span></span><span class="bot">Bot: <span id="bot-score">0</span></span></div>
+    <div id="card-grid"></div>
+    <div id="status">Your turn — flip a card.</div>
+  </div>
+</div>
+
+<script>
+  // 6 matching pairs (12 cards), pre-set for the mockup with one pair already matched
+  const VALUES = [3,13, 7,17, 9,19, 4,14, 6,16, 12,2];
+  let deck = VALUES.map((v,i) => ({ id:i, value:v, matched:false }));
+  // pre-mark one matched pair (3 & 13) to show that state
+  deck[0].matched = true; deck[1].matched = true;
+
+  let flippedIdx = [];
+  let lockBoard = false;
+  let youScore = 1, botScore = 0;
+
+  const grid = document.getElementById('card-grid');
+  const statusEl = document.getElementById('status');
+
+  function pairPartner(value){
+    // "ten apart, same ones digit" rule: a card's match is value +/- 10
+    return value > 9 ? value - 10 : value + 10;
+  }
+
+  function render(){
+    grid.innerHTML = '';
+    deck.forEach((card, i) => {
+      const el = document.createElement('div');
+      el.className = 'flip-card' + (card.matched ? ' matched' : '') + (flippedIdx.includes(i) && !card.matched ? ' flipped' : '');
+      el.innerHTML = `
+        <div class="flip-inner">
+          <div class="face face-back"></div>
+          <div class="face face-front">${card.value}</div>
+        </div>`;
+      if (!card.matched) el.addEventListener('click', () => flip(i));
+      grid.appendChild(el);
+    });
+  }
+
+  function flip(i){
+    if (lockBoard || flippedIdx.includes(i) || deck[i].matched) return;
+    flippedIdx.push(i);
+    render();
+    if (flippedIdx.length === 2){
+      lockBoard = true;
+      const [a,b] = flippedIdx;
+      const isMatch = pairPartner(deck[a].value) === deck[b].value;
+      setTimeout(() => {
+        if (isMatch){
+          deck[a].matched = true; deck[b].matched = true;
+          youScore++; document.getElementById('you-score').textContent = youScore;
+          statusEl.textContent = 'Match! Go again.';
+        } else {
+          document.querySelectorAll('.flip-card')[a].classList.add('wrong');
+          document.querySelectorAll('.flip-card')[b].classList.add('wrong');
+          statusEl.textContent = "No match — bot's turn next.";
+        }
+        setTimeout(() => {
+          flippedIdx = [];
+          lockBoard = false;
+          render();
+        }, isMatch ? 300 : 700);
+      }, 500);
+    }
+  }
+
+  render();
+</script>
+</body>
+</html>

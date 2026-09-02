@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beeline — board mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --color-beast-red: #cd2027;
+    --color-beast-blue: #125392;
+    --color-beast-red-bg: rgba(205,32,39,0.07);
+    --color-beast-blue-bg: rgba(18,83,146,0.07);
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #eef3f8;
+    --color-text-primary: #202020;
+    --color-text-secondary: #5a6470;
+    --color-text-tertiary: #8b96a1;
+    --color-ink: var(--color-text-primary);
+    --border-w: 4px;
+    --font-sans: 'Rubik', system-ui, -apple-system, sans-serif;
+    --font-pixel: 'Press Start 2P', var(--font-sans);
+    --shadow-card: 6px 6px 0 var(--color-ink);
+    --shadow-btn: 4px 4px 0 var(--color-ink);
+    --shadow-sm: 3px 3px 0 var(--color-ink);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-beast-red: #ff5b5f; --color-beast-blue: #5fa4e0;
+      --color-beast-red-bg: rgba(255,91,95,0.12); --color-beast-blue-bg: rgba(95,164,224,0.12);
+      --color-background-primary: #1b2530; --color-background-secondary: #10161e;
+      --color-text-primary: #eef3f8; --color-text-secondary: #a7b3bf; --color-text-tertiary: #78838e;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); background: var(--color-background-secondary); color: var(--color-text-primary);
+    min-height: 100vh; display: flex; justify-content: center; padding: 1rem; }
+  #app { max-width: 480px; width: 100%; margin: auto; }
+  .card { background: var(--color-background-primary); border: var(--border-w) solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-card); padding: 1.3rem 1.1rem; margin-bottom: 1.2rem; }
+  h1 { font-family: var(--font-pixel); font-size: 22px; text-align: center; color: var(--color-beast-red); }
+  .kicker-wrap { display: flex; justify-content: center; margin: 8px 0 10px; }
+  .kicker { display: inline-block; background: var(--color-background-primary); border: 2px solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-sm); padding: 5px 14px; font-weight: 800; font-size: 14px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--color-beast-blue); }
+  #tagline { font-size: 15px; color: var(--color-text-secondary); text-align: center; margin-bottom: 1rem; }
+
+  .legend { display: flex; justify-content: center; gap: 16px; font-size: 13px; font-weight: 700; color: var(--color-text-secondary); margin-bottom: 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--color-ink); display: inline-block; }
+  .dot.you { background: var(--color-beast-blue); } .dot.bot { background: var(--color-beast-red); }
+
+  /* ---- the new component: claiming grid ---- */
+  #grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 16px; }
+  .cell {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px; border: 2px solid var(--color-ink); border-radius: 4px;
+    background: var(--color-background-primary); box-shadow: var(--shadow-sm); position: relative;
+    transition: transform 0.15s;
+  }
+  .cell.you { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+  .cell.bot { background: var(--color-beast-red); color: #fff; border-color: var(--color-beast-red); }
+  .cell.pending { outline: 3px dashed var(--color-text-tertiary); outline-offset: 2px; }
+  .cell.win { animation: winPulse 0.6s ease-in-out 2; }
+  @keyframes winPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+
+  /* ---- operand row: reuses the same left/right stepper pattern as Scuttle's reorder controls ---- */
+  .operand-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--color-text-tertiary); text-align: center; margin-bottom: 6px; }
+  .operand-row { display: flex; justify-content: center; gap: 4px; margin-bottom: 8px; }
+  .op-num {
+    width: 32px; height: 38px; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px; border: 2px solid var(--color-ink); border-radius: 4px; background: var(--color-background-primary);
+    position: relative;
+  }
+  .op-num.tok-you { box-shadow: 0 -5px 0 -2px var(--color-beast-blue); }
+  .op-num.tok-bot { box-shadow: 0 -5px 0 -2px var(--color-beast-red); }
+  .token-marker { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--color-ink); }
+  .token-marker.you { background: var(--color-beast-blue); } .token-marker.bot { background: var(--color-beast-red); }
+
+  .stepper-row { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .stepper-row button { font-family: var(--font-sans); font-weight: 800; text-transform: uppercase; cursor: pointer;
+    border: 2px solid var(--color-ink); border-radius: 4px; background: var(--color-background-primary); color: var(--color-text-primary);
+    padding: 0.35rem 0.6rem; font-size: 15px; box-shadow: var(--shadow-sm); }
+  .stepper-row button:active { transform: translate(3px,3px); box-shadow: 0 0 0 var(--color-ink); }
+  .stepper-label { font-weight: 800; font-size: 14px; min-width: 90px; text-align: center; }
+
+  #equation { text-align: center; font-size: 24px; font-weight: 800; margin: 8px 0 14px; }
+  #equation .eq-you { color: var(--color-beast-blue); }
+
+  .btn-row { display: flex; justify-content: center; gap: 8px; }
+  button.primary { font-family: var(--font-sans); font-weight: 800; text-transform: uppercase; cursor: pointer;
+    border: var(--border-w) solid var(--color-beast-blue); border-radius: 4px; background: var(--color-beast-blue); color: #fff;
+    padding: 0.65rem 1.2rem; font-size: 16px; box-shadow: var(--shadow-btn); }
+  button.primary:active { transform: translate(4px,4px); box-shadow: 0 0 0 var(--color-ink); }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+  #status { text-align: center; font-size: 14px; color: var(--color-text-secondary); margin-top: 10px; min-height: 18px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>SCUTTLE</h1>
+  <div class="kicker-wrap"><span class="kicker">Beeline · Product</span></div>
+  <div id="tagline">Move your token, mark the product, get 4 in a row.</div>
+
+  <div class="card">
+    <div class="legend"><span><i class="dot you"></i>You</span><span><i class="dot bot"></i>Bot</span></div>
+
+    <div id="grid"></div>
+
+    <div class="operand-label">Move your token along 1–9</div>
+    <div class="operand-row" id="operand-row"></div>
+    <div class="stepper-row">
+      <button id="left-btn">◀</button>
+      <div class="stepper-label" id="token-label">Token: You</div>
+      <button id="right-btn">▶</button>
+    </div>
+
+    <div id="equation"></div>
+    <div class="btn-row">
+      <button class="primary" id="claim-btn">Mark it</button>
+    </div>
+    <div id="status">Product Beeline uses ONE row — both players move the same shared token positions each turn.</div>
+  </div>
+</div>
+
+<script>
+  // 6x6 board of real Product Beeline values (from the actual game board)
+  const VALUES = [1,2,3,4,5,6,7,8,9,10,12,14,15,16,18,20,21,24,25,27,28,30,32,35,36,40,42,45,48,49,54,56,63,64,72,81];
+  let owner = Array(36).fill(null); // 'you' | 'bot' | null
+  // seed a few claimed cells + a near-complete line to show mid-game state
+  owner[VALUES.indexOf(20)] = 'you';
+  owner[VALUES.indexOf(21)] = 'you';
+  owner[VALUES.indexOf(24)] = 'you';
+  owner[VALUES.indexOf(15)] = 'bot';
+  owner[VALUES.indexOf(45)] = 'bot';
+
+  let tokenPos = 4; // 1-9, index token sits on (design demo: single mover for simplicity)
+  let turn = 'you';
+
+  const gridEl = document.getElementById('grid');
+  const rowEl = document.getElementById('operand-row');
+  const eqEl = document.getElementById('equation');
+  const claimBtn = document.getElementById('claim-btn');
+  const statusEl = document.getElementById('status');
+  const tokenLabel = document.getElementById('token-label');
+
+  function currentProduct(){ return tokenPos * tokenPos; } // demo: token squared stands in for "two tokens on the row"
+
+  function render(){
+    gridEl.innerHTML = '';
+    VALUES.forEach((v,i)=>{
+      const c = document.createElement('div');
+      c.className = 'cell' + (owner[i] ? ' '+owner[i] : '');
+      if (v === currentProduct() && !owner[i]) c.classList.add('pending');
+      c.textContent = v;
+      gridEl.appendChild(c);
+    });
+
+    rowEl.innerHTML = '';
+    for (let n=1;n<=9;n++){
+      const chip = document.createElement('div');
+      chip.className = 'op-num' + (n===tokenPos ? ' tok-'+turn : '');
+      chip.textContent = n;
+      if (n===tokenPos){
+        const marker = document.createElement('div');
+        marker.className = 'token-marker ' + turn;
+        chip.appendChild(marker);
+      }
+      rowEl.appendChild(chip);
+    }
+
+    tokenLabel.textContent = 'Token: ' + (turn==='you' ? 'You' : 'Bot');
+    eqEl.innerHTML = `<span class="${turn==='you'?'eq-you':''}" style="${turn==='bot'?'color:var(--color-beast-red)':''}">${tokenPos} × ${tokenPos} = ${currentProduct()}</span>`;
+
+    const idx = VALUES.indexOf(currentProduct());
+    claimBtn.disabled = idx===-1 || !!owner[idx];
+    statusEl.textContent = claimBtn.disabled && idx!==-1
+      ? 'That square is already claimed — move your token to a new value.'
+      : 'Product Beeline uses ONE row — both players move the same shared token positions each turn.';
+  }
+
+  document.getElementById('left-btn').addEventListener('click', ()=>{ tokenPos = Math.max(1, tokenPos-1); render(); });
+  document.getElementById('right-btn').addEventListener('click', ()=>{ tokenPos = Math.min(9, tokenPos+1); render(); });
+
+  claimBtn.addEventListener('click', ()=>{
+    const idx = VALUES.indexOf(currentProduct());
+    if (idx===-1 || owner[idx]) return;
+    owner[idx] = turn;
+    turn = turn==='you' ? 'bot' : 'you';
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>
