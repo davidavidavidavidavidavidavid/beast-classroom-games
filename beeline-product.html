@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beeline: Product</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/claim-grid.css">
+<style>
+  /* ---- Beeline-specific: disabling the operand row during the bot's turn.
+     Everything else is the shared claim-grid component or design-system. ---- */
+  .operand-row.disabled { pointer-events: none; opacity: 0.55; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>BEELINE</h1>
+  <div class="kicker-wrap"><span class="kicker">Product</span></div>
+  <div id="tagline" class="tagline">Move your token, mark the product, connect four in a row to win.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill">You <b id="s-wins">0</b> · Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Bot difficulty</div>
+    <div class="chip-row" id="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+    <div class="desc-line" id="diff-desc"></div>
+    <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      You go first. On your first turn, place <strong>both</strong> tokens anywhere on the 1–9 row below
+      (they can both go on the same number) — that's your product, so mark it on the grid above. From then
+      on, each turn you move <strong>one</strong> token to a new number and mark the new product. If that
+      product is already claimed, you don't get to mark it — your turn just ends, no penalty beyond that.
+      There's no dice involved — every move is your own choice. Whoever connects <strong>four in a row</strong>
+      (horizontal, vertical, or diagonal) first wins — that's a BEELINE! The bot always multiplies correctly,
+      but how far ahead it plans changes with difficulty.
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div class="card hidden" id="screen-game">
+    <div class="legend"><span><i class="legend-dot human"></i>You</span><span><i class="legend-dot bot"></i>Bot</span></div>
+
+    <div id="claim-grid"></div>
+
+    <div id="turn-status" class="feedback-msg"></div>
+
+    <div id="setup-hint" class="desc-line hidden" style="text-align:center;">Click two numbers below to place your tokens.</div>
+
+    <div class="operand-title">Move along 1–9</div>
+    <div class="operand-row" id="operand-row"></div>
+
+    <div class="token-switch-row hidden" id="token-switch-row">
+      <button id="switch-token-0"></button>
+      <button id="switch-token-1"></button>
+    </div>
+
+    <div id="answer-area" class="hidden">
+      <div class="equation-line" id="equation-line"></div>
+      <div class="answer-row">
+        <label for="answer-input">Product:</label>
+        <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?"/>
+        <button class="primary" id="check-btn">Check</button>
+      </div>
+      <div id="hint-line" class="hint-line"></div>
+      <div id="compute-msg" class="feedback-msg"></div>
+    </div>
+
+    <div id="winner-banner"></div>
+    <div class="btn-row hidden" id="end-btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ---------------- board & move engine ----------------
+   Ported from test/beeline-product-bot-simulation.js after that script's
+   head-to-head tier check passed — see CLAUDE.md Bot AI philosophy. This
+   is a turn-based, deterministic, perfect-information game (no dice) —
+   see that simulation file's header for how the bot tiers are designed
+   differently from Scuttle/Pop's because of that. */
+
+const ROWMIN = 1, ROWMAX = 9;
+
+// Fixed 6x6 board layout: the 36 distinct products of two numbers 1-9,
+// arranged via a deterministic shuffle since the rules doc describes
+// mechanics, not a physical board's exact spatial layout — a reasonable
+// placeholder arrangement, not a transcription of a real printed board.
+const VALUES = [14,54,16,49,32,6,4,72,48,21,2,56,35,64,36,5,9,81,30,40,42,8,7,28,1,15,3,18,27,12,63,24,20,45,25,10];
+const VALUE_INDEX = new Map(VALUES.map((v, i) => [v, i]));
+const W = 6, H = 6;
+const DIRS = [[0, 1], [1, 0], [1, 1], [1, -1]];
+const OTHER = { human: 'bot', bot: 'human' };
+
+function legalMoves(state){
+  if (state.tokens === null){
+    const moves = [];
+    for (let a = ROWMIN; a <= ROWMAX; a++) for (let b = a; b <= ROWMAX; b++) moves.push({ type:'setup', a, b });
+    return moves;
+  }
+  const moves = [];
+  for (let idx = 0; idx < 2; idx++){
+    for (let pos = ROWMIN; pos <= ROWMAX; pos++){
+      if (pos !== state.tokens[idx]) moves.push({ type:'move', idx, pos });
+    }
+  }
+  return moves;
+}
+
+function applyMove(state, move, symbol){
+  const owner = state.owner.slice();
+  let tokens;
+  if (move.type === 'setup') tokens = [move.a, move.b];
+  else { tokens = state.tokens.slice(); tokens[move.idx] = move.pos; }
+  const value = tokens[0] * tokens[1];
+  const cellIdx = VALUE_INDEX.get(value);
+  let marked = false;
+  if (owner[cellIdx] === null){ owner[cellIdx] = symbol; marked = true; }
+  return { state: { owner, tokens }, marked, cellIdx };
+}
+
+function boardFull(owner){ return owner.every(o => o !== null); }
+
+function hasFourInRow(owner, symbol){
+  for (let r = 0; r < H; r++){
+    for (let c = 0; c < W; c++){
+      if (owner[r*W+c] !== symbol) continue;
+      for (const [dr,dc] of DIRS){
+        let count = 1;
+        for (let k = 1; k < 4; k++){
+          const rr = r+dr*k, cc = c+dc*k;
+          if (rr<0||rr>=H||cc<0||cc>=W||owner[rr*W+cc]!==symbol) break;
+          count++;
+        }
+        if (count >= 4) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function findWinningLine(owner, symbol){
+  for (let r = 0; r < H; r++){
+    for (let c = 0; c < W; c++){
+      if (owner[r*W+c] !== symbol) continue;
+      for (const [dr,dc] of DIRS){
+        const cells = [r*W+c];
+        for (let k = 1; k < 4; k++){
+          const rr = r+dr*k, cc = c+dc*k;
+          if (rr<0||rr>=H||cc<0||cc>=W||owner[rr*W+cc]!==symbol) break;
+          cells.push(rr*W+cc);
+        }
+        if (cells.length >= 4) return cells.slice(0,4);
+      }
+    }
+  }
+  return null;
+}
+
+// Win condition (pure — see CLAUDE.md Code conventions). Unlike Scuttle/Pop,
+// Beeline has no single "reveal" moment (both sides' moves are visible on
+// the shared board the whole game) — this gets called after every mark
+// attempt instead of from a reveal-button handler. Returns null while the
+// game is still in progress.
+function decideWinner(owner){
+  if (hasFourInRow(owner, 'human')) return 'human';
+  if (hasFourInRow(owner, 'bot')) return 'bot';
+  if (boardFull(owner)) return 'tie';
+  return null;
+}
+
+function longestRunThrough(owner, idx, symbol){
+  const r0 = Math.floor(idx/W), c0 = idx%W;
+  let best = 1;
+  for (const [dr,dc] of DIRS){
+    let count = 1;
+    for (let k=1;k<4;k++){ const rr=r0+dr*k, cc=c0+dc*k; if (rr<0||rr>=H||cc<0||cc>=W||owner[rr*W+cc]!==symbol) break; count++; }
+    for (let k=1;k<4;k++){ const rr=r0-dr*k, cc=c0-dc*k; if (rr<0||rr>=H||cc<0||cc>=W||owner[rr*W+cc]!==symbol) break; count++; }
+    if (count > best) best = count;
+  }
+  return best;
+}
+
+/* ---------------- bot strategies ---------------- */
+
+function randInt(n){ return Math.floor(Math.random()*n); }
+
+function botEasy(state){
+  const moves = legalMoves(state);
+  return moves[randInt(moves.length)];
+}
+
+function botMedium(state, symbol){
+  const moves = legalMoves(state);
+  const scored = moves.map(m => {
+    const applied = applyMove(state, m, symbol);
+    const runLen = applied.marked ? longestRunThrough(applied.state.owner, applied.cellIdx, symbol) : 0;
+    return { m, marked: applied.marked, runLen };
+  });
+  const openMoves = scored.filter(s => s.marked);
+  const pool = openMoves.length > 0 ? openMoves : scored;
+  const bestRun = Math.max(...pool.map(s => s.runLen));
+  const best = pool.filter(s => s.runLen === bestRun);
+  return best[randInt(best.length)].m;
+}
+
+const WINDOWS = (() => {
+  const wins = [];
+  for (let r=0;r<H;r++) for (let c=0;c<W;c++){
+    for (const [dr,dc] of DIRS){
+      const cells = []; let ok = true;
+      for (let k=0;k<4;k++){ const rr=r+dr*k, cc=c+dc*k; if (rr<0||rr>=H||cc<0||cc>=W){ ok=false; break; } cells.push(rr*W+cc); }
+      if (ok) wins.push(cells);
+    }
+  }
+  return wins;
+})();
+const WEIGHT = { 1:1, 2:12, 3:150, 4:100000 };
+
+function evaluate(owner, symbol){
+  const opp = OTHER[symbol];
+  let score = 0;
+  for (const cells of WINDOWS){
+    let mine=0, theirs=0;
+    for (const idx of cells){ if (owner[idx]===symbol) mine++; else if (owner[idx]===opp) theirs++; }
+    if (mine>0 && theirs===0) score += WEIGHT[mine];
+    else if (theirs>0 && mine===0) score -= WEIGHT[theirs];
+  }
+  return score;
+}
+
+function minimax(state, symbol, toMove, depth, alpha, beta){
+  if (hasFourInRow(state.owner, symbol)) return 100000 + depth;
+  if (hasFourInRow(state.owner, OTHER[symbol])) return -100000 - depth;
+  if (boardFull(state.owner) || depth === 0) return evaluate(state.owner, symbol);
+
+  const moves = legalMoves(state);
+  const maximizing = toMove === symbol;
+  let value = maximizing ? -Infinity : Infinity;
+  for (const m of moves){
+    const applied = applyMove(state, m, toMove);
+    const next = minimax(applied.state, symbol, OTHER[toMove], depth-1, alpha, beta);
+    if (maximizing){ value = Math.max(value, next); alpha = Math.max(alpha, value); }
+    else { value = Math.min(value, next); beta = Math.min(beta, value); }
+    if (beta <= alpha) break;
+  }
+  return value;
+}
+
+const HARD_DEPTH = 4;
+
+function botHard(state, symbol){
+  const moves = legalMoves(state);
+  let best = null;
+  for (const m of moves){
+    const applied = applyMove(state, m, symbol);
+    let score;
+    if (applied.marked && hasFourInRow(applied.state.owner, symbol)) score = 200000;
+    else score = minimax(applied.state, symbol, OTHER[symbol], HARD_DEPTH-1, -Infinity, Infinity);
+    if (!best || score > best.score) best = { m, score };
+  }
+  return best.m;
+}
+
+// The fixed entry point every difficulty dispatches through (see CLAUDE.md
+// Code conventions) — here a per-*turn* decision, since Beeline is
+// turn-based rather than round-based.
+function botChooseRound(state, symbol, difficulty){
+  if (difficulty === 'easy') return botEasy(state);
+  if (difficulty === 'medium') return botMedium(state, symbol);
+  return botHard(state, symbol);
+}
+
+const DIFF_DESC = {
+  easy: 'Moves to a completely random new spot every turn — sometimes even lands on cells already claimed.',
+  medium: 'Prefers an open cell, and greedily builds its own longest line — but never blocks yours.',
+  hard: 'Thinks several moves ahead, weighing every line on the board — including blocking you.'
+};
+const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- state ---------------- */
+let st = {
+  difficulty: 'medium',
+  owner: Array(36).fill(null),
+  tokens: null,             // null until the first placement; else [pos0, pos1]
+  pendingSetupTokens: [],   // accumulates clicks during the very first placement
+  activeTokenIdx: 0,        // which token a row-click will move, once tokens exist
+  turn: 'human',            // 'human' always goes first in this build
+  phase: 'idle',            // 'idle' | 'awaiting-answer' | 'bot-thinking' | 'over'
+  pendingMove: null,        // the move whose product needs confirming before it's applied
+  wrongAttempts: 0,
+  gameOver: false,
+  winner: null,
+  winningCells: null,
+  score: { human:0, bot:0, ties:0 }
+};
+
+/* ---------------- element refs ---------------- */
+const el = id => document.getElementById(id);
+const screens = { settings: el('screen-settings'), game: el('screen-game') };
+function showScreen(name){
+  Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
+}
+
+/* ---------------- settings screen ---------------- */
+function renderDiffChips(){
+  document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  el('diff-desc').textContent = DIFF_DESC[st.difficulty];
+}
+document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
+el('start-btn').addEventListener('click', ()=>{
+  st.score = { human:0, bot:0, ties:0 };
+  updateScorePills();
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', ()=> showScreen('settings'));
+el('change-settings-btn').addEventListener('click', ()=> showScreen('settings'));
+renderDiffChips();
+
+function updateScorePills(){
+  el('s-wins').textContent = st.score.human;
+  el('s-bwins').textContent = st.score.bot;
+  el('s-ties').textContent = st.score.ties;
+}
+
+/* ---------------- match / round flow ---------------- */
+function startMatch(){
+  showScreen('game');
+  startRound();
+}
+
+function startRound(){
+  st.owner = Array(36).fill(null);
+  st.tokens = null;
+  st.pendingSetupTokens = [];
+  st.activeTokenIdx = 0;
+  st.turn = 'human';
+  st.phase = 'idle';
+  st.pendingMove = null;
+  st.wrongAttempts = 0;
+  st.gameOver = false;
+  st.winner = null;
+  st.winningCells = null;
+  el('turn-status').textContent = 'Your turn — click two numbers to place your tokens.';
+  el('winner-banner').textContent = '';
+  el('end-btn-row').classList.add('hidden');
+  el('answer-area').classList.add('hidden');
+  render();
+}
+
+/* ---------------- rendering ---------------- */
+function computePendingProduct(){
+  if (!st.pendingMove) return null;
+  if (st.pendingMove.type === 'setup') return st.pendingMove.a * st.pendingMove.b;
+  const t = st.tokens.slice();
+  t[st.pendingMove.idx] = st.pendingMove.pos;
+  return t[0] * t[1];
+}
+
+function pendingEquationText(){
+  if (!st.pendingMove) return '';
+  let a, b;
+  if (st.pendingMove.type === 'setup'){ a = st.pendingMove.a; b = st.pendingMove.b; }
+  else { const t = st.tokens.slice(); t[st.pendingMove.idx] = st.pendingMove.pos; a = t[0]; b = t[1]; }
+  return `${a} × ${b}`;
+}
+
+function cellClassesFor(i){
+  let cls = 'claim-cell';
+  const owner = st.owner[i];
+  if (owner) cls += ' ' + owner;
+  if (st.gameOver && st.winningCells && st.winningCells.includes(i)){
+    cls += ' win';
+  } else if (!st.gameOver && st.phase === 'awaiting-answer'){
+    const pendingProduct = computePendingProduct();
+    if (pendingProduct !== null && VALUES[i] === pendingProduct && !owner) cls += ' pending';
+  }
+  return cls;
+}
+
+function renderGrid(){
+  const grid = el('claim-grid');
+  grid.innerHTML = '';
+  VALUES.forEach((v,i)=>{
+    const c = document.createElement('div');
+    c.className = cellClassesFor(i);
+    c.textContent = v;
+    grid.appendChild(c);
+  });
+}
+
+function renderOperandRow(){
+  const row = el('operand-row');
+  row.innerHTML = '';
+  const currentTokens = st.tokens !== null ? st.tokens : st.pendingSetupTokens;
+  for (let n = ROWMIN; n <= ROWMAX; n++){
+    const cell = document.createElement('div');
+    cell.className = 'op-num';
+    cell.textContent = n;
+
+    const tokensHere = currentTokens.filter(pos => pos === n).length;
+    if (tokensHere > 0){
+      const markers = document.createElement('div');
+      markers.className = 'token-markers';
+      for (let k=0; k<tokensHere; k++){
+        const m = document.createElement('div');
+        m.className = 'token-marker ' + st.turn;
+        markers.appendChild(m);
+      }
+      cell.appendChild(markers);
+    }
+
+    if (st.tokens !== null && st.turn === 'human' && st.phase === 'idle' && n === st.tokens[st.activeTokenIdx]){
+      cell.classList.add('selected', 'human');
+    }
+
+    cell.addEventListener('click', ()=> handleRowClick(n));
+    row.appendChild(cell);
+  }
+  row.classList.toggle('disabled', st.gameOver || st.turn !== 'human' || st.phase !== 'idle');
+}
+
+function renderTokenSwitch(){
+  const wrap = el('token-switch-row');
+  if (st.tokens === null || st.turn !== 'human' || st.phase !== 'idle'){
+    wrap.classList.add('hidden');
+    return;
+  }
+  wrap.classList.remove('hidden');
+  const b0 = el('switch-token-0'), b1 = el('switch-token-1');
+  b0.textContent = 'Move token at ' + st.tokens[0];
+  b1.textContent = 'Move token at ' + st.tokens[1];
+  b0.classList.toggle('active', st.activeTokenIdx === 0);
+  b1.classList.toggle('active', st.activeTokenIdx === 1);
+}
+el('switch-token-0').addEventListener('click', ()=>{ st.activeTokenIdx = 0; render(); });
+el('switch-token-1').addEventListener('click', ()=>{ st.activeTokenIdx = 1; render(); });
+
+function render(){
+  renderGrid();
+  renderOperandRow();
+  renderTokenSwitch();
+  el('setup-hint').classList.toggle('hidden', !(st.tokens === null && st.phase === 'idle' && st.turn === 'human'));
+}
+
+/* ---------------- human move selection ---------------- */
+function handleRowClick(pos){
+  if (st.gameOver || st.turn !== 'human' || st.phase !== 'idle') return;
+  if (st.tokens === null){
+    st.pendingSetupTokens.push(pos);
+    if (st.pendingSetupTokens.length < 2){ render(); return; }
+    st.pendingMove = { type:'setup', a: st.pendingSetupTokens[0], b: st.pendingSetupTokens[1] };
+    enterAwaitingAnswer();
+    return;
+  }
+  if (pos === st.tokens[st.activeTokenIdx]) return; // not an actual move
+  st.pendingMove = { type:'move', idx: st.activeTokenIdx, pos };
+  enterAwaitingAnswer();
+}
+
+function enterAwaitingAnswer(){
+  st.phase = 'awaiting-answer';
+  st.wrongAttempts = 0;
+  el('answer-input').value = '';
+  el('answer-input').disabled = false;
+  el('check-btn').disabled = false;
+  el('hint-line').textContent = '';
+  el('compute-msg').textContent = '';
+  el('equation-line').textContent = pendingEquationText() + ' = ?';
+  el('answer-area').classList.remove('hidden');
+  render();
+}
+
+el('check-btn').addEventListener('click', checkAnswer);
+el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+
+function checkAnswer(){
+  const guess = parseInt(el('answer-input').value, 10);
+  const correct = computePendingProduct();
+  if (isNaN(guess)){
+    flashComputeMsg('Type the product first.', true);
+    return;
+  }
+  if (guess !== correct){
+    st.wrongAttempts++;
+    flashComputeMsg("That's not quite right — check your work.", true);
+    if (st.wrongAttempts >= 2){
+      el('hint-line').textContent = `Hint: ${pendingEquationText()} = ${correct}`;
+    }
+    return;
+  }
+  flashComputeMsg('That checks out!', false);
+  const winner = commitMove(st.pendingMove, 'human');
+  st.pendingMove = null;
+  el('answer-area').classList.add('hidden');
+  if (winner){ endGame(winner); return; }
+  st.turn = 'bot';
+  st.activeTokenIdx = 0;
+  st.phase = 'idle';
+  render();
+  setTimeout(botTurn, 550);
+}
+
+function flashComputeMsg(text, isError){
+  const m = el('compute-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+/* ---------------- commit a move (shared by human + bot paths) ---------------- */
+function commitMove(move, symbol){
+  const applied = applyMove({ owner: st.owner, tokens: st.tokens }, move, symbol);
+  st.owner = applied.state.owner;
+  st.tokens = applied.state.tokens;
+  const product = st.tokens[0] * st.tokens[1];
+
+  const label = symbol === 'human' ? 'You' : 'Bot';
+  el('turn-status').textContent = applied.marked
+    ? `${label} marked ${product}!`
+    : `${label} moved to ${product} — already claimed, turn over.`;
+
+  return decideWinner(st.owner);
+}
+
+/* ---------------- bot's turn ---------------- */
+function botTurn(){
+  st.phase = 'bot-thinking';
+  el('turn-status').textContent = 'Bot is thinking…';
+  render();
+  setTimeout(()=>{
+    const move = botChooseRound({ owner: st.owner, tokens: st.tokens }, 'bot', st.difficulty);
+    const winner = commitMove(move, 'bot');
+    if (winner){ endGame(winner); return; }
+    st.turn = 'human';
+    st.phase = 'idle';
+    st.activeTokenIdx = 0;
+    render();
+  }, 550);
+}
+
+/* ---------------- end of game ---------------- */
+function endGame(winner){
+  st.phase = 'over';
+  st.gameOver = true;
+  st.winner = winner;
+  st.winningCells = winner === 'tie' ? null : findWinningLine(st.owner, winner);
+
+  const banner = el('winner-banner');
+  if (winner === 'tie'){
+    banner.textContent = 'The board filled up with no line — a tie!';
+    st.score.ties++;
+  } else if (winner === 'human'){
+    banner.textContent = 'BEELINE! You win! 🎉';
+    st.score.human++;
+  } else {
+    banner.textContent = 'BEELINE! Bot wins.';
+    st.score.bot++;
+  }
+  updateScorePills();
+  el('end-btn-row').classList.remove('hidden');
+  render();
+}
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen('settings');
+</script>
+</body>
+</html>

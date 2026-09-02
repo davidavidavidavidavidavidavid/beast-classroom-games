@@ -9,11 +9,13 @@ dependencies beyond Google Fonts), sharing a common design system.
 **Built and tested:**
 - `scuttle-addition-subtraction.html` — closest-to-target, build 1 number/round
 - `scuttle-product.html` — split shared dice into 2 numbers, multiply, smallest-sum-over-threshold wins
-- `pop-addition.html` — one shared digit revealed at a time, sequential/irrevocable placement into inside-blanks or throwaways, closest-to-target-without-busting wins (busting = instant loss). Not yet linked from `scuttle-menu.html`.
-- `scuttle-menu.html` — hub/landing page with an NES-style boot sequence, links out to each game (Scuttle games only so far — see above)
+- `pop-addition.html` — one shared digit revealed at a time, sequential/irrevocable placement into inside-blanks or throwaways, closest-to-target-without-busting wins (busting = instant loss).
+- `pop-subtraction.html` — same Pop engine, generalized to a *signed* place-value per inside addend (minuend positive, subtrahend negative) so the inside value is minuend − subtrahend and can go negative. Bot tiers re-verified from scratch for this, not assumed from Addition Pop (see `test/pop-subtraction-bot-simulation.js`).
+- `beeline-product.html` — turn-based, deterministic, no dice: two shared tokens move along a 1-9 row, their product gets marked on a fixed 36-cell grid, first to connect four in a row wins. A genuinely different game shape than Scuttle/Pop (adversarial, perfect-information) — see Bot AI philosophy below for how that changed the bot design and verification approach. New shared component: `components/claim-grid.css`.
+- `scuttle-menu.html` — hub/landing page with an NES-style boot sequence, links out to each game, grouped under "Scuttle"/"Pop"/"Beeline" section labels. Still branded "SCUTTLE" end-to-end (H1, boot logo, `<title>`) despite hosting three games now — an open question, not yet resolved.
 
 **Designed but not built** (see `/design/` folder):
-- `beeline-board-mockup.html` — Connect-4-style claiming grid (new component)
+- `beeline-board-mockup.html` — Connect-4-style claiming grid; already extracted into `components/claim-grid.css` and built for real in `beeline-product.html`, kept here as the original sketch/reference.
 - `pig-mockup.html` — push-your-luck risk meter (new component)
 - `mathmatch-mockup.html` — flip-card memory grid (new component)
 - `decimal-tile-concept.html` — a small diamond tile for decimal points, extending the dice-tile family
@@ -33,8 +35,12 @@ design-system.css          <- EVERY game links this. Universal tokens + generic
 components/
   dice-slot.css             <- Shared by Scuttle-family games only (dice tiles +
                                place-value slots). Non-Scuttle games won't link it.
-  (future: claim-grid.css, risk-meter.css, flip-card.css — one per new
-   engine family, extracted from the /design/ mockups when first built for real)
+  claim-grid.css            <- Shared by Beeline-family games only (the 36-cell
+                               claim grid + operand row + token switcher).
+                               Extracted from design/beeline-board-mockup.html
+                               when Product Beeline was first built for real.
+  (future: risk-meter.css, flip-card.css — one per new engine family,
+   extracted from the /design/ mockups when first built for real)
 <game>-<variant>.html       <- Each game: a couple of <link> tags to the shared
                                CSS, plus a SMALL <style> block for whatever's
                                genuinely unique to that game (10-20 lines, not 300)
@@ -102,6 +108,20 @@ the next game built.)
   confirm Hard never loses to Medium, and Medium beats Easy, across many
   trials.** See the pattern in the build history — a plain Node script,
   no browser needed, run before ever touching the HTML.
+- **Turn-based/adversarial games (Beeline) need this same discipline, but
+  the mechanics differ from Scuttle/Pop's shared-roll simulations:**
+  Easy/Medium/Hard still mean random / simple heuristic / exhaustive-or-
+  simulated search, but "search" here means depth-limited minimax with
+  alpha-beta pruning (a Connect-4-style window-scoring heuristic at the
+  cutoff), not Monte Carlo over future dice — see
+  `test/beeline-product-bot-simulation.js`. Two things specifically don't
+  carry over from the dice-game pattern: (1) a turn-based game has a real
+  first-move advantage, so a head-to-head simulation must alternate which
+  tier goes first across trials, or the result measures turn order more
+  than skill; (2) tune search depth/trial-count against *actual measured
+  wall-clock time* for a single live decision (tens of ms is fine, seconds
+  is not), not just against total simulation runtime — a slow simulation
+  is merely inconvenient, a slow live bot move is a real UX bug.
 
 ## Code conventions
 
@@ -160,21 +180,53 @@ For every new game, before considering it done:
 - **Leading zeros:** any digit-arrangement game needs a "can't start with 0
   unless forced" rule (check the whole shared digit pool, not just the
   current number, since digits are often split across two numbers).
+- **A rules doc describes mechanics, not a physical board's exact spatial
+  layout.** Product Beeline's 36-cell grid arrangement in `beeline-
+  product.html` (which value sits in which cell) is a placeholder I
+  generated with a fixed deterministic shuffle, not a transcription of the
+  real printed board — the rules doc has no reason to spell out cell
+  positions. Fine for a first build, but swap it for the real board's
+  layout if it's ever provided, since the exact arrangement does affect
+  which lines are actually easy/hard to complete.
+- **`check-css-classes.js` can't see a class assigned via a helper
+  function's return value** (e.g. `el.className = someFn(i)` where `someFn`
+  builds up the string internally) — it only traces literals inside the
+  same statement as the `.className =`/`.classList.` call itself. Seen in
+  `beeline-product.html`'s `cellClassesFor()`: `.claim-cell`, `.pending`,
+  and `.win` all get flagged as "unreferenced" even though they're
+  genuinely applied every render. Eyeball flagged classes against the
+  actual JS before assuming they're dead, especially in files with this
+  build-a-className-in-a-helper pattern.
 
 ## Suggested next steps, in priority order
 
-1. **More Pop variants** — `pop-addition.html` is built; ~10 more content
-   variants (subtraction, other blank/throwaway counts, etc.) reuse the same
-   engine (`legalTargets`/bot tiers/`decideWinner` all generalize on
-   `insideLens`/`throwaways`/`target` already — see that file). Also: link
-   `pop-addition.html` from `scuttle-menu.html`, which doesn't know about it yet.
-2. **Beeline** — biggest variant payoff (~15 variants) but needs the new
-   claim-grid component (mocked up in `/design/beeline-board-mockup.html`).
+1. **More Pop variants** — `pop-addition.html` and `pop-subtraction.html`
+   are built; ~9 more per the catalog. `insideLens`/`insideSigns`/
+   `throwaways`/`target` already generalize to any number of signed
+   addends, so **Expression** and **Big Number Pop** (still just a linear
+   sum/difference of blanks) are direct reuse. **Perimeter Pop** needs one
+   real extension: a per-addend *coefficient*, not just a ±1 sign (e.g. a
+   rectangle's perimeter is `2*length + 2*width`) — still a linear
+   combination, so the same engine shape, just generalize sign→coefficient
+   and re-verify the bots. **Multiplication Pop** and the Fraction/Mixed-
+   Number variants are NOT this engine — they need a product, not a linear
+   combination — so design those closer to Product Scuttle's engine, and
+   don't force-fit them into `committedInsideSum`.
+2. **More Beeline variants** — `beeline-product.html` (the one-row case) is
+   built; ~14 more per the catalog, most needing the *two-row* case
+   (Addition/Difference Beeline are the natural next pick: one token per
+   row, move within your own row only, plus the "landing on an already-
+   claimed cell wastes the turn" rule — all already implemented and
+   reusable, just need a second `.operand-row` wired up). Representation-
+   matching (Multiplication Representations), fraction/mixed-number/decimal
+   value functions, and Time Beeline's clock-face rendering are each a
+   bigger lift than the numeric variants — don't lump them in as "just
+   another Beeline variant."
 3. **Remainder / Difference Scuttle** — near-identical engine to Product
    Scuttle, just swap the operator and format table.
-4. Extract `components/claim-grid.css`, `components/risk-meter.css`,
-   `components/flip-card.css` from the mockups the first time each engine
-   family actually gets built, following the `dice-slot.css` pattern.
+4. Extract `components/risk-meter.css`, `components/flip-card.css` from
+   the mockups the first time each engine family actually gets built,
+   following the `dice-slot.css`/`claim-grid.css` pattern.
 
 Full catalog with mechanic summaries and digital-fit notes for all ~50 base
 games: `/design/game-catalog.csv`.
