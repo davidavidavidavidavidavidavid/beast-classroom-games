@@ -12,7 +12,7 @@ dependencies beyond Google Fonts), sharing a common design system.
 - `pop-addition.html` — one shared digit revealed at a time, sequential/irrevocable placement into inside-blanks or throwaways, closest-to-target-without-busting wins (busting = instant loss).
 - `pop-subtraction.html` — same Pop engine, generalized to a *signed* place-value per inside addend (minuend positive, subtrahend negative) so the inside value is minuend − subtrahend and can go negative. Bot tiers re-verified from scratch for this, not assumed from Addition Pop (see `test/pop-subtraction-bot-simulation.js`).
 - `beeline-product.html` — turn-based, deterministic, no dice: two shared tokens move along a 1-9 row, their product gets marked on a fixed 36-cell grid, first to connect four in a row wins. A genuinely different game shape than Scuttle/Pop (adversarial, perfect-information) — see Bot AI philosophy below for how that changed the bot design and verification approach. New shared component: `components/claim-grid.css`.
-- `scuttle-menu.html` — hub/landing page with an NES-style boot sequence, links out to each game, grouped under "Scuttle"/"Pop"/"Beeline" section labels. Still branded "SCUTTLE" end-to-end (H1, boot logo, `<title>`) despite hosting three games now — an open question, not yet resolved.
+- `scuttle-menu.html` — hub/landing page with an NES-style boot sequence, links out to each game, grouped under "Scuttle"/"Pop"/"Beeline" section labels. Rebranded from "SCUTTLE" to "BEAST" for the H1/boot-logo/`<title>` (the boot sequence's own "BEAST CLASSROOM presents" byline was already the real umbrella brand — this just brought the logo/H1 in line with it) now that it hosts three different games; the per-family section labels ("Scuttle", "Pop", "Beeline") correctly kept their own names.
 
 **Designed but not built** (see `/design/` folder):
 - `beeline-board-mockup.html` — Connect-4-style claiming grid; already extracted into `components/claim-grid.css` and built for real in `beeline-product.html`, kept here as the original sketch/reference.
@@ -197,6 +197,15 @@ For every new game, before considering it done:
   genuinely applied every render. Eyeball flagged classes against the
   actual JS before assuming they're dead, especially in files with this
   build-a-className-in-a-helper pattern.
+- **An `animation:` referencing an undefined `@keyframes` name fails
+  completely silently** — no console error, no warning, in any browser.
+  `scuttle-menu.html`'s big boot-logo reveal (`animation: logoIn ...`) has
+  had no matching `@keyframes logoIn` since the initial commit, so that
+  entire dramatic reveal has never once been visible, this whole time —
+  only caught by screenshotting the actual boot sequence while doing an
+  unrelated rebrand of its text. Any new `animation:` name needs its
+  `@keyframes` grep'd for, or actually watched render, since nothing will
+  ever flag a typo here.
 
 ## Suggested next steps, in priority order
 
