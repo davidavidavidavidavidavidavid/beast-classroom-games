@@ -11,6 +11,7 @@ dependencies beyond Google Fonts), sharing a common design system.
 - `scuttle-product.html` — split shared dice into 2 numbers, multiply, smallest-sum-over-threshold wins
 - `pop-addition.html` — one shared digit revealed at a time, sequential/irrevocable placement into inside-blanks or throwaways, closest-to-target-without-busting wins (busting = instant loss).
 - `pop-subtraction.html` — same Pop engine, generalized to a *signed* place-value per inside addend (minuend positive, subtrahend negative) so the inside value is minuend − subtrahend. Busting has two causes here, not one: going over the target, OR the difference coming out negative (both are an outright pop, per the real rules — a negative result is NOT just "far below target," it shipped that way once and got caught/fixed, see Known Traps). Bot tiers re-verified from scratch, not assumed from Addition Pop (see `test/pop-subtraction-bot-simulation.js`).
+- `pop-expression.html` — same engine generalized further: 3 signed addends instead of 2 (e.g. `_ _ + _ _ − _`), confirmed direct reuse only after reading the full Teacher Instructions doc for every Pop variant at once (not assumed from the catalog's identical one-line summaries). Shares Subtraction Pop's exact two-cause bust rule.
 - `beeline-product.html` — turn-based, deterministic, no dice: two shared tokens move along a 1-9 row, their product gets marked on a fixed 36-cell grid, first to connect four in a row wins. A genuinely different game shape than Scuttle/Pop (adversarial, perfect-information) — see Bot AI philosophy below for how that changed the bot design and verification approach. New shared component: `components/claim-grid.css`.
 - `scuttle-menu.html` — hub/landing page with an NES-style boot sequence, links out to each game, grouped under "Scuttle"/"Pop"/"Beeline" section labels. Rebranded from "SCUTTLE" to "BEAST" for the H1/boot-logo/`<title>` (the boot sequence's own "BEAST CLASSROOM presents" byline was already the real umbrella brand — this just brought the logo/H1 in line with it) now that it hosts three different games; the per-family section labels ("Scuttle", "Pop", "Beeline") correctly kept their own names.
 
@@ -225,21 +226,16 @@ For every new game, before considering it done:
 
 ## Suggested next steps, in priority order
 
-1. **More Pop variants** — `pop-addition.html` and `pop-subtraction.html`
-   are built; ~9 more per the catalog. The catalog's one-line mechanic
-   summary is identical for every one of these ("different expression
-   template") and is NOT enough to design from — it hid that Subtraction
-   Pop's real bust rule has two causes (fixed after shipping wrong once,
-   see Known Traps), so the real Teacher Instructions text was fetched for
-   the base game + every variant below before writing any of this list.
-   Don't build any of these from the catalog line alone.
-   - **Expression Pop**: a fixed, longer +/- sequence than Add/Sub Pop
-     (e.g. `_ _ + _ _ − _`), optionally with parentheses in later grades
-     (skip parentheses for v1, note it as a stretch). Direct reuse of
-     `insideLens`/`insideSigns`/`committedInsideSum` (already supports any
-     number of signed addends) — but it has the SAME two-cause bust rule
-     as Subtraction Pop (over target, OR a negative running value), so
-     port `isBusted`, not just the addend-sign machinery.
+1. **More Pop variants** — `pop-addition.html`, `pop-subtraction.html`, and
+   `pop-expression.html` are built; ~8 more per the catalog. The catalog's
+   one-line mechanic summary is identical for every one of these
+   ("different expression template") and is NOT enough to design from —
+   it hid that Subtraction Pop's real bust rule has two causes (fixed
+   after shipping wrong once, see Known Traps), so the real Teacher
+   Instructions text was fetched for the base game + every variant below
+   before writing any of this list. Don't build any of these from the
+   catalog line alone. Optional stretch for Expression Pop, not yet built:
+   parentheses in later grades.
    - **Perimeter Pop**: a shape's side lengths (rectangle = 2 distinct
      lengths, each used twice; later triangle/pentagon = more distinct
      sides). Needs one real engine extension: a per-addend integer

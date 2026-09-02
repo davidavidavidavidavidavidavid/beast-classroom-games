@@ -4,7 +4,7 @@
   "description": "Beast Classroom digital games — test harness (jsdom smoke tests + decideWinner unit tests)",
   "private": true,
   "scripts": {
-    "test": "node test/decide-winner.addition-subtraction.test.js && node test/decide-winner.product.test.js && node test/decide-winner.pop-addition.test.js && node test/decide-winner.pop-subtraction.test.js && node test/decide-winner.beeline-product.test.js && node test/smoke-addition-subtraction.test.js && node test/smoke-product.test.js && node test/smoke-pop-addition.test.js && node test/smoke-pop-subtraction.test.js && node test/smoke-beeline-product.test.js"
+    "test": "node test/decide-winner.addition-subtraction.test.js && node test/decide-winner.product.test.js && node test/decide-winner.pop-addition.test.js && node test/decide-winner.pop-subtraction.test.js && node test/decide-winner.pop-expression.test.js && node test/decide-winner.beeline-product.test.js && node test/smoke-addition-subtraction.test.js && node test/smoke-product.test.js && node test/smoke-pop-addition.test.js && node test/smoke-pop-subtraction.test.js && node test/smoke-pop-expression.test.js && node test/smoke-beeline-product.test.js"
   },
   "license": "UNLICENSED",
   "devDependencies": {
