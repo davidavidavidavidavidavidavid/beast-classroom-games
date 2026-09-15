@@ -236,7 +236,13 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
   color: var(--color-text-secondary);
 }
 .stat-pill b { color: var(--color-text-primary); }
-#settings-btn { font-size: 14px; padding: 7px 11px; }
+/* Groups the Print button with whatever sits at the right end of #top-bar
+   (Settings on every game, or the level pill on Detective, which has no
+   Settings button at all) into one flex item, so #top-bar's own
+   space-between still splits into exactly two groups — pills on the left,
+   this group on the right — instead of spreading three items apart. */
+.top-bar-actions { display: flex; align-items: center; gap: 6px; }
+#settings-btn, #print-btn { font-size: 14px; padding: 7px 11px; }
 
 /* A game's own target number, called out from the rest of the pills —
    real playtesting found the old plain-tagline-sentence treatment ("Get

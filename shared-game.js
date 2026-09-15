@@ -376,51 +376,17 @@ const GLOBAL_GAMES = [
   { key: 'detective', name: 'Detective', status: 'playable', href: 'detective-fraction-equivalence.html', desc: 'A Wordle-style puzzle — guess the equivalent fraction hiding in plain sight, one digit at a time.' },
   // Everything below is catalogued in design/game-catalog.csv but not yet
   // built — see CLAUDE.md "Where things stand" / "Suggested next steps".
-  // Descriptions are lightly cleaned-up versions of that CSV's own
-  // "Mechanic Summary" column, not hand-written from scratch.
-  { key: '100-game', name: '100 Game', status: 'locked', desc: 'Roll a die, skip-count by that number up to 9 times, land exactly on 100 to win.' },
-  { key: 'area-dash', name: 'Area Dash', status: 'locked', desc: 'Adjust one side of your rectangle by 1 each turn, claim unique areas — first to 15 wins.' },
-  { key: 'boxo', name: 'BOXO', status: 'locked', desc: 'Make a 1-9 number from hand cards, claim the matching board cell — 3 in a row wins, and you can steal a claimed cell.' },
-  { key: 'baked-pomtato', name: 'Baked Pomtato', status: 'locked', desc: 'Add 1-2 items per turn to a hidden pile, and guess when it hits a target range.' },
-  { key: 'bank-of-alex', name: 'Bank of Alex', status: 'locked', desc: 'Answer questions to climb a reward ladder — bank your points, or risk climbing higher.' },
-  { key: 'beast-builder', name: 'Beast Builder', status: 'locked', desc: 'The whole class answers questions together — a correct majority unlocks a new feature drawn onto a shared beast.' },
-  { key: 'block-blob', name: 'Block Blob', status: 'locked', desc: 'Roll dice as rectangle dimensions and place them adjacent to your own shape — largest total area wins.' },
-  { key: 'centibocce', name: 'Centibocce', status: 'locked', desc: 'Flick coins toward a target — score is how close you land.' },
-  { key: 'circuit-breaker', name: 'Circuit Breaker', status: 'locked', desc: 'Draw lines connecting your own markers — first to connect opposite sides wins.' },
-  { key: 'cookie-cutter', name: 'Cookie Cutter', status: 'locked', desc: 'Repeatedly trace a shape on paper without overlapping — lose if you can’t place it.' },
-  { key: 'dice-dash', name: 'Dice Dash', status: 'locked', desc: 'Cross out rolled numbers on your own board — first to clear it wins.' },
-  { key: 'dice-line', name: 'Dice Line', status: 'locked', desc: 'Move a shared token on a number line — landing on an already-claimed mark loses.' },
-  { key: 'even-the-odds', name: 'Even the Odds', status: 'locked', desc: 'Place 1s and 2s in a 3×3 grid — row and column sums are scored by parity.' },
-  { key: 'fact-family-four', name: 'Fact Family Four', status: 'locked', desc: 'Write a related multiplication or division fact next to existing ones — 4 in a row wins.' },
-  { key: 'fifteen', name: 'Fifteen', status: 'locked', desc: 'Alternately claim digits 1-9 — first with 3 that sum to 15 wins.' },
-  { key: 'fraction-frenzy', name: 'Fraction Frenzy', status: 'locked', desc: 'Play cards to build or modify a fraction each turn, scoring by the variant’s rule.' },
-  { key: 'gems', name: 'Gems', status: 'locked', desc: 'Draft dice round-robin from a shared pool onto your own board — first to complete true equations wins.' },
-  { key: 'go-fish', name: 'Go Fish', status: 'locked', desc: 'Collect pairs that sum to 10 by asking opponents for cards.' },
-  { key: 'gridlocked', name: 'Gridlocked', status: 'locked', desc: 'Fill 3 cells in a row or column where 2 sum to the 3rd — largest connected area wins.' },
-  { key: 'groggs-game', name: 'Grogg’s Game', status: 'locked', desc: 'Correct answers earn a random score card — plus, minus, or reset to zero.' },
-  { key: 'guess-the-length', name: 'Guess the Length', status: 'locked', desc: 'Guess a length in tile-units — closest to the true measured length scores.' },
-  { key: 'iago', name: 'Iago', status: 'locked', desc: 'Place tokens on a number line — capture an opponent’s token by landing exactly between two of yours.' },
-  { key: 'into-the-unknown', name: 'Into the Unknown', status: 'locked', desc: 'Roll, move, and answer a grid question — move forward or back based on the result.' },
-  { key: 'lizzies-swamp-trek', name: 'Lizzie’s Swamp Trek', status: 'locked', desc: 'Answer a teacher-supplied question set — correct answers move your token along a snakes-and-ladders board.' },
-  { key: 'lost-treasures', name: 'Lost Treasures', status: 'locked', desc: 'Hide 4 tetromino ‘treasures’ on a coordinate grid, then guess coordinates to find your opponent’s.' },
+  // Only Pig and Math Match are kept visible here, at the user's explicit
+  // direction (2026-09-15) — every other catalogued-but-unbuilt game was
+  // removed from this list, not just hidden, since GLOBAL_GAMES is the ONE
+  // canonical source both index.html's cards AND the nav dropdown read from
+  // (see "Global navigation") — trimming it here is what actually declutters
+  // both surfaces at once, rather than needing a second, separate filter.
+  // The full 41-entry catalogue this trimmed still lives in
+  // design/game-catalog.csv and this file's own git history if any of them
+  // need to come back.
   { key: 'math-match', name: 'Math Match', status: 'locked', desc: 'Flip two cards, keep them if they match by the variant’s rule — most matched cards wins.' },
-  { key: 'number-line-conquest', name: 'Number Line Conquest', status: 'locked', desc: 'Place 3 ‘bases’ on a number line — score every tick closer to your bases than your opponent’s.' },
-  { key: 'out', name: 'Out', status: 'locked', desc: 'Play cards as digits forming a number that matches the active rule — empty your hand first to win.' },
-  { key: 'pick-your-pony', name: 'Pick Your Pony', status: 'locked', desc: 'Pre-place tokens on numbers, roll dice, and watch matching-sum lanes advance — even your opponent’s.' },
   { key: 'pig', name: 'Pig', status: 'locked', desc: 'Roll repeatedly to build up points — bust and lose the round’s points, or bank them anytime.' },
-  { key: 'race-to-100', name: 'Race to 100', status: 'locked', desc: 'Roll, move your token, and land on bonus squares for a forward or backward surprise.' },
-  { key: 'remainder-jump', name: 'Remainder Jump', status: 'locked', desc: 'Divide your current space’s number by a drawn card — the remainder is how far you move.' },
-  { key: 'sim', name: 'Sim', status: 'locked', desc: 'Connect dots with lines — avoid being the one who completes a triangle in your own color.' },
-  { key: 'speed', name: 'Speed', status: 'locked', desc: 'Simultaneously play cards ±1 or ±10 from the center piles — empty your hand first to win.' },
-  { key: 'subtraction-truth', name: 'Subtraction Truth', status: 'locked', desc: 'Remove cards from a shared spread that form a true subtraction equation.' },
-  { key: 'tens-game', name: 'Tens Game', status: 'locked', desc: 'Remove groups of face-up cards that sum to a target from a shared spread.' },
-  { key: 'tetro', name: 'Tetro', status: 'locked', desc: 'Both players hide a tetromino — solve a division problem, then check the answer coordinate for a hit.' },
-  { key: 'the-name-game', name: 'The Name Game', status: 'locked', desc: 'Team charades/taboo-style clue-giving for geometry vocabulary, over 3 rounds.' },
-  { key: 'tic-tac-goals', name: 'Tic Tac Goals', status: 'locked', desc: 'Build a product from 4 drawn cards and place it in the matching category box — 3 in a row wins.' },
-  { key: 'troll-hole', name: 'Troll Hole', status: 'locked', desc: 'Place numbers 1-9 in a circle grid — the one empty ‘troll hole’ cancels its neighbors.' },
-  { key: 'war', name: 'War', status: 'locked', desc: 'Play one card each — the bigger number wins the point.' },
-  { key: 'winnies-doodles', name: 'Winnie’s Doodles', status: 'locked', desc: 'The teacher picks a secret ‘doodle’ — ask yes/no questions to identify it between review rounds.' },
-  { key: 'zero-sum-game', name: 'Zero-Sum Game', status: 'locked', desc: 'Use your hand plus one drawn card to build an expression that equals zero.' },
 ];
 
 // `currentKey` is this page's own game key (one of GLOBAL_GAMES' `key`

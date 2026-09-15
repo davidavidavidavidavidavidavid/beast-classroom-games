@@ -218,7 +218,7 @@ dependencies beyond Google Fonts), sharing a common design system.
 - `nim-menu.html` — Nim's own sub-menu, same shape/purpose as `scuttle-menu.html`/`pop-menu.html` (built the moment Nim turned out to ALSO have a second built variant — Nickeled & Dimed — not "exactly one" the way Beeline/Numbo/Detective genuinely still do; see the "Pop needed its own sub-menu" design note below, which generalizes the same way). 6 cards: 3 built (Race to 10, Nickeled & Dimed, Subtraction Nim) + 3 catalogued-unbuilt (Division Nim, Hexagon Nim, Place Value Nim). `index.html`'s Nim card and the global nav dropdown both now point at this page (`multiVariant: true`, `href: 'nim-menu.html'` in `GLOBAL_GAMES`) instead of straight at `nim.html` — see the corrections to the design notes below, which were written before Nim had a second variant and said the opposite.
 - `numbo-operations.html` — a genuinely new engine shape for this project: no fixed arrangement to fill, an OPEN expression-construction problem (the classic "24 game"). Roll 4d10; the active player (alternates) sets a target under 100; everyone builds one expression from all four rolled digits (each used exactly once, `+ - * /` and parentheses, no concatenating digits into multi-digit numbers) as close to the target as possible; closest scores a point, **a tie scores BOTH players a point** (the real rule — see the design note below, a genuine deviation from every other game's tie handling); first to 5 points wins the match. Needed two wholly new pieces of engineering: a real recursive-descent expression parser/evaluator for the human's typed input (never `eval()`/`Function()` on raw text) that validates syntax, precedence, and that the typed expression's digit multiset exactly matches what was rolled; and an exhaustive "24-game" solver bot (every ordering × all 5 binary-tree parenthesizations × every operator triple = up to 7680 candidate expressions, evaluated to find the true closest-to-target value) — see Bot AI philosophy below for why this makes "Hard never loses" an *exact*, not statistical, claim, closer to Nim's solved-game guarantee than to Beeline's turn-based one, despite Numbo not being adversarial/turn-based at all. "Numbo" itself has no standalone win condition — only its named variants do (a correction in the same spirit as "Big Number Pop is NOT this engine at all," see Suggested next steps) — so this file is named for its variant, `numbo-operations.html`, not a bare `numbo.html` the way `nim.html` could be. First of three named Numbo variants; the other two (Equivalent Fraction Numbo, Fractions of Amounts Numbo) both depend on a physical "game board" this project doesn't have — see the design note below for the placeholder specs written up (not built) for them, at the user's explicit direction, pending the real boards. Has the avatar picker/top-bar badges now too (see "Avatars" above — this reverses an earlier version of this note, which grouped avatars in with the reasons below; that grouping no longer holds now that avatars are project-wide, see the Avatars section's own note on this), but still no persistent scorecard, no `#s-ties` pill (same reasoning as Nim's design note, extended below). Post-playtest: free typing into `#expr-input` replaced with a clickable keyboard (digits/operators/parens/backspace/clear), and the round's own sub-phase blocks were switched from `.phase-hidden` to `.hidden` (they're mutually exclusive, not within-round phase content — reserving all five's space at once was producing real dead blank space) — see "Post-playtest navigation & UX fixes".
 - `detective-fraction-equivalence.html` — a genuinely different SOURCE and SHAPE from every other game: ported from `design/legacy/fraction-detective-original.html`, a complete working game from a prior (non-Beast-Classroom) project, not from the curriculum catalog at all (it isn't in `design/game-catalog.csv`). **Single-player** — no bot, no opponent, no `decideWinner`, no avatar picker, no You/Bot scoreboard; see the design note below for which two-player conventions genuinely don't apply here and which single-player ones take their place. A Wordle-style equivalence puzzle: given a hidden target fraction, build any *equivalent-but-different-looking* fraction one digit at a time, six guesses per puzzle, with Wordle digit feedback (right digit/right slot, right digit/wrong slot, absent) accumulating on an on-screen keyboard across guesses. Difficulty auto-progresses by round number via a `LEVELS` table and `getRoundLevel()`; after round 10, "endurance mode" replaces round-based progression with a shared 50-guess budget across unlimited puzzles. The original's game logic — the `LEVELS` table, `generatePuzzle()`'s rejection-sampling (retries up to 2000 times per puzzle), the flattened-digit Wordle-coloring algorithm, the endurance trigger/mechanics, the flipped-equation win rule, and the hint-at-2-misses pattern — is preserved EXACTLY, per explicit instruction; only its throwaway CSS was replaced (with a new shared component, `components/wordle-slot.css`) and its state/rendering reorganized around this project's conventions (`st`, `el()`, `showScreen()`, `.phase-hidden`/`.hidden`) — including renaming the original's `init()`/`fullReset()` to this project's fixed `startRound()`/`startMatch()` (a new puzzle within the same running round/streak counts IS "start a round"; a full reset back to round 1 IS "start a match" — a clean, exact mapping, and a pure rename with zero behavior change, unlike the preserved logic itself). The one change to the preserved logic itself: `Math.floor(Math.random() * X)` calls became `shared-game.js`'s `randInt(X)` — the identical formula, so the actual puzzle distribution is untouched; this is the same "check shared-game.js first" discipline as every other game, not a rewrite. `generatePuzzle()` now returns a GENERIC puzzle contract (`parts`, `equivalentOrderings()`, `isValidGuess()`, `hintText`, `displayText`) that the rest of the game loop consumes without knowing it's a fraction — see the design note below for why, and for how much of "Detective" is actually meant to be a family. First of a NEW single-player test-file naming pattern (`puzzle-logic.*`, not `decide-winner.*` — see Code conventions and Testing methodology). Post-playtest: input now sits in its own column to the left, guess history in its own column to the right (`.game-columns`/`.game-input-col`/`.game-history-col`, stacking below ~560px) instead of history stacking above the input and pushing the keyboard down the page; the fraction bar (`.fbar`) is thicker, nudged down, and extended past the digit boxes so it no longer blends into a digit box's own drop shadow — see "Post-playtest navigation & UX fixes".
-- `index.html` — the project's actual landing page (was `scuttle-menu.html`, until this restructuring — see below). Hosts the boot sequence (see "Boot sequence"). Below it: one card per GAME, never per variant (see "File naming convention") — the H1 reads the umbrella brand "BEAST" (`.logo`, its own bigger pixel-font treatment, scoped to this one page), not a single game's name, since this page isn't any one game. Cards render dynamically from `shared-game.js`'s `GLOBAL_GAMES` — the SAME list `renderGlobalNav()`'s dropdown reads — laid out 2-up in `.game-grid` (1 column below 480px). Every catalogued-but-unbuilt game (43 of them, everything in `design/game-catalog.csv` besides the 6 built games) gets its own locked "Coming soon" card too, at the user's explicit direction — a genuinely comprehensive roadmap view, not just the handful of variants each built game family's own sub-menu already lists. **Redesigned after real playtesting — see "Post-playtest navigation & UX fixes" for the full story:** every playable game's card now has a real "Play →" link straight into an actual game file (never a "choose one" menu page in between). A single-variant game (Beeline, Numbo, Detective) is still one big clickable `<a>`, unchanged. A multi-variant game (`multiVariant: true` — Scuttle, Pop, Nim, each genuinely more than one shipped file) is now a plain `<div>` (its "Play →" badge is its own `<a>`, straight to that family's DEFAULT/first-listed variant) with a small expandable "▾ N variants" disclosure underneath, listing every sibling as its own direct link — replacing the old "See variants →" link into that family's own sub-menu page.
+- `index.html` — the project's actual landing page (was `scuttle-menu.html`, until this restructuring — see below). Hosts the boot sequence (see "Boot sequence"). Below it: one card per GAME, never per variant (see "File naming convention") — the H1 reads the umbrella brand "BEAST 64" (`.logo`, its own bigger pixel-font treatment, scoped to this one page — renamed from plain "BEAST" on 2026-09-15, see "Print button, BEAST 64 rebrand, and a trimmed 'Coming Soon' catalog" below), not a single game's name, since this page isn't any one game. Cards render dynamically from `shared-game.js`'s `GLOBAL_GAMES` — the SAME list `renderGlobalNav()`'s dropdown reads — laid out 2-up in `.game-grid` (1 column below 480px). Originally every catalogued-but-unbuilt game (43 of them, everything in `design/game-catalog.csv` besides the 6 built games) got its own locked "Coming soon" card too, at the user's explicit direction, for a genuinely comprehensive roadmap view — **as of 2026-09-15, only 2 of those locked cards remain (Pig, Math Match)**, every other catalogued-but-unbuilt game trimmed from `GLOBAL_GAMES` itself at the user's later, explicit direction — see that same section below for the full reasoning. **Redesigned after real playtesting — see "Post-playtest navigation & UX fixes" for the full story:** every playable game's card now has a real "Play →" link straight into an actual game file (never a "choose one" menu page in between). A single-variant game (Beeline, Numbo, Detective) is still one big clickable `<a>`, unchanged. A multi-variant game (`multiVariant: true` — Scuttle, Pop, Nim, each genuinely more than one shipped file) is now a plain `<div>` (its "Play →" badge is its own `<a>`, straight to that family's DEFAULT/first-listed variant) with a small expandable "▾ N variants" disclosure underneath, listing every sibling as its own direct link — replacing the old "See variants →" link into that family's own sub-menu page.
 - `scuttle-menu.html` — Scuttle's own sub-menu now (no longer the whole-project hub, no boot sequence) — one card per Scuttle variant: 3 built (Addition & Subtraction, Product, Difference) + 4 catalogued-but-unbuilt (Remainder, Decimal, Super Product, Super Decimal), the same 7 this family has always listed. `<h1>SCUTTLE</h1>`, kicker "Choose your variant" — matches the same Kicker Chip Pattern every actual game page uses, since this page names one specific game family, unlike `index.html`.
 - `pop-menu.html` — Pop's own sub-menu, same shape as `scuttle-menu.html` (built the moment Pop turned out to ALSO have multiple built variants — addition/subtraction/expression — not "exactly one" the way Beeline/Numbo/Detective genuinely do; see "Global navigation"'s note on why Pop needed this and Beeline/Numbo/Detective don't). 11 cards: 4 built (Addition, Subtraction, Expression, Perimeter) + 7 catalogued-unbuilt (Big Number, Powers of Ten, Multiplication, Fraction Multiplication, Fraction Addition & Subtraction, Mixed Number Multiplication, Mixed Number Addition & Subtraction — the same "~8 more" Suggested next steps already tracked, now visible in the UI as locked cards instead of only living in this doc).
 
@@ -674,12 +674,17 @@ something empty or wrong.
 **`GLOBAL_GAMES`** (same file) is the ONE canonical list of games — both
 the nav dropdown and `index.html`'s own landing-page cards read from it,
 so the two surfaces can never drift out of sync with each other (adding a
-newly-built game updates both at once). All 49 catalogued games are in it
-(6 playable, 43 locked — see "Where things stand"'s `index.html` bullet
-for why that's the full catalog, not a curated subset), so the dropdown is
-genuinely long — `#global-nav-dropdown` scrolls internally
-(`max-height: min(60vh, 420px); overflow-y: auto`) rather than growing
-without bound. Each entry: `key`, `name`, `status` (`'playable'` — at
+newly-built game updates both at once). Originally all 49 catalogued games
+were in it (6 playable, 43 locked — see "Where things stand"'s `index.html`
+bullet for why that was the full catalog, not a curated subset); **as of
+2026-09-15, the locked entries were trimmed down to just 2 (Pig, Math
+Match)** at the user's explicit direction — see "Print button, BEAST 64
+rebrand, and a trimmed 'Coming Soon' catalog" below — so the dropdown is no
+longer the long, ~49-item scrolling list this paragraph originally
+described; `#global-nav-dropdown`'s internal-scroll CSS
+(`max-height: min(60vh, 420px); overflow-y: auto`) is left in place
+regardless, since nothing about the mechanism changed, only the list's
+length. Each entry: `key`, `name`, `status` (`'playable'` — at
 least one variant shipped, or `'locked'` — catalogued but not yet built),
 `href` (playable only — always a real game file, single-variant or
 multi-, never a "choose your variant" menu page — see "Post-playtest
@@ -1814,6 +1819,84 @@ internal/testing-facing indicator with no real design stake in staying a
 symbol.) One test assertion (`test/smoke-beeline-product.test.js`) still
 expected the old `'BEELINE! You win! 🎉'` banner text and was updated to
 match.
+
+## Print button, BEAST 64 rebrand, and a trimmed "Coming Soon" catalog
+
+Three small, unrelated requests handled together in one pass (2026-09-15):
+
+**A Print button next to Settings, on every built game.** Real request:
+inactive everywhere except Product Beeline, which links to a real, already-
+prepared printable slide deck. Implementation is deliberately uniform
+across all 18 built games — the SAME markup shape everywhere
+(`<button id="print-btn">Print</button>`), so there's exactly one CSS rule
+to style it (`#settings-btn, #print-btn` in `design-system.css`) rather
+than one per file. The only per-file difference is the `disabled`
+attribute: present (native HTML disabled state — grayed out, unclickable,
+no JS needed) on all 17 other games; absent on `beeline-product.html`
+alone, where a real click handler opens the deck in a new tab:
+```js
+el('print-btn').addEventListener('click', ()=> {
+  window.open('https://docs.google.com/presentation/d/1sXPQNOObcHZiCxyIvMfYe55ZRueU6WHocV8R_RJLm0s/edit?slide=id.p#slide=id.p', '_blank', 'noopener,noreferrer');
+});
+```
+A new `.top-bar-actions` wrapper (`design-system.css`) groups Print with
+whatever already sat at the right end of `#top-bar` — Settings on every
+game but one — into a single flex item, so `#top-bar`'s own
+`justify-content: space-between` still splits into exactly two groups
+(pills on the left, this group on the right) instead of spreading three
+items apart evenly, which is what would happen if Print were added as a
+third bare child of `#top-bar` directly. **Detective needed a genuinely
+different placement, not just a copy-paste**: it has no Settings button at
+all (single-player, no settings screen at all — see its own design note),
+so its top bar had nothing to put Print "next to." It gets the same
+`.top-bar-actions` wrapper, just grouping Print with the level-badge pill
+that already lived at that same right-hand position instead of with a
+Settings button that doesn't exist there.
+
+**The hub's own H1 renamed "BEAST" → "BEAST 64".** A pure text change to
+`index.html`'s `<h1 class="logo">` — this is the umbrella-brand title
+(see "Design system conventions"'s note that "Scuttle" etc. are sibling
+game names, not the project's own brand), not any individual game's H1,
+so no other file's H1 was touched. The boot screen's own separate
+"BEAST CLASSROOM" byline (see "Boot sequence") and the browser `<title>`
+tag ("Beast Classroom Games") are both distinct strings from the hub's H1
+and were deliberately left alone — the request named the "overall page
+title" specifically, which reads as the one big visual H1 a visitor
+actually sees as this page's title, not every string that happens to
+contain "BEAST" anywhere in the file. `test/site-structure.test.js`'s
+H1 assertion for `index.html` updated to match.
+
+**"Coming Soon" catalog trimmed from 43 locked games down to 2 (Pig, Math
+Match), at the user's explicit direction.** This was done by editing
+`GLOBAL_GAMES` itself (`shared-game.js`), not by adding a separate filter
+somewhere — since `GLOBAL_GAMES` is documented as the ONE canonical list
+both `index.html`'s own cards AND the global nav dropdown read from (see
+"Global navigation"), trimming the source list is what actually declutters
+both surfaces at once, consistently, rather than needing two independent
+fixes that could drift apart from each other later. Pig and Math Match
+specifically were the two locked entries requested to survive — both
+already existed in `GLOBAL_GAMES` beforehand (`key: 'pig'`/`'math-match'`),
+so this was a pure removal, nothing needed adding. The other 41 locked
+entries' full descriptions still live in `design/game-catalog.csv` and in
+this file's own git history if any of them need to come back later — they
+weren't deleted from the actual catalog research, just from the live
+UI's `GLOBAL_GAMES` list. **Deliberately NOT touched: each built game
+family's own `*-menu.html` sub-menu** (`scuttle-menu.html`, `pop-menu.html`,
+`nim-menu.html`, `beeline-menu.html`) — these still show their own
+family's locked, catalogued-but-unbuilt SIBLING variants (e.g.
+`scuttle-menu.html` still lists "Remainder Scuttle"/"Decimal Scuttle" as
+locked cards). The request said "remove... from the menu," and this
+project's own docs consistently call `index.html` "the hub"/"the menu" and
+call these other four pages "sub-menus" — a different, narrower kind of
+locked card (an unbuilt VARIANT of an already-built game family) than the
+kind the request was about (an entirely different, unbuilt GAME). Flagged
+here rather than silently deciding to touch — or not touch — the four
+sub-menu pages without saying so; if the user wants those trimmed too,
+that's a small, separate follow-up, not assumed as part of this one.
+`test/site-structure.test.js`'s `TOTAL_CATALOGUED_GAMES` constant dropped
+from 49 to 8 (6 playable + 2 locked) — every assertion that already read
+off this one constant (dropdown length, hub card count) updated for free;
+nothing hardcoded the old number in more than one place.
 
 ## Bot AI philosophy — read this before writing any bot logic
 

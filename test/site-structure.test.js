@@ -59,7 +59,7 @@ Object.entries(H1_EXPECTED).forEach(([file, expected]) => {
 {
   const dom = loadGame('index.html');
   const h1 = runInPage(dom, () => document.querySelector('h1').textContent);
-  check('index.html: <h1> reads the umbrella brand "BEAST" (the hub, not a single game)', h1 === 'BEAST', `got "${h1}"`);
+  check('index.html: <h1> reads the umbrella brand "BEAST 64" (the hub, not a single game)', h1 === 'BEAST 64', `got "${h1}"`);
 }
 
 /* ---------------- global nav bar — renders correctly on every page ---------------- */
@@ -87,7 +87,9 @@ const NAV_EXPECTED_CURRENT = {
   'numbo-operations.html': 'Numbo',
   'detective-fraction-equivalence.html': 'Detective',
 };
-const TOTAL_CATALOGUED_GAMES = 49; // 6 playable + 43 locked — see shared-game.js GLOBAL_GAMES
+const TOTAL_CATALOGUED_GAMES = 8; // 6 playable + 2 locked (Pig, Math Match — every
+// other catalogued-but-unbuilt game was trimmed from GLOBAL_GAMES at the
+// user's explicit direction, 2026-09-15) — see shared-game.js GLOBAL_GAMES
 
 Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   const dom = loadGame(file);
