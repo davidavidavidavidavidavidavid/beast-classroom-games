@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nim: Nickeled &amp; Dimed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/nim-track.css">
+<style>
+  /* ---- Nickeled & Dimed-specific: the two coin buttons need to be wider
+     than base Nim's +1/+2 (longer labels), otherwise identical — same
+     shared nim-track component, same disabled-row pattern. ---- */
+  .move-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 4px; flex-wrap: wrap; }
+  .move-btn { font-size: 15px; padding: 14px 10px; width: 150px; }
+  .move-row.disabled { pointer-events: none; opacity: 0.55; }
+  /* Marks whichever coin is the CURRENT pending choice while awaiting the
+     answer-check — see nim.html's identical rule/comment. */
+  .move-btn.selected { outline: 3px solid var(--color-warn); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>NIM</h1>
+  <div class="kicker-wrap"><span class="kicker">Nickeled &amp; Dimed</span></div>
+  <div id="tagline" class="tagline">Add a nickel or a dime to the pile each turn — whoever brings it to exactly <b id="target-tag">50¢</b> wins.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
+    <div class="section-label">Bot difficulty</div>
+    <div class="chip-row" id="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+    <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      The pile starts at 0¢. Taking turns, each player adds a <strong>nickel (5¢)</strong> or a
+      <strong>dime (10¢)</strong> — your choice, no dice involved. Whoever's move brings the pile to
+      <strong>exactly 50¢</strong> wins. At the end of your turn, say the total value of the pile out loud.
+      A dime is only offered when it wouldn't pass 50¢ — there's no reason to ever add a coin that
+      overshoots the target on purpose, so this game doesn't offer that choice. Who goes first alternates
+      every game, since going first is a real, provable advantage in this exact race — same as base Nim,
+      just with coins instead of bare numbers. The bot always adds correctly, but how far ahead it plans
+      changes with difficulty.
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div class="card hidden" id="screen-game">
+
+    <div class="nim-total-wrap">
+      <div class="nim-total" id="total-display">0¢</div>
+      <div class="nim-total-label">Pile</div>
+    </div>
+    <div class="nim-track" id="nim-track"></div>
+
+    <div id="turn-status" class="feedback-msg"></div>
+
+    <div class="move-row" id="move-row">
+      <button class="primary move-btn" data-amount="5">Add a nickel (+5¢)</button>
+      <button class="primary move-btn" data-amount="10">Add a dime (+10¢)</button>
+    </div>
+
+    <div id="answer-area" class="phase-hidden">
+      <div class="equation-line" id="equation-line"></div>
+      <div class="answer-row">
+        <label for="answer-input">New total:</label>
+        <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?¢"/>
+        <button class="primary" id="check-btn">Check</button>
+      </div>
+      <div id="hint-line" class="hint-line"></div>
+      <div id="compute-msg" class="feedback-msg"></div>
+    </div>
+
+    <div id="winner-banner"></div>
+    <div class="btn-row hidden" id="end-btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+/* ---------------- game engine ----------------
+   Ported from test/nim-nickeled-and-dimed-bot-simulation.js after that
+   script's head-to-head tier check passed — see CLAUDE.md Bot AI
+   philosophy. Same shape as base Nim (nim.html) — a single running total,
+   alternating moves from a fixed set, race to a target — themed as coins:
+   add a nickel (5¢) or a dime (10¢), racing to a pile of 50¢. The actual
+   "what's the best move from here" solver is the SAME shared one base Nim
+   uses (`nimOptimalMove`/`nimImmediateWinMove` in shared-game.js) — no
+   re-derivation, just called with this variant's own real move set
+   ([5,10], not a rescaled [1,2]) and target (50, not 10).
+
+   One genuine difference from base Nim, not just a reskin: the real rule
+   here is landing on the target EXACTLY, not "50 or more" — overshooting
+   doesn't win (base Nim's own reachOrExceed=true default doesn't apply;
+   this variant passes `false` everywhere). Since every reachable total
+   stays a multiple of 5 once only nickels/dimes are ever added, a move
+   that would overshoot is never something a rational player benefits from
+   — so rather than defining what "the game continues forever, target now
+   unreachable" even means, this game simply never offers an overshooting
+   move as a legal choice in the first place (`nimLegalMoves`, same shared
+   function, same `reachOrExceed=false`) — the dime button disables itself
+   whenever adding it would pass 50¢. See CLAUDE.md's design note for why
+   this was chosen over treating overshoot as a bust or letting the total
+   climb past the target with no way to ever finish. */
+
+const TARGET = 50;
+const MOVES = [5, 10];
+
+function fmtCents(v){ return v + '¢'; }
+function coinName(amount){ return amount === 5 ? 'a nickel' : 'a dime'; }
+
+function botEasy(){
+  const legal = nimLegalMoves(TARGET - st.total, MOVES, false);
+  return legal[randInt(legal.length)];
+}
+
+function botMedium(total){
+  const m = nimImmediateWinMove(TARGET - total, MOVES, false);
+  if (m !== null) return m;
+  const legal = nimLegalMoves(TARGET - total, MOVES, false);
+  return legal[randInt(legal.length)];
+}
+
+function botHard(total){
+  return nimOptimalMove(TARGET - total, MOVES, false);
+}
+
+// The fixed entry point every difficulty dispatches through (see CLAUDE.md
+// Code conventions) — here a per-*turn* decision, since Nim is turn-based
+// rather than round-based (same shape as base Nim's own botChooseRound).
+function botChooseRound(total, difficulty){
+  if (difficulty === 'easy') return botEasy();
+  if (difficulty === 'medium') return botMedium(total);
+  return botHard(total);
+}
+
+// Win condition (pure — see CLAUDE.md Code conventions). Unlike base Nim,
+// this is an EXACT match, not "at or past" — the real rule, and also now
+// unreachable any other way, since overshooting moves are never offered
+// as legal choices (see the engine comment above). Still checked as a
+// plain `===`, not relying on that UI-level prevention as its only
+// safeguard — decideWinner stays a pure, standalone, defensively-correct
+// function regardless of how a move actually got chosen.
+function decideWinner(total, mover){
+  if (total === TARGET) return mover;
+  return null;
+}
+
+// Bot difficulty descriptions were removed from the settings screen — not
+// user-facing (see CLAUDE.md "Layout stability"). DIFF_NAME stays; it's
+// still shown in the top-bar pill.
+const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. No persistent
+   #scorecard on this game (see CLAUDE.md's Nim design note), so there
+   are no scoreboard-header badges to sync — just the top-bar pair. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
+
+/* ---------------- state ---------------- */
+let st = {
+  difficulty: 'medium',
+  avatar: 'grogg',
+  total: 0,
+  turn: 'human',
+  phase: 'idle',           // 'idle' | 'awaiting-answer' | 'bot-thinking' | 'over'
+  pendingMove: null,       // { amount: 5|10 } chosen by the human, awaiting the new-total check
+  wrongAttempts: 0,
+  gameOver: false,
+  winner: null,
+  score: { human:0, bot:0 } // no ties tracked — see decideWinner above, a tie can't happen
+};
+
+// Who starts the NEXT round. Deliberately kept OUTSIDE `st` and untouched
+// by startMatch()'s score reset — same fairness reasoning as base Nim's
+// own `nextStarter` (going first is a real, provable advantage here too;
+// the coin theming doesn't change the underlying math).
+let nextStarter = 'human';
+
+/* ---------------- element refs & screens ---------------- */
+const el = id => document.getElementById(id);
+renderGlobalNav('nim'); // see CLAUDE.md "Global navigation"
+renderVariantSwitcher('variant-row', 'nim', 'nim-nickeled-and-dimed.html'); // jump to a sibling Nim variant — see CLAUDE.md's navigation redesign note
+const screens = { settings: el('screen-settings'), game: el('screen-game') };
+
+// Local, not shared-game.js's showScreen() — same no-#scorecard reasoning
+// as base Nim (see its own "Where things stand" design note).
+function showScreen(name){
+  Object.entries(screens).forEach(([k,node]) => {
+    const wasHidden = node.classList.contains('hidden');
+    node.classList.toggle('hidden', k!==name);
+    if (wasHidden && k===name) fadeIn(node);
+  });
+}
+
+// Local, not shared-game.js's updateScorePills() — same no-#s-ties
+// reasoning as base Nim (a tie is impossible here too).
+function updateScorePills(score){
+  el('s-wins').textContent = score.human;
+  el('s-bwins').textContent = score.bot;
+}
+
+/* ---------------- settings screen ---------------- */
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
+
+function renderDiffChips(){
+  document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  renderAvatarBadges(); // bot avatar swaps with difficulty
+}
+document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
+el('start-btn').addEventListener('click', ()=>{
+  st.score = { human:0, bot:0 };
+  updateScorePills(st.score);
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', ()=> showScreen('settings'));
+el('change-settings-btn').addEventListener('click', ()=> showScreen('settings'));
+renderDiffChips();
+
+/* ---------------- match / round flow ---------------- */
+function startMatch(){
+  showScreen('game');
+  startRound();
+}
+
+function startRound(){
+  st.total = 0;
+  st.turn = nextStarter;
+  nextStarter = nextStarter === 'human' ? 'bot' : 'human';
+  st.phase = 'idle';
+  st.pendingMove = null;
+  st.wrongAttempts = 0;
+  st.gameOver = false;
+  st.winner = null;
+  el('turn-status').textContent = st.turn === 'human' ? 'Your turn — add a nickel or a dime.' : "Bot goes first this round.";
+  el('winner-banner').textContent = '';
+  el('end-btn-row').classList.add('hidden');
+  render();
+  if (st.turn === 'bot') setTimeout(botTurn, 550);
+}
+
+/* ---------------- rendering ---------------- */
+function renderTrack(){
+  const track = el('nim-track');
+  track.innerHTML = '';
+  // Every reachable total is a multiple of 5 (nickels/dimes only) — show
+  // just those 11 values (0,5,...,50), not every integer 0-50, so this
+  // track stays the same size as base Nim's instead of ballooning to 51
+  // cells that would never all be reachable anyway.
+  for (let n = 0; n <= TARGET; n += 5){
+    const cell = document.createElement('div');
+    let cls = 'nim-cell';
+    if (n === TARGET) cls += ' target';
+    if (n === st.total) cls += ' current'; // current wins over target if they coincide
+    cell.className = cls;
+    cell.textContent = n;
+    track.appendChild(cell);
+  }
+}
+
+function render(){
+  el('total-display').textContent = fmtCents(st.total);
+  renderTrack();
+  // The move row stays enabled through BOTH 'idle' and 'awaiting-answer' —
+  // changing your pick before actually checking the answer is allowed (see
+  // handleMoveClick()), so this only disables once it's genuinely not the
+  // human's turn to move at all.
+  const isHumanTurn = !(st.gameOver || st.turn !== 'human' || (st.phase !== 'idle' && st.phase !== 'awaiting-answer'));
+  el('move-row').classList.toggle('disabled', !isHumanTurn);
+  // A coin is only offered if adding it wouldn't pass 50¢ — see the engine
+  // comment above on why overshoot is never a legal choice here, unlike
+  // base Nim where every move is always legal. This is a PER-BUTTON
+  // check, layered on top of (not instead of) the whole-row toggle above.
+  const legal = nimLegalMoves(TARGET - st.total, MOVES, false);
+  document.querySelectorAll('#move-row [data-amount]').forEach(btn => {
+    const amount = parseInt(btn.dataset.amount, 10);
+    btn.disabled = !legal.includes(amount);
+    btn.classList.toggle('selected', st.phase === 'awaiting-answer' && st.pendingMove !== null && amount === st.pendingMove.amount);
+  });
+  // Within-round phase content on an already-visible screen — must reserve
+  // its space (see CLAUDE.md "Layout stability"), so .phase-hidden, never
+  // .hidden. Built once at full markup shape in the HTML above already, so
+  // there's nothing to construct here.
+  el('answer-area').classList.toggle('phase-hidden', st.phase !== 'awaiting-answer');
+}
+
+/* ---------------- human move selection ---------------- */
+document.querySelectorAll('#move-row [data-amount]').forEach(btn=>{
+  btn.addEventListener('click', ()=> handleMoveClick(parseInt(btn.dataset.amount, 10)));
+});
+
+function handleMoveClick(amount){
+  if (st.gameOver || st.turn !== 'human') return;
+  if (st.phase !== 'idle' && st.phase !== 'awaiting-answer') return;
+  if (!nimLegalMoves(TARGET - st.total, MOVES, false).includes(amount)) return; // defensive — the button should already be disabled
+  // Clicking a DIFFERENT coin while still awaiting the answer-check swaps
+  // the pending move and resets the check, instead of locking you into
+  // your first pick — real playtesting feedback: "I should be allowed to
+  // change my guess if I haven't done the calculation yet."
+  st.pendingMove = { amount };
+  enterAwaitingAnswer();
+}
+
+function enterAwaitingAnswer(){
+  st.phase = 'awaiting-answer';
+  st.wrongAttempts = 0;
+  el('answer-input').value = '';
+  el('hint-line').textContent = '';
+  el('compute-msg').textContent = '';
+  el('equation-line').textContent = `${fmtCents(st.total)} + ${fmtCents(st.pendingMove.amount)} = ?`;
+  render();
+}
+
+el('check-btn').addEventListener('click', checkAnswer);
+el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+
+function checkAnswer(){
+  const guess = parseInt(el('answer-input').value, 10);
+  const correct = st.total + st.pendingMove.amount;
+  if (isNaN(guess)){
+    flashComputeMsg('Type the new total first.', true);
+    return;
+  }
+  if (guess !== correct){
+    st.wrongAttempts++;
+    flashComputeMsg("That's not quite right — check your work.", true);
+    if (st.wrongAttempts >= 2){
+      el('hint-line').textContent = `Hint: ${fmtCents(st.total)} + ${fmtCents(st.pendingMove.amount)} = ${fmtCents(correct)}`;
+    }
+    return;
+  }
+  flashComputeMsg('That checks out!', false);
+  const amount = st.pendingMove.amount;
+  st.pendingMove = null;
+  commitMove(amount, 'human');
+}
+
+function flashComputeMsg(text, isError){
+  const m = el('compute-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+/* ---------------- commit a move (shared by human + bot paths) ---------------- */
+function commitMove(amount, mover){
+  st.total += amount;
+  const label = mover === 'human' ? 'You' : 'Bot';
+  el('turn-status').textContent = `${label} added ${coinName(amount)}. Total: ${fmtCents(st.total)}.`;
+  const winner = decideWinner(st.total, mover);
+  if (winner){ endRound(winner); return; }
+  st.turn = mover === 'human' ? 'bot' : 'human';
+  st.phase = 'idle';
+  render();
+  if (st.turn === 'bot') setTimeout(botTurn, 550);
+}
+
+/* ---------------- bot's turn ---------------- */
+function botTurn(){
+  st.phase = 'bot-thinking';
+  el('turn-status').textContent = 'Bot is thinking…';
+  render();
+  setTimeout(()=>{
+    const amount = botChooseRound(st.total, st.difficulty);
+    commitMove(amount, 'bot');
+  }, 550);
+}
+
+/* ---------------- win-visual effects (typewriter banner only) — see
+   design/mockups/win-visuals-mockup.html and CLAUDE.md "Celebration
+   animations". Plays once, then rests static — never loops.
+   prefers-reduced-motion (shared-game.js) skips straight to final text.
+   No score count-up here — same reasoning as base Nim: the pile was never
+   hidden, both players watched it climb live, turn by turn. ---------------- */
+function typewriterReveal(el, text){
+  el.classList.remove('flash');
+  if (prefersReducedMotion()){
+    el.textContent = text;
+    return;
+  }
+  el.textContent = '';
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length){
+      clearInterval(timer);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    }
+  }, 45);
+}
+
+/* ---------------- end of round ---------------- */
+function endRound(winner){
+  st.phase = 'over';
+  st.gameOver = true;
+  st.winner = winner;
+
+  let bannerText;
+  if (winner === 'human'){
+    bannerText = `You win! You brought the pile to exactly 50¢.`;
+    st.score.human++;
+  } else {
+    bannerText = `Bot wins. Bot brought the pile to exactly 50¢.`;
+    st.score.bot++;
+  }
+  updateScorePills(st.score);
+  el('end-btn-row').classList.remove('hidden');
+  render();
+
+  typewriterReveal(el('winner-banner'), bannerText);
+}
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen('settings');
+</script>
+</body>
+</html>

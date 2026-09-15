@@ -14,16 +14,37 @@
 'use strict';
 
 const assert = require('assert');
-const { loadGame, runInPage, sleep } = require('./jsdom-helpers');
+const { loadGame, runInPage, sleep, snapshotAvatarState } = require('./jsdom-helpers');
 
 async function main() {
   const dom = loadGame('pop-addition.html');
 
+  // Avatars (see CLAUDE.md "Avatars"): before touching anything, the picker
+  // and every badge should already agree with the default state — st.avatar
+  // selected in the picker, and the bot badge matching the default (medium)
+  // difficulty. This game has no persistent #scorecard (see CLAUDE.md's
+  // Pop/Beeline design note), so snapshotAvatarState's scYouBadge/
+  // scBotBadge correctly come back null here — not asserted on.
+  const defaults = snapshotAvatarState(dom);
+  assert.strictEqual(defaults.pickerSelected, defaults.avatar, 'the avatar picker should mark st.avatar\'s slot as .selected by default');
+  assert.strictEqual(defaults.youBadge, `avatars/${defaults.avatar}.png`, 'top-bar "you" badge should point at st.avatar\'s image');
+  assert.strictEqual(defaults.botBadge, `avatars/bot-${defaults.difficulty}.png`, 'top-bar bot badge should point at the difficulty-mapped bot avatar');
+
   runInPage(dom, () => {
     document.querySelector('#format-row [data-format="2+2"]').click();
+    document.querySelector('#avatar-row [data-avatar="cammy"]').click();
     document.querySelector('#diff-row [data-diff="hard"]').click();
     el('start-btn').click();
   });
+
+  // The avatar pick and the difficulty switch are independent: only the
+  // "you" badge should follow the avatar pick, only the bot badge should
+  // follow the difficulty.
+  const afterPick = snapshotAvatarState(dom);
+  assert.strictEqual(afterPick.avatar, 'cammy', 'clicking an avatar slot should update st.avatar');
+  assert.strictEqual(afterPick.pickerSelected, 'cammy', 'the clicked slot should become the (only) .selected one');
+  assert.strictEqual(afterPick.youBadge, 'avatars/cammy.png', 'top-bar "you" badge should update to the newly picked avatar');
+  assert.strictEqual(afterPick.botBadge, 'avatars/bot-hard.png', 'bot badge should swap to the hard-tier avatar once difficulty changes to hard, independent of the avatar pick');
 
   const cfg = runInPage(dom, () => ({
     insideLens: st.insideLens.slice(),
@@ -67,6 +88,21 @@ async function main() {
   const placements = [];
   for (let i = 0; i < cfg.totalBlanks; i++) {
     const isLast = i === cfg.totalBlanks - 1;
+
+    // Who places first alternates every roll (st.rollFirst — see CLAUDE.md's
+    // Pop redesign note): on a roll where the human goes first, the very
+    // next roll doesn't actually start until an EXTRA ~450ms "bot is
+    // thinking" beat completes after the click, on top of the usual
+    // pre-roll delay + spin. Rather than hardcode a fixed sleep long
+    // enough for the worst case every single iteration, poll for the
+    // digit actually being ready (st.currentDigit !== null) — robust
+    // regardless of which specific rolls happen to be human-first.
+    for (let waited = 0; waited < 2500; waited += 50) {
+      const ready = runInPage(dom, () => st.currentDigit !== null);
+      if (ready) break;
+      await sleep(50);
+    }
+
     const result = runInPage(dom, (isFirst) => {
       const digit = st.currentDigit;
       const legal = legalTargets(digit, st.human, st.insideLens);
@@ -102,11 +138,20 @@ async function main() {
 
   assert.ok(placements.some(p => p.kind === 'throw'), 'the playthrough should include at least one throw-away placement');
 
-  const filled = runInPage(dom, () => ({
-    humanComplete: isComplete(st.human),
-    botComplete: isComplete(st.bot),
-    humanSum: committedInsideSum(st.human, st.insideLens),
-  }));
+  // If the FINAL roll happened to be human-first (st.rollFirst — see
+  // CLAUDE.md's Pop redesign note), the bot's own last placement is still
+  // pending an extra ~450ms "bot is thinking" beat after the loop's last
+  // fixed sleep — poll rather than assume that sleep alone covered it.
+  let filled;
+  for (let waited = 0; waited < 2500; waited += 50) {
+    filled = runInPage(dom, () => ({
+      humanComplete: isComplete(st.human),
+      botComplete: isComplete(st.bot),
+      humanSum: committedInsideSum(st.human, st.insideLens),
+    }));
+    if (filled.humanComplete && filled.botComplete) break;
+    await sleep(50);
+  }
   assert.strictEqual(filled.humanComplete, true, 'all of the human blanks should be filled after totalBlanks rolls');
   assert.strictEqual(filled.botComplete, true, "all of the bot's blanks should be filled in lockstep (shared rolls)");
 

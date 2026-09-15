@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Numbo: Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<style>
+  /* ---- Numbo-specific: read-only dice tiles (a simple bordered square,
+     not dice-slot.css's fancy hexagonal shape — that component is
+     documented Scuttle-family-only, and these dice aren't clicked/assigned
+     to slots anyway, just displayed), the wide text expression input, and
+     the two-column round-result comparison. Everything else is shared. ---- */
+  .numbo-dice-row { display: flex; justify-content: center; gap: 8px; margin: 10px 0 16px; flex-wrap: wrap; }
+  .numbo-die {
+    width: 44px; height: 44px; border: 2px solid var(--color-ink); border-radius: 6px;
+    background: var(--color-beast-blue); color: #fff; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-sans); font-weight: 800; font-size: 20px; box-shadow: var(--shadow-sm);
+  }
+  .expr-row { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .expr-input {
+    width: 100%; max-width: 320px; font-size: 19px; text-align: center; font-family: var(--font-sans); font-weight: 700;
+    padding: 8px; border: 2px solid var(--color-ink); border-radius: 4px; box-shadow: var(--shadow-sm);
+    background: var(--color-background-primary); color: var(--color-text-primary);
+  }
+  .expr-input.shake { animation: shake 0.35s; border-color: var(--color-error); }
+  /* Clickable expression keyboard — replaces free typing. Digit buttons
+     use the same blue "you" identity as the rest of a player's own
+     numbers elsewhere in this project; disabled once used (that specific
+     rolled digit is spent) rather than removed, so the keyboard's layout
+     never shifts mid-expression. */
+  .numbo-keyboard { display: flex; flex-direction: column; gap: 6px; align-items: center; margin: 4px 0 10px; }
+  .numbo-kb-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .numbo-kb-btn {
+    min-width: 44px; padding: 10px 8px; font-size: 18px; font-weight: 800;
+    font-family: var(--font-sans); text-transform: none;
+  }
+  .numbo-kb-btn.digit-btn { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+  .numbo-kb-btn.digit-btn:disabled { background: var(--color-background-secondary); color: var(--color-text-tertiary); border-color: var(--color-ink); opacity: 0.6; }
+  .numbo-kb-btn.wide { min-width: 120px; font-size: 15px; }
+  /* Reuses design-system.css's .target-row (Pop's target-number input row)
+     for the input styling itself — just centers it, since Pop's own usage
+     doesn't need to. */
+  #target-setup-human .target-row { justify-content: center; }
+  .result-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+  .result-side { border-radius: 4px; padding: 10px; border: 2px solid; text-align: center; }
+  .result-side.human { background: var(--color-beast-blue-bg); border-color: var(--color-beast-blue); }
+  .result-side.bot { background: var(--color-beast-red-bg); border-color: var(--color-beast-red); }
+  .result-side h4 { font-family: var(--font-sans); font-weight: 700; font-size: 13px; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 6px; }
+  .result-side.human h4 { color: var(--color-beast-blue); }
+  .result-side.bot h4 { color: var(--color-beast-red); }
+  .result-expr { font-family: var(--font-sans); font-size: 13.5px; color: var(--color-text-secondary); word-break: break-word; margin-bottom: 4px; }
+  .result-value { font-family: var(--font-sans); font-size: 22px; font-weight: 800; }
+  .result-dist-numbo { font-family: var(--font-sans); font-size: 12.5px; color: var(--color-text-tertiary); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>NUMBO</h1>
+  <div class="kicker-wrap"><span class="kicker">Operations</span></div>
+  <div id="tagline" class="tagline">Roll four digits, build the expression closest to the target. First to 5 points wins.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> <span class="small">(first to 5)</span></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
+    <div class="section-label">Bot difficulty</div>
+    <div class="chip-row" id="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+    <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      Each round, the active player (it alternates) picks a target number under 100. Then four
+      ten-sided dice get rolled. Using all four rolled digits — each one exactly once, combined with
+      <strong>+, −, ×, ÷, and parentheses</strong> — everyone builds their own expression to land as close
+      to the target as possible. Whoever's expression is closest gets a point; if it's a tie, <strong>both</strong>
+      players get a point. First to <strong>5 points</strong> wins the match. The bot always computes
+      correctly, but how hard it searches for a close expression changes with difficulty.
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div class="card hidden" id="screen-game">
+
+    <!-- Round sub-phases: at any moment exactly ONE of the five blocks
+         below is the whole round screen — a nested screen-swap, not
+         within-round phase content — so each uses .hidden (real removal
+         from flow), toggled via showPhaseBlock() below, the same category
+         CLAUDE.md "Layout stability" already uses for screen-settings/
+         screen-round/etc. An earlier version of this file used
+         .phase-hidden for all five, on the assumption every hideable
+         round element defaults to that category — real playtesting found
+         the actual bug that assumption produces: reserving all five
+         blocks' space AT ONCE (since none of them ever overlap) piled up
+         as a large stretch of dead blank space by the time round-result
+         was showing. #end-btn-row (the true last element, nothing below
+         it to jump) stays .hidden too, unaffected by this fix. -->
+
+    <div id="target-setup-human" class="hidden">
+      <div class="section-label" style="text-align:center;">Your turn to set the target</div>
+      <div class="target-row">
+        <input type="number" id="target-input" min="1" max="99" value="50" inputmode="numeric"/>
+        <button class="primary" id="target-confirm-btn">Set target</button>
+      </div>
+      <div class="hint-line">Pick any whole number less than 100.</div>
+    </div>
+
+    <div id="target-setup-bot" class="hidden">
+      <div class="feedback-msg" id="bot-target-msg">Bot is picking a target…</div>
+    </div>
+
+    <div id="dice-expr-wrap" class="hidden">
+      <div class="section-label" style="text-align:center;">Target: <span id="target-display">–</span></div>
+      <div class="numbo-dice-row" id="numbo-dice-row"></div>
+      <div class="expr-row">
+        <label for="expr-input" class="small">Your expression (use all 4 digits once each):</label>
+        <input type="text" id="expr-input" class="expr-input" placeholder="Tap digits and operations below" autocomplete="off" readonly/>
+      </div>
+      <!-- Clickable keyboard, replacing free typing (real playtesting
+           feedback — see CLAUDE.md's Numbo redesign note): the rolled
+           digits (each usable once), the four operations, parentheses,
+           and backspace/clear. #expr-input above is now build-only
+           (readonly) — every keypress here is what actually writes into
+           it, through the exact same string checkAnswer() already reads,
+           so the parser/validator below needed zero changes. -->
+      <div class="numbo-keyboard" id="numbo-keyboard">
+        <div class="numbo-kb-row" id="numbo-kb-digits"></div>
+        <div class="numbo-kb-row">
+          <button type="button" class="numbo-kb-btn" data-op="+">+</button>
+          <button type="button" class="numbo-kb-btn" data-op="-">−</button>
+          <button type="button" class="numbo-kb-btn" data-op="*">×</button>
+          <button type="button" class="numbo-kb-btn" data-op="/">÷</button>
+          <button type="button" class="numbo-kb-btn" data-paren="(">(</button>
+          <button type="button" class="numbo-kb-btn" data-paren=")">)</button>
+        </div>
+        <div class="numbo-kb-row">
+          <button type="button" class="numbo-kb-btn wide" id="kb-backspace">⌫ Backspace</button>
+          <button type="button" class="numbo-kb-btn wide" id="kb-clear">Clear</button>
+        </div>
+      </div>
+      <div class="answer-row">
+        <label for="value-input">Equals:</label>
+        <input type="number" id="value-input" class="answer-input" step="any" inputmode="decimal" placeholder="?"/>
+        <button class="primary" id="check-btn">Check</button>
+      </div>
+      <div id="hint-line" class="hint-line"></div>
+      <div id="compute-msg" class="feedback-msg"></div>
+    </div>
+
+    <div id="round-result" class="hidden">
+      <div class="section-label" style="text-align:center;" id="round-result-headline">Round result</div>
+      <div class="result-compare">
+        <div class="result-side human">
+          <h4>You</h4>
+          <div class="result-expr" id="human-result-expr"></div>
+          <div class="result-value" id="human-result-value"></div>
+          <div class="result-dist-numbo" id="human-result-dist"></div>
+        </div>
+        <div class="result-side bot">
+          <h4>Bot</h4>
+          <div class="result-expr" id="bot-result-expr"></div>
+          <div class="result-value" id="bot-result-value"></div>
+          <div class="result-dist-numbo" id="bot-result-dist"></div>
+        </div>
+      </div>
+      <div class="feedback-msg" id="round-outcome-msg"></div>
+    </div>
+
+    <div class="btn-row hidden" id="next-round-wrap">
+      <button class="primary" id="next-round-btn">Next round →</button>
+    </div>
+
+    <div id="winner-banner"></div>
+    <div class="btn-row hidden" id="end-btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+/* ---------------- expression engine ----------------
+   Ported from test/numbo-operations-bot-simulation.js after that script's
+   head-to-head tier check passed — see CLAUDE.md Bot AI philosophy. This is
+   the "24 game" family: enumerate every way to combine 4 digits with
+   +,-,*,/ and parentheses (all orderings x all 5 parenthesizations x all
+   operator triples), find the value closest to target. Genuinely new bot
+   engineering for this project — every prior bot picked from a small fixed
+   structure; this one exhaustively searches an open expression space. */
+
+const OPS = ['+', '-', '*', '/'];
+const EPS = 1e-9;              // internal float-noise tolerance (exact-arithmetic comparisons)
+const HUMAN_TOLERANCE = 0.01;  // how close a typed claimed value must be to count as correct — see CLAUDE.md
+
+function applyOp(op, a, b){
+  if (op === '+') return a + b;
+  if (op === '-') return a - b;
+  if (op === '*') return a * b;
+  if (op === '/') return Math.abs(b) < EPS ? null : a / b;
+}
+
+function num(v){ return { type:'num', value:v }; }
+function opNode(op, l, r){ return { type:'op', op, l, r }; }
+
+// The 5 distinct binary parenthesizations of 4 leaves in a fixed order
+// [a,b,c,d] with operators [o1,o2,o3] between them, left to right —
+// Catalan(3) = 5.
+const SHAPES = [
+  (d, o) => opNode(o[2], opNode(o[1], opNode(o[0], num(d[0]), num(d[1])), num(d[2])), num(d[3])), // ((a o1 b) o2 c) o3 d
+  (d, o) => opNode(o[2], opNode(o[0], num(d[0]), opNode(o[1], num(d[1]), num(d[2]))), num(d[3])), // (a o1 (b o2 c)) o3 d
+  (d, o) => opNode(o[1], opNode(o[0], num(d[0]), num(d[1])), opNode(o[2], num(d[2]), num(d[3]))), // (a o1 b) o2 (c o3 d)
+  (d, o) => opNode(o[0], num(d[0]), opNode(o[2], opNode(o[1], num(d[1]), num(d[2])), num(d[3]))), // a o1 ((b o2 c) o3 d)
+  (d, o) => opNode(o[0], num(d[0]), opNode(o[1], num(d[1]), opNode(o[2], num(d[2]), num(d[3])))), // a o1 (b o2 (c o3 d))
+];
+
+function evalTree(node){
+  if (node.type === 'num') return node.value;
+  const l = evalTree(node.l);
+  if (l === null) return null;
+  const r = evalTree(node.r);
+  if (r === null) return null;
+  return applyOp(node.op, l, r);
+}
+
+// Always fully parenthesizes (unambiguous, used for the BOT's display and
+// for showing the human back their own expression's interpreted structure
+// as a hint — see checkAnswer() below).
+function exprString(node){
+  if (node.type === 'num') return String(node.value);
+  return `(${exprString(node.l)} ${node.op} ${exprString(node.r)})`;
+}
+
+function dist(value, target){ return Math.abs(value - target); }
+
+// Every valid (no divide-by-zero) expression buildable from `digits`, as
+// {tree, value} pairs. Always non-empty — the all-"+"/all-"-" combos never
+// divide by anything — so the base Numbo page's "if no answers are
+// possible, reroll" rule is structurally unreachable here and isn't
+// implemented for that reason (see CLAUDE.md).
+function allValidCombos(digits){
+  const combos = [];
+  for (const perm of permutations(digits)){
+    for (const shapeFn of SHAPES){
+      for (const o1 of OPS) for (const o2 of OPS) for (const o3 of OPS){
+        const tree = shapeFn(perm, [o1, o2, o3]);
+        const value = evalTree(tree);
+        if (value !== null) combos.push({ tree, value });
+      }
+    }
+  }
+  return combos;
+}
+
+/* ---------------- human expression parser ----------------
+   A real recursive-descent parser for typed infix notation (standard
+   precedence: * / bind tighter than + -, overridable with parens) — never
+   eval()/Function() on raw user input. Single-digit numeric literals only
+   (no concatenation into multi-digit numbers — see CLAUDE.md), no unary
+   minus (subtraction is binary-only, matching the "24 game" convention). */
+class NumboParseError extends Error {}
+
+function tokenize(str){
+  const tokens = [];
+  let i = 0;
+  while (i < str.length){
+    const c = str[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[0-9]/.test(c)){ tokens.push({ type:'num', value: parseInt(c, 10) }); i++; continue; }
+    if ('+-*/'.includes(c)){ tokens.push({ type:'op', value: c }); i++; continue; }
+    if (c === '('){ tokens.push({ type:'lparen' }); i++; continue; }
+    if (c === ')'){ tokens.push({ type:'rparen' }); i++; continue; }
+    throw new NumboParseError(`Unexpected character "${c}" — only digits 0-9, + - * / ( ) and spaces are allowed.`);
+  }
+  return tokens;
+}
+
+function parseExpression(tokens){
+  let pos = 0;
+  function peek(){ return tokens[pos]; }
+  function consume(type){
+    const t = tokens[pos];
+    if (!t || t.type !== type){
+      throw new NumboParseError(`Expected ${type === 'rparen' ? 'a closing ")"' : type} but ${t ? `found "${t.type === 'op' ? t.value : t.type}"` : 'the expression ended early'}.`);
+    }
+    pos++;
+    return t;
+  }
+  function parseAddSub(){
+    let node = parseMulDiv();
+    while (peek() && peek().type === 'op' && (peek().value === '+' || peek().value === '-')){
+      const op = consume('op').value;
+      node = opNode(op, node, parseMulDiv());
+    }
+    return node;
+  }
+  function parseMulDiv(){
+    let node = parseAtom();
+    while (peek() && peek().type === 'op' && (peek().value === '*' || peek().value === '/')){
+      const op = consume('op').value;
+      node = opNode(op, node, parseAtom());
+    }
+    return node;
+  }
+  function parseAtom(){
+    const t = peek();
+    if (!t) throw new NumboParseError('The expression ended unexpectedly — expected a number or "(".');
+    if (t.type === 'num'){ consume('num'); return num(t.value); }
+    if (t.type === 'lparen'){ consume('lparen'); const node = parseAddSub(); consume('rparen'); return node; }
+    if (t.type === 'op') throw new NumboParseError(`Unexpected "${t.value}" — an expression can't start with an operator here.`);
+    throw new NumboParseError('Unexpected ")".');
+  }
+  if (tokens.length === 0) throw new NumboParseError('Type an expression first.');
+  const result = parseAddSub();
+  if (pos < tokens.length){
+    const t = tokens[pos];
+    if (t.type === 'num' && pos > 0 && tokens[pos - 1].type === 'num'){
+      throw new NumboParseError('Two digits can’t be written next to each other (no multi-digit numbers) — combine them with an operator instead.');
+    }
+    throw new NumboParseError(`Unexpected "${t.type === 'op' ? t.value : t.type}" after the expression.`);
+  }
+  return result;
+}
+
+function leafValues(node){
+  if (node.type === 'num') return [node.value];
+  return leafValues(node.l).concat(leafValues(node.r));
+}
+
+function multisetEqual(a, b){
+  if (a.length !== b.length) return false;
+  const sa = a.slice().sort((x, y) => x - y);
+  const sb = b.slice().sort((x, y) => x - y);
+  return sa.every((v, i) => v === sb[i]);
+}
+
+// Parse + fully validate a typed expression against the rolled digits.
+// Returns { ok:true, tree, value } or { ok:false, error }. Never throws —
+// NumboParseError is caught here so callers get one consistent shape.
+function tryParseAndValidate(str, requiredDigits){
+  let tree;
+  try {
+    tree = parseExpression(tokenize(str));
+  } catch (e){
+    if (e instanceof NumboParseError) return { ok:false, error: e.message };
+    throw e;
+  }
+  const used = leafValues(tree);
+  if (!multisetEqual(used, requiredDigits)){
+    return { ok:false, error: `Use exactly the rolled digits (${requiredDigits.join(', ')}) — you used (${used.join(', ')}).` };
+  }
+  const value = evalTree(tree);
+  if (value === null) return { ok:false, error: 'That expression divides by zero somewhere — try a different arrangement.' };
+  return { ok:true, tree, value };
+}
+
+/* ---------------- bot tiers ---------------- */
+function botEasy(digits){
+  const combos = allValidCombos(digits);
+  return combos[randInt(combos.length)];
+}
+
+const MEDIUM_SAMPLE = 8;
+function botMedium(digits, target){
+  const combos = allValidCombos(digits);
+  let best = null;
+  for (let i = 0; i < MEDIUM_SAMPLE; i++){
+    const c = combos[randInt(combos.length)];
+    if (!best || dist(c.value, target) < dist(best.value, target)) best = c;
+  }
+  return best;
+}
+
+function botHard(digits, target){
+  const combos = allValidCombos(digits);
+  let best = combos[0];
+  for (const c of combos){
+    if (dist(c.value, target) < dist(best.value, target)) best = c;
+  }
+  return best;
+}
+
+// The fixed entry point every difficulty dispatches through (see CLAUDE.md
+// Code conventions) — a per-round decision here (each round has exactly one
+// digit-roll + target for both sides to solve against, simultaneously).
+function botChooseRound(digits, target, difficulty){
+  if (difficulty === 'easy') return botEasy(digits);
+  if (difficulty === 'medium') return botMedium(digits, target);
+  return botHard(digits, target);
+}
+
+function botPickTarget(){
+  return randInt(99) + 1; // "should be less than 100" — see CLAUDE.md
+}
+
+// Win condition (pure — see CLAUDE.md Code conventions). ROUND-level, like
+// every other game's decideWinner — the MATCH-level "first to 5" check is
+// a separate function below (matchWinnerFromScore), since decideWinner's
+// established contract is specifically the per-round comparison.
+function decideWinner(humanValue, botValue, target){
+  const dh = dist(humanValue, target), db = dist(botValue, target);
+  if (Math.abs(dh - db) < EPS) return 'tie';
+  return dh < db ? 'human' : 'bot';
+}
+
+const WIN_POINTS = 5;
+// Real rule: "first player to five points wins" — but a tie ROUND (see
+// decideWinner) gives BOTH players a point (see applyRoundScore below), so
+// both scores can reach 5 in the very same round. Handle that as a genuine
+// match-level tie, not an arbitrary tiebreak.
+function matchWinnerFromScore(score){
+  const humanDone = score.human >= WIN_POINTS, botDone = score.bot >= WIN_POINTS;
+  if (humanDone && botDone) return 'tie';
+  if (humanDone) return 'human';
+  if (botDone) return 'bot';
+  return null;
+}
+
+// Unlike every other game's tie handling (a separate, non-scoring 'ties'
+// bucket), Operations Numbo's own rule is explicit: "In the event of a
+// tie, all players who were closest get a point" — BOTH scores increment,
+// not neither. See CLAUDE.md's Numbo section for why this isn't a bug.
+function applyRoundScore(score, winner){
+  if (winner === 'human' || winner === 'tie') score.human++;
+  if (winner === 'bot' || winner === 'tie') score.bot++;
+}
+
+const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. No persistent
+   #scorecard on this game (see CLAUDE.md's Numbo design note), so there
+   are no scoreboard-header badges to sync — just the top-bar pair. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
+
+/* ---------------- state ---------------- */
+let st = {
+  difficulty: 'medium',
+  avatar: 'grogg',
+  activePlayer: 'human',   // who sets THIS round's target; alternates
+  target: null,
+  digits: [],
+  phase: 'set-target',     // 'set-target' | 'awaiting-human-expr' | 'bot-thinking' | 'round-result' | 'match-over'
+  wrongAttempts: 0,
+  humanResult: null,       // { tree, value } once locked in
+  botResult: null,         // { tree, value } once revealed
+  roundWinner: null,
+  matchOver: false,
+  matchWinner: null,
+  score: { human:0, bot:0 },
+  // Clickable-keyboard expression state (replaced free typing — real
+  // playtesting feedback). Each token is { char } for an operator/paren,
+  // or { char, slotIndex } for a digit — slotIndex is which of the 4
+  // rolled digits it came from, tracked so backspacing re-enables the
+  // EXACT digit button that was pressed, not just "a" button showing that
+  // value (two rolled digits can be equal, e.g. two 7s, and are still
+  // independently spendable). exprDigitUsed mirrors st.digits length —
+  // true once that slot's own button has been pressed.
+  exprTokens: [],
+  exprDigitUsed: []
+};
+
+// Persists across "Play again" (like Nim's nextStarter) so who-sets-the-
+// target keeps alternating across a whole session, not just within one
+// match — lower stakes than Nim's turn order (nothing here is a forced
+// win), but the same fairness reasoning applies.
+let nextActivePlayer = 'human';
+
+/* ---------------- element refs & screens ---------------- */
+const el = id => document.getElementById(id);
+renderGlobalNav('numbo'); // see CLAUDE.md "Global navigation"
+const screens = { settings: el('screen-settings'), game: el('screen-game') };
+
+// Local, not shared-game.js's showScreen() — no persistent #scorecard here
+// (this match's length varies round to round, unlike Scuttle's fixed-3;
+// same no-scorecard shape as Pop/Beeline/Nim). Same reasoning as nim.html.
+function showScreen(name){
+  Object.entries(screens).forEach(([k, node]) => {
+    const wasHidden = node.classList.contains('hidden');
+    node.classList.toggle('hidden', k !== name);
+    if (wasHidden && k === name) fadeIn(node);
+  });
+}
+
+// Local, not shared-game.js's updateScorePills() — no #s-ties pill (a tie
+// here isn't a non-scoring third outcome, it's BOTH sides scoring — see
+// applyRoundScore above), same reasoning as nim.html.
+function updateScorePills(score){
+  el('s-wins').textContent = score.human;
+  el('s-bwins').textContent = score.bot;
+}
+
+/* ---------------- settings screen ---------------- */
+// Avatar picker + top-bar badges: renderAvatarBadges() pushes st.avatar
+// (you) and the difficulty-matched bot avatar into the top-bar badge pair
+// — no scoreboard-header badges here, this game has no persistent
+// #scorecard (see CLAUDE.md's Numbo design note).
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
+
+function renderDiffChips(){
+  document.querySelectorAll('#diff-row [data-diff]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  renderAvatarBadges(); // bot avatar swaps with difficulty
+}
+document.querySelectorAll('#diff-row [data-diff]').forEach(btn => {
+  btn.addEventListener('click', () => { st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+el('how-link').addEventListener('click', () => { el('rules-box').classList.toggle('hidden'); });
+el('start-btn').addEventListener('click', () => {
+  st.score = { human:0, bot:0 };
+  updateScorePills(st.score);
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', () => showScreen('settings'));
+el('change-settings-btn').addEventListener('click', () => showScreen('settings'));
+renderDiffChips();
+
+/* ---------------- match / round flow ----------------
+   "First player to five points wins" is a real, explicit match-length rule
+   here (unlike Pop/Beeline/Nim's single-round-per-match shape) — a match
+   genuinely spans a variable number of rounds. Score persists in `st.score`
+   across rounds within one match; "Play again" starts a brand new match. */
+function startMatch(){
+  showScreen('game');
+  st.matchOver = false;
+  st.matchWinner = null;
+  el('winner-banner').textContent = '';
+  el('end-btn-row').classList.add('hidden');
+  startRound();
+}
+
+function startRound(){
+  st.activePlayer = nextActivePlayer;
+  nextActivePlayer = nextActivePlayer === 'human' ? 'bot' : 'human';
+  st.target = null;
+  st.digits = [];
+  st.phase = 'set-target';
+  st.wrongAttempts = 0;
+  st.humanResult = null;
+  st.botResult = null;
+  st.roundWinner = null;
+  render();
+  if (st.activePlayer === 'bot'){
+    setTimeout(() => {
+      st.target = botPickTarget();
+      rollAndAdvance();
+    }, 550);
+  }
+}
+
+function rollAndAdvance(){
+  st.digits = rollN(4);
+  st.phase = 'awaiting-human-expr';
+  st.wrongAttempts = 0;
+  st.exprTokens = [];
+  st.exprDigitUsed = st.digits.map(() => false);
+  el('value-input').value = '';
+  el('hint-line').textContent = '';
+  el('compute-msg').textContent = '';
+  render();
+  renderKeyboard();
+}
+
+/* ---------------- rendering ---------------- */
+function renderDice(){
+  const row = el('numbo-dice-row');
+  row.innerHTML = '';
+  st.digits.forEach(d => {
+    const tile = document.createElement('div');
+    tile.className = 'numbo-die';
+    tile.textContent = d;
+    row.appendChild(tile);
+  });
+}
+
+/* ---------------- clickable expression keyboard ----------------
+   Replaces free typing into #expr-input (real playtesting feedback) — see
+   CLAUDE.md's Numbo redesign note. Every press writes into #expr-input's
+   value through the exact same string tryParseAndValidate()/checkAnswer()
+   already read, so the parser/validator needed zero changes; the keyboard
+   is purely a new way to BUILD that string, not a new source of truth.
+   Digit buttons are keyed to a specific rolled SLOT (index into st.digits,
+   not the digit's value) so two equal rolled digits — e.g. two 7s — are
+   still tracked and spent independently. Operator/paren legality is a
+   light, cheap syntax guard (no operator first, no double operators, no
+   ")" with nothing open to close, no "(" glued straight onto a digit or
+   ")" with no operator between them) — NOT a full re-implementation of
+   the real parser; an incomplete expression (not all 4 digits used yet)
+   or a divide-by-zero is still caught the same way it always was, at
+   Check time, by tryParseAndValidate() itself. */
+function isDigitChar(c){ return c >= '0' && c <= '9'; }
+function exprLastToken(){
+  return st.exprTokens.length ? st.exprTokens[st.exprTokens.length - 1] : null;
+}
+function exprOpenParenDepth(){
+  let depth = 0;
+  st.exprTokens.forEach(t => { if (t.char === '(') depth++; else if (t.char === ')') depth--; });
+  return depth;
+}
+function canPressOp(){
+  const last = exprLastToken();
+  if (!last) return false; // can't start with an operator
+  return !(last.char === '(' || '+-*/'.includes(last.char));
+}
+function canPressParenOpen(){
+  const last = exprLastToken();
+  if (!last) return true;
+  return !(isDigitChar(last.char) || last.char === ')'); // needs an operator between a number and "("
+}
+function canPressParenClose(){
+  const last = exprLastToken();
+  if (!last) return false;
+  if (last.char === '(' || '+-*/'.includes(last.char)) return false;
+  return exprOpenParenDepth() > 0;
+}
+
+function pressDigit(slotIndex){
+  if (st.phase !== 'awaiting-human-expr' || st.exprDigitUsed[slotIndex]) return;
+  st.exprTokens.push({ char: String(st.digits[slotIndex]), slotIndex });
+  st.exprDigitUsed[slotIndex] = true;
+  renderKeyboard();
+}
+function pressOp(op){
+  if (st.phase !== 'awaiting-human-expr' || !canPressOp()) return;
+  st.exprTokens.push({ char: op });
+  renderKeyboard();
+}
+function pressParen(paren){
+  if (st.phase !== 'awaiting-human-expr') return;
+  if (paren === '(' ? !canPressParenOpen() : !canPressParenClose()) return;
+  st.exprTokens.push({ char: paren });
+  renderKeyboard();
+}
+function pressBackspace(){
+  if (st.phase !== 'awaiting-human-expr') return;
+  const removed = st.exprTokens.pop();
+  if (!removed) return;
+  if (removed.slotIndex !== undefined) st.exprDigitUsed[removed.slotIndex] = false;
+  renderKeyboard();
+}
+function pressClear(){
+  if (st.phase !== 'awaiting-human-expr' || st.exprTokens.length === 0) return;
+  st.exprTokens = [];
+  st.exprDigitUsed = st.digits.map(() => false);
+  renderKeyboard();
+}
+
+// Rebuilds the digit-button row (the rolled digits change every round) and
+// refreshes every button's disabled state — called after every keypress
+// and once per round when the digits are first rolled.
+function renderKeyboard(){
+  el('expr-input').value = st.exprTokens.map(t => t.char).join(' ');
+
+  const digitsRow = el('numbo-kb-digits');
+  digitsRow.innerHTML = '';
+  st.digits.forEach((d, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'numbo-kb-btn digit-btn';
+    btn.textContent = d;
+    btn.disabled = !!st.exprDigitUsed[i];
+    btn.addEventListener('click', () => pressDigit(i));
+    digitsRow.appendChild(btn);
+  });
+
+  document.querySelectorAll('#numbo-keyboard [data-op]').forEach(btn => {
+    btn.disabled = !canPressOp();
+  });
+  document.querySelector('#numbo-keyboard [data-paren="("]').disabled = !canPressParenOpen();
+  document.querySelector('#numbo-keyboard [data-paren=")"]').disabled = !canPressParenClose();
+  el('kb-backspace').disabled = st.exprTokens.length === 0;
+  el('kb-clear').disabled = st.exprTokens.length === 0;
+}
+
+document.querySelectorAll('#numbo-keyboard [data-op]').forEach(btn => {
+  btn.addEventListener('click', () => pressOp(btn.dataset.op));
+});
+document.querySelectorAll('#numbo-keyboard [data-paren]').forEach(btn => {
+  btn.addEventListener('click', () => pressParen(btn.dataset.paren));
+});
+el('kb-backspace').addEventListener('click', pressBackspace);
+el('kb-clear').addEventListener('click', pressClear);
+
+function fmtValue(v){
+  const r = Math.round(v * 10000) / 10000;
+  return Object.is(r, -0) ? '0' : String(r);
+}
+
+// Toggles one of the round's own mutually-exclusive sub-phase blocks.
+// These were originally .phase-hidden (visibility:hidden, space reserved)
+// under the assumption they were "within-round phase content" — but real
+// playtesting found a lot of dead blank space piling up by the time
+// round-result showed, and the reason is exactly what CLAUDE.md's Layout
+// Stability section warns a naive default misses: these five blocks are
+// never partway-visible at once the way a dice row filling in is — at any
+// moment exactly ONE of them is the whole round screen, same shape as a
+// top-level screen swap (screen-settings/screen-round/etc.), just nested
+// one level down inside #screen-game instead of at the top. Reserving all
+// five's space simultaneously was the bug, not a fix for one — switched to
+// .hidden (display:none, real removal from flow) plus the same fadeIn()
+// every other screen swap in this project already gets on becoming visible.
+function showPhaseBlock(node, visible){
+  const wasHidden = node.classList.contains('hidden');
+  node.classList.toggle('hidden', !visible);
+  if (wasHidden && visible) fadeIn(node);
+}
+
+function render(){
+  const p = st.phase;
+  showPhaseBlock(el('target-setup-human'), p === 'set-target' && st.activePlayer === 'human');
+  showPhaseBlock(el('target-setup-bot'), p === 'set-target' && st.activePlayer === 'bot');
+  showPhaseBlock(el('dice-expr-wrap'), p === 'awaiting-human-expr' || p === 'bot-thinking');
+  showPhaseBlock(el('round-result'), p === 'round-result');
+  showPhaseBlock(el('next-round-wrap'), p === 'round-result' && !st.matchOver);
+
+  if (st.target !== null) el('target-display').textContent = st.target;
+  if (st.digits.length) renderDice();
+}
+
+/* ---------------- human target-setting ---------------- */
+el('target-confirm-btn').addEventListener('click', () => {
+  if (st.phase !== 'set-target' || st.activePlayer !== 'human') return;
+  const t = parseInt(el('target-input').value, 10);
+  if (isNaN(t) || t < 1 || t > 99){
+    const inp = el('target-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+    return;
+  }
+  st.target = t;
+  rollAndAdvance();
+});
+el('target-input').addEventListener('keydown', e => { if (e.key === 'Enter') el('target-confirm-btn').click(); });
+
+/* ---------------- human expression submission ---------------- */
+el('check-btn').addEventListener('click', checkAnswer);
+el('expr-input').addEventListener('keydown', e => { if (e.key === 'Enter') el('value-input').focus(); });
+el('value-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+
+function shakeExprInputs(){
+  [el('expr-input'), el('value-input')].forEach(inp => {
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  });
+}
+
+function flashComputeMsg(text, isError){
+  const m = el('compute-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+}
+
+function checkAnswer(){
+  if (st.phase !== 'awaiting-human-expr') return;
+  const exprStr = el('expr-input').value;
+  const claimed = parseFloat(el('value-input').value);
+
+  const parsed = tryParseAndValidate(exprStr, st.digits);
+  if (!parsed.ok){
+    // A structural problem (syntax / wrong digits / divide-by-zero) is
+    // already self-explanatory — no separate "wrong attempts" counter or
+    // hint mechanic for these, unlike the value-mismatch case below. See
+    // CLAUDE.md's Numbo section for why these two failure kinds are
+    // handled differently.
+    flashComputeMsg(parsed.error, true);
+    shakeExprInputs();
+    return;
+  }
+  if (isNaN(claimed) || dist(claimed, parsed.value) > HUMAN_TOLERANCE){
+    st.wrongAttempts++;
+    flashComputeMsg("That's not quite right — check your math.", true);
+    if (st.wrongAttempts >= 2){
+      el('hint-line').textContent = `Hint: ${exprString(parsed.tree)} = ${fmtValue(parsed.value)}`;
+    }
+    shakeExprInputs();
+    return;
+  }
+
+  flashComputeMsg('That checks out!', false);
+  st.humanResult = { tree: parsed.tree, value: parsed.value };
+  st.phase = 'bot-thinking';
+  render();
+  setTimeout(revealBotAndResolve, 550);
+}
+
+/* ---------------- bot reveal + round resolution ---------------- */
+function revealBotAndResolve(){
+  st.botResult = botChooseRound(st.digits, st.target, st.difficulty);
+  const winner = decideWinner(st.humanResult.value, st.botResult.value, st.target);
+  st.roundWinner = winner;
+  applyRoundScore(st.score, winner);
+  updateScorePills(st.score);
+
+  el('human-result-expr').textContent = exprString(st.humanResult.tree);
+  el('human-result-value').textContent = fmtValue(st.humanResult.value);
+  el('human-result-dist').textContent = `distance ${fmtValue(dist(st.humanResult.value, st.target))}`;
+  el('bot-result-expr').textContent = exprString(st.botResult.tree);
+  el('bot-result-value').textContent = fmtValue(st.botResult.value);
+  el('bot-result-dist').textContent = `distance ${fmtValue(dist(st.botResult.value, st.target))}`;
+
+  const msg = winner === 'human' ? 'You were closer — +1 point!'
+    : winner === 'bot' ? 'Bot was closer — bot gets the point.'
+    : "Tied! Same distance from the target — you both get a point.";
+  el('round-outcome-msg').textContent = msg;
+  el('round-result-headline').textContent = `Target was ${st.target}`;
+
+  const matchWinner = matchWinnerFromScore(st.score);
+  st.phase = 'round-result';
+  render();
+
+  if (matchWinner){
+    st.matchOver = true;
+    st.matchWinner = matchWinner;
+    endMatch(matchWinner);
+  }
+}
+
+el('next-round-btn').addEventListener('click', () => {
+  if (st.matchOver) return;
+  startRound();
+});
+
+/* ---------------- win-visual effects (typewriter banner only) — see
+   CLAUDE.md "Celebration animations". Reserved for the MATCH-level win
+   only, matching Beeline's precedent of NOT animating every intermediate
+   turn/round — a per-round bot reveal here renders plainly, the same way
+   Beeline's ordinary marks render plainly and only the final BEELINE! gets
+   the effect. Plays once, then rests static — never loops.
+   prefers-reduced-motion (shared-game.js) skips straight to final text. ---------------- */
+function typewriterReveal(el, text){
+  el.classList.remove('flash');
+  if (prefersReducedMotion()){
+    el.textContent = text;
+    return;
+  }
+  el.textContent = '';
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length){
+      clearInterval(timer);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    }
+  }, 45);
+}
+
+function endMatch(matchWinner){
+  let bannerText;
+  if (matchWinner === 'human') bannerText = `You win the match! First to ${WIN_POINTS} points. \u{1F389}`;
+  else if (matchWinner === 'bot') bannerText = `Bot wins the match — first to ${WIN_POINTS} points.`;
+  else bannerText = `Match tie! You both reached ${WIN_POINTS} points at once.`;
+  el('end-btn-row').classList.remove('hidden');
+  typewriterReveal(el('winner-banner'), bannerText);
+}
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen('settings');
+</script>
+</body>
+</html>

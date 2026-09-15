@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pop: Perimeter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/dice-slot.css">
+<style>
+  /* ---- Pop-specific: blank groups (a player's inside number + their
+     throwaways), the '+' separator between addends, and the single
+     currently-rolled digit — same as every other Pop file. Perimeter adds
+     one new piece: a small label naming each addend ("Length"/"Width")
+     plus its ×2 coefficient, since a rectangle's perimeter is 2×length +
+     2×width, not a plain sum — see CLAUDE.md's design note. ---- */
+  .blank-group { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+  .group-label { text-align: center; font-family: var(--font-sans); font-size: 13px; font-weight: 700; letter-spacing: 0.3px; color: var(--color-text-tertiary); text-transform: uppercase; margin: 10px 0 4px; }
+  .plus-sign { font-size: 22px; font-weight: 800; color: var(--color-text-secondary); padding: 0 2px; }
+  .addend-label { font-family: var(--font-sans); font-size: 11px; font-weight: 800; letter-spacing: 0.2px; color: var(--color-text-tertiary); text-transform: uppercase; margin-right: 2px; }
+  .bot-mirror { margin-top: 16px; padding-top: 14px; border-top: 2px dashed var(--color-border-tertiary); opacity: 0.75; }
+  .bot-mirror .slot { cursor: default; }
+  #current-digit-wrap { display: flex; justify-content: center; margin: 4px 0 6px; min-height: 74px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>POP</h1>
+  <div class="kicker-wrap"><span class="kicker">Perimeter</span></div>
+  <div id="tagline" class="tagline">Land as close as you can to <b id="target-tag">18</b> without going over — going over pops your balloon.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill target-pill">Target <b id="s-target">18</b></div>
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
+    <div class="section-label">Format</div>
+    <div class="chip-row" id="format-row">
+      <button class="chip" data-format="small">1-digit sides</button>
+      <button class="chip" data-format="big">2-digit sides</button>
+    </div>
+    <div class="desc-line-stack" id="format-desc"></div>
+
+    <div class="section-label">Bot difficulty</div>
+    <div class="chip-row" id="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+
+    <div class="section-label">Target perimeter</div>
+    <div class="target-row">
+      <input type="number" id="target-input" value="18" min="0" inputmode="numeric"/>
+      <label class="small">land as close as you can without going over</label>
+    </div>
+    <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      The die is rolled one digit at a time — everyone sees the same digit at once. Each time a digit comes up,
+      write it into one of <strong>your own</strong> remaining blanks: your rectangle's <strong>length</strong>,
+      its <strong>width</strong> (each counts <strong>twice</strong> toward the perimeter — that's what makes it a
+      rectangle!), or a throw-away that doesn't count at all. Once written, a digit can never be moved or erased.
+      Keep going until every blank is full. Whoever's perimeter (2 × length + 2 × width) lands <strong>closest to
+      the target without going over</strong> wins — going over pops your balloon and you lose outright, no matter
+      how close you were. Ties are friendly! A rolled 0 can't fill the leading blank of a side length while a
+      throw-away or another blank is still open. The bot always adds correctly, but how well it decides where to
+      place each digit changes with difficulty.
+    </div>
+  </div>
+
+  <!-- ROUND SCREEN -->
+  <div class="card hidden" id="screen-round">
+    <div id="blanks-wrap">
+      <div class="group-label">Your rectangle</div>
+      <div class="blank-group" id="human-inside"></div>
+      <div class="group-label">Throw away</div>
+      <div class="blank-group" id="human-throw"></div>
+
+      <!-- The shared die sits BETWEEN the two players' own blanks, not
+           below both — one shared roll feeding both sides. -->
+      <div id="current-digit-wrap" class="hidden"></div>
+
+      <div class="bot-mirror">
+        <div class="group-label">Bot's rectangle</div>
+        <div class="blank-group" id="bot-inside"></div>
+        <div class="group-label">Bot's throw away</div>
+        <div class="blank-group" id="bot-throw"></div>
+      </div>
+    </div>
+
+    <div id="roll-btn-wrap">
+      <button class="primary" id="roll-btn">Roll</button>
+    </div>
+
+    <div id="msg" class="feedback-msg"></div>
+  </div>
+
+  <!-- COMPUTE SCREEN -->
+  <div class="card hidden" id="screen-compute">
+    <div class="section-label" style="text-align:center;">Add up your perimeter</div>
+    <div class="equation-line" id="compute-equation"></div>
+    <div id="answer-row" class="answer-row">
+      <label for="answer-input">Total:</label>
+      <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?"/>
+      <button class="primary" id="check-btn">Check</button>
+    </div>
+    <div id="hint-line" class="hint-line"></div>
+    <div id="compute-msg" class="feedback-msg"></div>
+    <div class="center hidden" id="reveal-wrap">
+      <button class="primary" id="reveal-btn">Reveal results →</button>
+    </div>
+  </div>
+
+  <!-- REVEAL SCREEN -->
+  <div class="card hidden" id="screen-reveal">
+    <div class="compare-grid">
+      <div class="side human">
+        <h3>You</h3>
+        <div class="result-total" id="human-total"></div>
+        <div class="result-status" id="human-status"></div>
+      </div>
+      <div class="side bot">
+        <h3>Bot</h3>
+        <div class="result-total" id="bot-total"></div>
+        <div class="result-status" id="bot-status"></div>
+      </div>
+    </div>
+    <div id="winner-banner"></div>
+    <div class="btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+/* ---------------- blank-structure helpers ----------------
+   Ported from test/pop-perimeter-bot-simulation.js after that script's
+   head-to-head tier check passed — see CLAUDE.md Bot AI philosophy. Same
+   engine shape as Addition Pop (only ONE bust cause — over target — since
+   side lengths can't go negative), generalized with a per-addend integer
+   COEFFICIENT: length and width each count TWICE toward the perimeter, not
+   once — see CLAUDE.md's design note on why this is a coefficient
+   generalization (of Subtraction/Expression Pop's ±1 insideSigns), not a
+   fourth throwaway blank or a hardcoded ×2 special case. */
+
+function rollDie(){ return Math.floor(Math.random()*10); }
+function randInt(n){ return Math.floor(Math.random()*n); }
+
+const ADDEND_LABELS = ['Length', 'Width'];
+
+// Place value of an inside position, INCLUDING its addend's coefficient.
+function placeWeight(pos, insideLens, insideCoeffs){
+  if (pos.kind !== 'inside') return 0;
+  const len = insideLens[pos.addend];
+  return insideCoeffs[pos.addend] * Math.pow(10, len - 1 - pos.idx);
+}
+
+function emptyPositions(state){
+  const out = [];
+  state.inside.forEach((arr,a) => arr.forEach((v,i) => { if (v===null) out.push({kind:'inside', addend:a, idx:i}); }));
+  state.throw.forEach((v,i) => { if (v===null) out.push({kind:'throw', idx:i}); });
+  return out;
+}
+
+function isLeadingPos(pos, insideLens){
+  return pos.kind==='inside' && pos.idx===0 && insideLens[pos.addend] > 1;
+}
+
+// Same legality rule as every other Pop variant — see CLAUDE.md's Pop
+// engine design decisions note.
+function legalTargets(digit, state, insideLens){
+  const empties = emptyPositions(state);
+  if (digit !== 0) return empties;
+  const nonLeading = empties.filter(p => !isLeadingPos(p, insideLens));
+  return nonLeading.length > 0 ? nonLeading : empties;
+}
+
+function samePos(a, b){
+  if (a.kind !== b.kind) return false;
+  return a.kind === 'inside' ? (a.addend===b.addend && a.idx===b.idx) : (a.idx===b.idx);
+}
+
+function committedInsideSum(state, insideLens, insideCoeffs){
+  let sum = 0;
+  state.inside.forEach((arr,a) => arr.forEach((v,i) => {
+    if (v !== null) sum += v * placeWeight({kind:'inside',addend:a,idx:i}, insideLens, insideCoeffs);
+  }));
+  return sum;
+}
+
+function remainingInsideWeight(state, insideLens, insideCoeffs){
+  let w = 0;
+  state.inside.forEach((arr,a) => arr.forEach((v,i) => {
+    if (v === null) w += placeWeight({kind:'inside',addend:a,idx:i}, insideLens, insideCoeffs);
+  }));
+  return w;
+}
+
+function isComplete(state){
+  return state.inside.every(arr => arr.every(v=>v!==null)) && state.throw.every(v=>v!==null);
+}
+
+function emptyState(insideLens, throwaways){
+  return { inside: insideLens.map(len => Array(len).fill(null)), throw: Array(throwaways).fill(null) };
+}
+function cloneState(state){
+  return { inside: state.inside.map(a=>a.slice()), throw: state.throw.slice() };
+}
+function place(state, pos, digit){
+  const next = cloneState(state);
+  if (pos.kind==='inside') next.inside[pos.addend][pos.idx] = digit;
+  else next.throw[pos.idx] = digit;
+  return next;
+}
+
+function distinctChoices(digit, state, insideLens){
+  const legal = legalTargets(digit, state, insideLens);
+  const insideChoices = legal.filter(p => p.kind === 'inside');
+  const throwChoice = legal.find(p => p.kind === 'throw') || null;
+  const choices = insideChoices.slice();
+  if (throwChoice) choices.push(throwChoice);
+  return choices;
+}
+
+/* ---------------- bot strategies ---------------- */
+
+function botEasyPop(digit, state, insideLens){
+  const choices = distinctChoices(digit, state, insideLens);
+  return choices[randInt(choices.length)];
+}
+
+// Medium: fill the most significant remaining inside blank (by coefficient-
+// weighted place value) with today's digit if that still projects to land
+// at-or-under target assuming future digits average 5; otherwise bin it in
+// a throwaway. Same shape as Addition Pop's own Medium, coefficient-aware.
+function botMediumPop(digit, state, insideLens, insideCoeffs, target){
+  const choices = distinctChoices(digit, state, insideLens);
+  if (choices.length === 1) return choices[0];
+  const insideChoices = choices.filter(c => c.kind === 'inside');
+  const throwChoice = choices.find(c => c.kind === 'throw') || null;
+  if (insideChoices.length === 0) return throwChoice;
+
+  insideChoices.sort((a,b) => placeWeight(b,insideLens,insideCoeffs) - placeWeight(a,insideLens,insideCoeffs));
+  const bestSlot = insideChoices[0];
+  const weight = placeWeight(bestSlot,insideLens,insideCoeffs);
+
+  const committed = committedInsideSum(state, insideLens, insideCoeffs);
+  const projectedNow = committed + digit*weight;
+  const remainingAfter = remainingInsideWeight(state, insideLens, insideCoeffs) - weight;
+  const projectedWithAvgFuture = projectedNow + remainingAfter * 5;
+
+  if (!throwChoice || projectedWithAvgFuture <= target) return bestSlot;
+  return throwChoice;
+}
+
+function rolloutScore(state, insideLens, insideCoeffs, target){
+  let s = state;
+  while (!isComplete(s)){
+    const d = rollDie();
+    const choice = botMediumPop(d, s, insideLens, insideCoeffs, target);
+    s = place(s, choice, d);
+  }
+  const sum = committedInsideSum(s, insideLens, insideCoeffs);
+  return sum > target ? -1000 : -(target - sum);
+}
+
+// Hard: Monte Carlo lookahead — same shape as every other Pop's Hard bot.
+function botHardPop(digit, state, insideLens, insideCoeffs, target, trials){
+  const choices = distinctChoices(digit, state, insideLens);
+  if (choices.length === 1) return choices[0];
+  let best = null;
+  for (const choice of choices){
+    const placed = place(state, choice, digit);
+    let total = 0;
+    for (let t=0; t<trials; t++) total += rolloutScore(placed, insideLens, insideCoeffs, target);
+    const avg = total/trials;
+    if (!best || avg > best.avg) best = { choice, avg };
+  }
+  return best.choice;
+}
+
+function botChooseRound(digit, state, insideLens, insideCoeffs, target, difficulty){
+  if (difficulty === 'easy') return botEasyPop(digit, state, insideLens);
+  if (difficulty === 'medium') return botMediumPop(digit, state, insideLens, insideCoeffs, target);
+  return botHardPop(digit, state, insideLens, insideCoeffs, target, 120);
+}
+
+/* ---------------- win condition (pure — see CLAUDE.md Code conventions) ----------------
+   Identical shape to Addition Pop's own decideWinner: only ONE bust cause
+   (over target) — side lengths can't be negative, so there's no second
+   bust cause the way Subtraction/Expression Pop have. */
+function decideWinner(humanSum, humanBusted, botSum, botBusted, target){
+  if (humanBusted && botBusted) return 'tie';
+  if (humanBusted) return 'bot';
+  if (botBusted) return 'human';
+  const humanDist = target - humanSum;
+  const botDist = target - botSum;
+  if (humanDist === botDist) return 'tie';
+  return humanDist < botDist ? 'human' : 'bot';
+}
+
+const FORMATS = {
+  'small': { insideLens:[1,1], insideCoeffs:[2,2], throwaways:1, target:18,  desc: 'Two 1-digit side lengths — Length ×2 + Width ×2 — max possible perimeter is 36.' },
+  'big':   { insideLens:[2,2], insideCoeffs:[2,2], throwaways:2, target:200, desc: 'Two 2-digit side lengths — Length ×2 + Width ×2 — max possible perimeter is 396.' },
+};
+// Bot difficulty descriptions were removed from the settings screen — not
+// user-facing (see CLAUDE.md "Layout stability" note on .desc-line-stack
+// for the container-jump bug this also used to trigger). DIFF_NAME stays;
+// it's still shown in the top-bar pill.
+const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. No persistent
+   #scorecard on this game (see CLAUDE.md's Pop/Beeline design note), so
+   there are no scoreboard-header badges to sync — just the top-bar pair. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
+
+/* ---------------- state ---------------- */
+let st = {
+  format: 'small',
+  difficulty: 'medium',
+  avatar: 'grogg',
+  target: 18,
+  insideLens: [1,1],
+  insideCoeffs: [2,2],
+  throwaways: 1,
+  totalBlanks: 3,
+  round: 1, // single-round, kept for parity with the shared convention / future multi-round Pop variants
+  human: null,
+  bot: null,
+  currentDigit: null,
+  rollsDone: 0,
+  wrongAttempts: 0,
+  finalHumanSum: null,
+  score: { human:0, bot:0, ties:0 }
+};
+
+/* ---------------- element refs ---------------- */
+const el = id => document.getElementById(id);
+renderGlobalNav('pop'); // see CLAUDE.md "Global navigation"
+renderVariantSwitcher('variant-row', 'pop', 'pop-perimeter.html'); // jump to a sibling Pop variant — see CLAUDE.md's navigation redesign note
+const screens = { settings: el('screen-settings'), round: el('screen-round'), compute: el('screen-compute'), reveal: el('screen-reveal') };
+function showScreen(name){
+  Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
+}
+
+/* ---------------- settings screen ---------------- */
+function buildFormatDescStack(){
+  const container = el('format-desc');
+  container.innerHTML = '';
+  Object.entries(FORMATS).forEach(([key, f]) => {
+    const node = document.createElement('div');
+    node.className = 'desc-line-option';
+    node.dataset.format = key;
+    node.textContent = f.desc;
+    container.appendChild(node);
+  });
+}
+function renderFormatChips(){
+  document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.format === st.format);
+  });
+  document.querySelectorAll('#format-desc .desc-line-option').forEach(node=>{
+    node.classList.toggle('active', node.dataset.format === st.format);
+  });
+  el('target-input').value = FORMATS[st.format].target;
+}
+document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.format = btn.dataset.format; renderFormatChips(); });
+});
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
+
+function renderDiffChips(){
+  document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  renderAvatarBadges(); // bot avatar swaps with difficulty
+}
+document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
+el('start-btn').addEventListener('click', ()=>{
+  const fmt = FORMATS[st.format];
+  const t = parseInt(el('target-input').value, 10);
+  st.target = isNaN(t) ? fmt.target : Math.max(0, t);
+  st.insideLens = fmt.insideLens.slice();
+  st.insideCoeffs = fmt.insideCoeffs.slice();
+  st.throwaways = fmt.throwaways;
+  st.totalBlanks = st.insideLens.reduce((s,l)=>s+l, 0) + st.throwaways;
+  st.score = { human:0, bot:0, ties:0 };
+  updateScorePills();
+  el('target-tag').textContent = st.target;
+  el('s-target').textContent = st.target;
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', ()=> showScreen('settings'));
+el('change-settings-btn').addEventListener('click', ()=> showScreen('settings'));
+buildFormatDescStack();
+renderFormatChips();
+renderDiffChips();
+
+function updateScorePills(){
+  el('s-wins').textContent = st.score.human;
+  el('s-bwins').textContent = st.score.bot;
+  el('s-ties').textContent = st.score.ties;
+}
+
+/* ---------------- match / round flow ---------------- */
+function startMatch(){
+  st.round = 1;
+  showScreen('round');
+  startRound();
+}
+
+function startRound(){
+  st.human = emptyState(st.insideLens, st.throwaways);
+  st.bot = emptyState(st.insideLens, st.throwaways);
+  st.rollsDone = 0;
+  st.currentDigit = null;
+  st.wrongAttempts = 0;
+  // Who places into their OWN blanks first alternates every roll — same
+  // Pop-wide fix as Addition/Subtraction/Expression Pop, see CLAUDE.md's
+  // Post-playtest note.
+  st.rollFirst = 'bot';
+  el('roll-btn-wrap').classList.remove('hidden');
+  el('current-digit-wrap').classList.add('hidden');
+  el('current-digit-wrap').innerHTML = '';
+  flashMsg('', false);
+  renderBlanks();
+}
+
+function flashMsg(text, isError){
+  const m = el('msg');
+  m.textContent = text;
+  m.classList.toggle('error', !!isError);
+}
+
+el('roll-btn').addEventListener('click', ()=>{
+  el('roll-btn-wrap').classList.add('hidden');
+  rollNextDigit();
+});
+
+function buildDie(value){
+  const wrap = document.createElement('div');
+  wrap.className = 'die-wrap';
+  const shape = document.createElement('div'); shape.className = 'die-shape';
+  const num = document.createElement('div'); num.className = 'die-num'; num.textContent = value;
+  wrap.appendChild(shape); wrap.appendChild(num);
+  return wrap;
+}
+
+function rollNextDigit(){
+  el('current-digit-wrap').classList.remove('hidden');
+  const wrap = el('current-digit-wrap');
+  let ticks = 0;
+  const spin = setInterval(()=>{
+    wrap.innerHTML = '';
+    wrap.appendChild(buildDie(randInt(10)));
+    ticks++;
+    if (ticks > 6){
+      clearInterval(spin);
+      const digit = randInt(10);
+      st.currentDigit = digit;
+      wrap.innerHTML = '';
+      wrap.appendChild(buildDie(digit));
+      if (st.rollFirst === 'bot'){
+        st.bot = place(st.bot, botChooseRound(digit, st.bot, st.insideLens, st.insideCoeffs, st.target, st.difficulty), digit);
+        renderBlanks();
+      }
+    }
+  }, 70);
+}
+
+function handleSlotClick(pos){
+  if (st.currentDigit === null) return;
+  const legal = legalTargets(st.currentDigit, st.human, st.insideLens);
+  if (!legal.some(p => samePos(p, pos))){
+    flashMsg("A rolled 0 can't start a side length while another blank is still open — try a throw-away or a different blank first.", true);
+    return;
+  }
+  const digit = st.currentDigit;
+  st.human = place(st.human, pos, digit);
+  st.currentDigit = null;
+  el('current-digit-wrap').classList.add('hidden');
+  el('current-digit-wrap').innerHTML = '';
+  renderBlanks();
+
+  if (st.rollFirst === 'human'){
+    flashMsg('Bot is thinking…', false);
+    setTimeout(()=>{
+      st.bot = place(st.bot, botChooseRound(digit, st.bot, st.insideLens, st.insideCoeffs, st.target, st.difficulty), digit);
+      renderBlanks();
+      flashMsg('', false);
+      afterRollResolved();
+    }, 450);
+  } else {
+    flashMsg('', false);
+    afterRollResolved();
+  }
+}
+
+function afterRollResolved(){
+  st.rollsDone++;
+  st.rollFirst = st.rollFirst === 'bot' ? 'human' : 'bot';
+  if (st.rollsDone < st.totalBlanks){
+    setTimeout(rollNextDigit, 450);
+  } else {
+    setTimeout(goToCompute, 600);
+  }
+}
+
+function renderInsideGroup(containerId, stateSide, clickable){
+  const row = el(containerId);
+  row.innerHTML = '';
+  st.insideLens.forEach((len, a) => {
+    if (a > 0){
+      const plus = document.createElement('span');
+      plus.className = 'plus-sign';
+      plus.textContent = '+';
+      row.appendChild(plus);
+    }
+    const label = document.createElement('span');
+    label.className = 'addend-label';
+    label.textContent = `${ADDEND_LABELS[a]} ×${st.insideCoeffs[a]}`;
+    row.appendChild(label);
+    for (let i=0; i<len; i++){
+      const digit = stateSide.inside[a][i];
+      const s = document.createElement('div');
+      s.className = 'slot' + (digit !== null ? ' filled' : '');
+      s.textContent = digit !== null ? digit : '';
+      if (clickable && digit === null){
+        s.addEventListener('click', ()=> handleSlotClick({kind:'inside', addend:a, idx:i}));
+      }
+      row.appendChild(s);
+    }
+  });
+}
+
+function renderThrowGroup(containerId, stateSide, clickable){
+  const row = el(containerId);
+  row.innerHTML = '';
+  stateSide.throw.forEach((digit, i) => {
+    const s = document.createElement('div');
+    s.className = 'slot' + (digit !== null ? ' filled' : '');
+    s.textContent = digit !== null ? digit : '';
+    if (clickable && digit === null){
+      s.addEventListener('click', ()=> handleSlotClick({kind:'throw', idx:i}));
+    }
+    row.appendChild(s);
+  });
+}
+
+function renderBlanks(){
+  renderInsideGroup('human-inside', st.human, true);
+  renderThrowGroup('human-throw', st.human, true);
+  renderInsideGroup('bot-inside', st.bot, false);
+  renderThrowGroup('bot-throw', st.bot, false);
+}
+
+/* ---------------- compute (answer-check) phase ---------------- */
+function formatInsideEquation(state, insideLens, insideCoeffs){
+  return state.inside.map((arr,a) => `${insideCoeffs[a]}×${arr.join('')}`).join(' + ');
+}
+
+function goToCompute(){
+  showScreen('compute');
+  st.wrongAttempts = 0;
+  el('answer-input').value = '';
+  el('answer-input').disabled = false;
+  el('check-btn').disabled = false;
+  el('compute-msg').textContent = '';
+  el('hint-line').textContent = '';
+  el('reveal-wrap').classList.add('hidden');
+  el('compute-equation').textContent = formatInsideEquation(st.human, st.insideLens, st.insideCoeffs) + ' = ?';
+}
+
+el('check-btn').addEventListener('click', checkAnswer);
+el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+
+function checkAnswer(){
+  const guess = parseInt(el('answer-input').value, 10);
+  const correct = committedInsideSum(st.human, st.insideLens, st.insideCoeffs);
+  if (isNaN(guess)){
+    flashComputeMsg('Type in a total first.', true);
+    return;
+  }
+  if (guess === correct){
+    flashComputeMsg('That checks out!', false);
+    el('reveal-wrap').classList.remove('hidden');
+    el('answer-input').disabled = true;
+    el('check-btn').disabled = true;
+    st.finalHumanSum = correct;
+  } else {
+    st.wrongAttempts++;
+    flashComputeMsg("That's not quite right — check your work.", true);
+    if (st.wrongAttempts >= 2){
+      el('hint-line').textContent = `Hint: ${formatInsideEquation(st.human, st.insideLens, st.insideCoeffs)} = ${correct}`;
+    }
+  }
+}
+
+function flashComputeMsg(text, isError){
+  const m = el('compute-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+/* ---------------- reveal ---------------- */
+el('reveal-btn').addEventListener('click', ()=>{
+  const humanSum = st.finalHumanSum;
+  const botSum = committedInsideSum(st.bot, st.insideLens, st.insideCoeffs);
+  const humanBusted = humanSum > st.target;
+  const botBusted = botSum > st.target;
+
+  el('human-total').textContent = humanSum;
+  el('human-status').textContent = humanBusted ? `Popped — ${humanSum - st.target} over` : (humanSum===st.target ? 'Exactly on target!' : `${st.target - humanSum} under`);
+  el('human-status').className = 'result-status ' + (humanBusted ? 'busted' : 'safe');
+
+  el('bot-total').textContent = botSum;
+  el('bot-status').textContent = botBusted ? `Popped — ${botSum - st.target} over` : (botSum===st.target ? 'Exactly on target!' : `${st.target - botSum} under`);
+  el('bot-status').className = 'result-status ' + (botBusted ? 'busted' : 'safe');
+
+  const winner = decideWinner(humanSum, humanBusted, botSum, botBusted, st.target);
+
+  const banner = el('winner-banner');
+  if (winner === 'tie'){
+    banner.textContent = (humanBusted && botBusted) ? 'Both balloons popped — a tie!' : "It's a tie — you both win!";
+    st.score.ties++;
+  } else if (winner === 'human'){
+    banner.textContent = botBusted ? "Bot's balloon popped — you win!" : 'You win this match!';
+    st.score.human++;
+  } else {
+    banner.textContent = humanBusted ? 'Your balloon popped — bot wins.' : 'Bot wins this match.';
+    st.score.bot++;
+  }
+  updateScorePills();
+  showScreen('reveal');
+});
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen('settings');
+</script>
+</body>
+</html>

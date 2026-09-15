@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Win visuals mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --color-beast-red: #cd2027; --color-beast-blue: #125392;
+    --color-beast-red-bg: rgba(205,32,39,0.07); --color-beast-blue-bg: rgba(18,83,146,0.07);
+    --color-background-primary: #ffffff; --color-background-secondary: #eef3f8;
+    --color-text-primary: #202020; --color-text-secondary: #5a6470; --color-text-tertiary: #8b96a1;
+    --color-correct: #2f8f4e; --color-ink: var(--color-text-primary); --border-w: 4px;
+    --font-sans: 'Rubik', system-ui, sans-serif; --font-pixel: 'Press Start 2P', var(--font-sans);
+    --shadow-card: 6px 6px 0 var(--color-ink); --shadow-btn: 4px 4px 0 var(--color-ink); --shadow-sm: 3px 3px 0 var(--color-ink);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); background: var(--color-background-secondary); color: var(--color-text-primary);
+    min-height: 100vh; display: flex; justify-content: center; padding: 1rem; }
+  #app { max-width: 480px; width: 100%; margin: auto; }
+  .card { background: var(--color-background-primary); border: var(--border-w) solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-card); padding: 1.3rem 1.1rem; margin-bottom: 1.2rem; }
+  h1 { font-family: var(--font-pixel); font-size: 20px; text-align: center; color: var(--color-beast-red); }
+  .kicker-wrap { display: flex; justify-content: center; margin: 8px 0 10px; }
+  .kicker { display: inline-block; background: var(--color-background-primary); border: 2px solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-sm); padding: 5px 14px; font-weight: 800; font-size: 13px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--color-beast-blue); }
+  .section-label { font-weight: 700; font-size: 14px; letter-spacing: 0.4px; text-transform: uppercase; color: var(--color-text-secondary); margin-bottom: 10px; }
+
+  button { font-family: var(--font-sans); font-weight: 800; text-transform: uppercase; cursor: pointer;
+    border: var(--border-w) solid var(--color-ink); border-radius: 4px; background: var(--color-beast-blue); color: #fff;
+    padding: 0.6rem 1rem; font-size: 14px; box-shadow: var(--shadow-btn); width: 100%; }
+  button:active { transform: translate(4px,4px); box-shadow: 0 0 0 var(--color-ink); }
+
+  /* ---- 1. win banner: typewriter reveal, then ONE single flash, then rest ---- */
+  #win-banner {
+    font-family: var(--font-sans); font-weight: 800; text-align: center; font-size: 18px;
+    padding: 14px; margin-bottom: 10px; border: 2px dashed var(--color-text-tertiary); border-radius: 4px;
+    color: var(--color-text-tertiary); min-height: 52px; display: flex; align-items: center; justify-content: center;
+  }
+  #win-banner.revealed { border: 2px solid var(--color-correct); color: var(--color-correct); }
+  #win-banner.flash { animation: singleFlash 0.35s ease-in-out 1; }
+  @keyframes singleFlash { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.9); } }
+  @media (prefers-reduced-motion: reduce) { #win-banner.flash { animation: none; } }
+
+  /* ---- 2. score count-up ---- */
+  .count-row { display: flex; justify-content: space-around; margin-bottom: 8px; }
+  .count-box { text-align: center; }
+  .count-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 4px; }
+  .count-num { font-size: 32px; font-weight: 800; }
+  .count-num.you { color: var(--color-beast-blue); } .count-num.bot { color: var(--color-beast-red); }
+
+  /* ---- 3. beeline winning-line flash ---- */
+  #mini-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; max-width: 260px; margin: 0 auto 10px; }
+  .mini-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-weight: 800;
+    border: 2px solid var(--color-ink); border-radius: 4px; background: var(--color-background-secondary); }
+  .mini-cell.you { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+  .mini-cell.win.flash { animation: singleFlash 0.35s ease-in-out 1; }
+  .mini-cell.win.settled { background: #0d3f6e; border-color: #0d3f6e; }
+  @media (prefers-reduced-motion: reduce) { .mini-cell.win.flash { animation: none; } }
+
+  .note { font-size: 12.5px; color: var(--color-text-tertiary); text-align: center; margin-top: 4px; }
+  label.rm { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--color-text-secondary); justify-content: center; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>SCUTTLE</h1>
+  <div class="kicker-wrap"><span class="kicker">Win visuals · mockup</span></div>
+
+  <label class="rm"><input type="checkbox" id="rm-toggle"> Simulate "reduced motion" preference</label>
+
+  <div class="card">
+    <div class="section-label">1. Win text — soft pulse, then rest</div>
+    <div id="win-banner">Press reveal to see it settle</div>
+    <button id="btn-1">Reveal winner</button>
+    <div class="note">Types letter by letter, then one single flash, then stays static. Never loops.</div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">2. Score count-up (Scuttle / Pop / Pig)</div>
+    <div class="count-row">
+      <div class="count-box"><div class="count-label">You</div><div class="count-num you" id="count-you">0</div></div>
+      <div class="count-box"><div class="count-label">Bot</div><div class="count-num bot" id="count-bot">0</div></div>
+    </div>
+    <button id="btn-2">Reveal totals</button>
+    <div class="note">Ticks up in ~18 steps over &lt;1s, like an odometer. Plays once.</div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">3. Winning line flash (Beeline — no score to count)</div>
+    <div id="mini-grid"></div>
+    <button id="btn-3">Reveal 4-in-a-row</button>
+    <div class="note">The 4 winning cells light up one at a time, then flash together once, then hold steady.</div>
+  </div>
+</div>
+
+<script>
+  const rmToggle = document.getElementById('rm-toggle');
+  function reducedMotion(){ return rmToggle.checked; }
+
+  // ---- 1: win banner — typewriter, then a single flash, then rest ----
+  function typewriter(el, text, charDelay, onDone){
+    el.classList.add('revealed');
+    el.textContent = '';
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      el.textContent = text.slice(0, i);
+      if (i >= text.length){ clearInterval(timer); onDone && onDone(); }
+    }, charDelay);
+  }
+  document.getElementById('btn-1').addEventListener('click', () => {
+    const el = document.getElementById('win-banner');
+    el.classList.remove('flash');
+    const text = 'YOU WIN THIS MATCH!';
+    if (reducedMotion()){
+      el.classList.add('revealed');
+      el.textContent = text;
+      return;
+    }
+    typewriter(el, text, 45, () => {
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    });
+  });
+
+  // ---- 2: count-up ----
+  function countUp(el, target, steps=18, duration=650){
+    let step = 0;
+    const timer = setInterval(() => {
+      step++;
+      const val = Math.round((target / steps) * step);
+      el.textContent = val;
+      if (step >= steps) { el.textContent = target; clearInterval(timer); }
+    }, duration/steps);
+  }
+  document.getElementById('btn-2').addEventListener('click', () => {
+    const youEl = document.getElementById('count-you');
+    const botEl = document.getElementById('count-bot');
+    if (reducedMotion()){ youEl.textContent = 1287; botEl.textContent = 934; return; }
+    countUp(youEl, 1287);
+    countUp(botEl, 934);
+  });
+
+  // ---- 3: mini grid ----
+  const WIN_LINE = [1,2,5,6]; // a sample "4 in a row" pattern in a 4x4 grid
+  function buildGrid(){
+    const grid = document.getElementById('mini-grid');
+    grid.innerHTML = '';
+    for (let i=0;i<16;i++){
+      const c = document.createElement('div');
+      c.className = 'mini-cell' + (i % 3 === 0 ? ' you' : '');
+      c.textContent = [4,8,9,12,16,20,24,28][i % 8] || '';
+      grid.appendChild(c);
+    }
+  }
+  buildGrid();
+  // ---- 3: mini grid — reveal the 4 winning cells one at a time, then a single flash ----
+  document.getElementById('btn-3').addEventListener('click', () => {
+    const cells = document.querySelectorAll('.mini-cell');
+    if (reducedMotion()){
+      WIN_LINE.forEach(i => cells[i].classList.add('you', 'win', 'settled'));
+      return;
+    }
+    WIN_LINE.forEach((i, order) => {
+      setTimeout(() => {
+        cells[i].classList.add('you', 'win');
+        const isLast = order === WIN_LINE.length - 1;
+        if (isLast){
+          setTimeout(() => {
+            WIN_LINE.forEach(j => cells[j].classList.add('flash'));
+            setTimeout(() => {
+              WIN_LINE.forEach(j => { cells[j].classList.remove('flash'); cells[j].classList.add('settled'); });
+            }, 400);
+          }, 150);
+        }
+      }, order * 180);
+    });
+  });
+</script>
+</body>
+</html>

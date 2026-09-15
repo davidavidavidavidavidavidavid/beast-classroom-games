@@ -11,8 +11,13 @@
  *   1. Find which shared stylesheets it <link>s.
  *   2. Collect every class *selector* defined in those stylesheets.
  *   3. Collect every class *referenced* in that HTML file — both static
- *      class="..." attributes, and classes assigned at runtime in the inline
- *      <script> via `.className = ...` or `.classList.add/remove/toggle(...)`.
+ *      class="..." attributes, and classes assigned at runtime via
+ *      `.className = ...` or `.classList.add/remove/toggle(...)`, whether
+ *      that call lives in the inline <script> or in a local file the page
+ *      loads via <script src="...js"> (e.g. shared-game.js — see CLAUDE.md
+ *      "File structure & the point of it": showScreen()'s fadeIn() call
+ *      toggles .fade-in from there now, not from any game's own inline
+ *      script, so this had to follow it there too).
  *   4. Report shared classes from step 2 that never show up in step 3.
  *
  * A reported class isn't automatically a bug — it may just be a shared class
@@ -110,12 +115,29 @@ function sharedCssLinks(html) {
   return hrefs;
 }
 
-/* ---------------- HTML side: split into markup vs. inline script ---------------- */
+/* ---------------- HTML side: split into markup vs. inline+linked script ---------------- */
+
+const SCRIPT_SRC_RE = /\bsrc\s*=\s*(["'])(.*?)\1/i;
 
 function splitHtml(html) {
   let scriptContent = '';
   const markup = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (full, attrs, body) => {
-    if (/\bsrc\s*=/i.test(attrs)) return ''; // external script, no inline body to scan
+    const srcMatch = SCRIPT_SRC_RE.exec(attrs);
+    if (srcMatch) {
+      const src = srcMatch[2];
+      if (!/^https?:\/\//i.test(src)) {
+        // A local file (e.g. shared-game.js) — read it so classes it
+        // assigns via classList still count as "referenced" by this page,
+        // the same as if the call lived in the inline <script> itself.
+        try {
+          scriptContent += fs.readFileSync(path.join(ROOT, src), 'utf8') + '\n';
+        } catch (e) {
+          // unreadable — silently skip, same as an unreadable <link>ed
+          // stylesheet elsewhere in this file.
+        }
+      }
+      return ''; // remote script (e.g. nothing currently, but future-proof) — nothing local to scan
+    }
     scriptContent += body + '\n';
     return '';
   });

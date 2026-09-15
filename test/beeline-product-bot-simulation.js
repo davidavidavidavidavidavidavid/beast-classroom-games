@@ -45,7 +45,30 @@ function emptyGame() {
   return { owner: Array(36).fill(null), tokens: null }; // tokens null = setup phase not yet done
 }
 
-function legalMoves(state) {
+function tokensKey(tokens) { return tokens[0] + ',' + tokens[1]; }
+
+// Anti-stalemate rule — see CLAUDE.md's design note and
+// beeline-product.html's own comment. Real playtesting found Hard's
+// minimax could ping-pong a token between already-claimed cells forever (a
+// "safe," never-losing, never-progressing move it had no reason to avoid).
+// The FIRST fix tried (forbid only the exact reversal of the immediately-
+// prior move) was verified INSUFFICIENT right here in this script — a
+// direct diagnostic run showed Hard-vs-Hard settling into a longer
+// repeating CYCLE (period > 2) that never reverses any single move but
+// still loops forever, since a deterministic search over a finite state
+// space must eventually repeat something once no new progress is
+// possible. The real fix: forbid moving into ANY tokens-configuration
+// already visited so far THIS game (`visited`, a Set of "a,b" keys),
+// applied only at the TOP-LEVEL move actually being chosen (not threaded
+// through minimax's own bounded-depth internal lookahead below, which
+// already always terminates on its own regardless — see
+// beeline-product.html's identical comment for the full reasoning).
+// Guarantees real progress: only 81 tokens-configurations exist in total,
+// and the 36-cell board fills (or someone wins) long before all of them
+// could possibly be exhausted. Never returns zero moves — falls back to
+// the unfiltered set in the vanishingly rare case every destination has
+// already been visited.
+function legalMoves(state, visited) {
   if (state.tokens === null) {
     // Setup: place both tokens freely, order doesn't matter (product is
     // commutative) — enumerate as unordered pairs.
@@ -60,7 +83,12 @@ function legalMoves(state) {
       if (pos !== state.tokens[idx]) moves.push({ type: 'move', idx, pos });
     }
   }
-  return moves;
+  if (!visited) return moves;
+  const filtered = moves.filter(m => {
+    const candidate = state.tokens.slice(); candidate[m.idx] = m.pos;
+    return !visited.has(tokensKey(candidate));
+  });
+  return filtered.length > 0 ? filtered : moves;
 }
 
 function applyMove(state, move, symbol) {
@@ -143,13 +171,13 @@ function longestRunThrough(owner, idx, symbol) {
 function randInt(n) { return Math.floor(Math.random() * n); }
 const OTHER = { human: 'bot', bot: 'human' };
 
-function botEasy(state, symbol) {
-  const moves = legalMoves(state);
+function botEasy(state, symbol, visited) {
+  const moves = legalMoves(state, visited);
   return moves[randInt(moves.length)];
 }
 
-function botMedium(state, symbol) {
-  const moves = legalMoves(state);
+function botMedium(state, symbol, visited) {
+  const moves = legalMoves(state, visited);
   const scored = moves.map(m => {
     const applied = applyMove(state, m, symbol);
     const runLen = applied.marked ? longestRunThrough(applied.state.owner, applied.cellIdx, symbol) : 0;
@@ -228,8 +256,8 @@ function minimax(state, symbol, toMove, depth, alpha, beta) {
 
 const HARD_DEPTH = 4;
 
-function botHard(state, symbol) {
-  const moves = legalMoves(state);
+function botHard(state, symbol, visited) {
+  const moves = legalMoves(state, visited);
   let best = null;
   for (const m of moves) {
     const applied = applyMove(state, m, symbol);
@@ -244,10 +272,10 @@ function botHard(state, symbol) {
   return best.m;
 }
 
-function botChooseRound(state, symbol, difficulty) {
-  if (difficulty === 'easy') return botEasy(state, symbol);
-  if (difficulty === 'medium') return botMedium(state, symbol);
-  return botHard(state, symbol);
+function botChooseRound(state, symbol, difficulty, visited) {
+  if (difficulty === 'easy') return botEasy(state, symbol, visited);
+  if (difficulty === 'medium') return botMedium(state, symbol, visited);
+  return botHard(state, symbol, visited);
 }
 
 /* ---------------- one full match ---------------- */
@@ -256,20 +284,32 @@ const MAX_TURNS = 200; // generous safety cap against a pathological stall
 
 // 'human'/'bot' here are just the two internal turn-order roles (whoever
 // moves first vs second) — nothing to do with actual human play; both
-// roles are played by a bot difficulty tier during simulation.
-function playMatch(diffFirst, diffSecond) {
+// roles are played by a bot difficulty tier during simulation. Returns the
+// turn count and whether MAX_TURNS was actually exhausted (`stalled`) —
+// distinct from a legitimate full-board draw, which resolves well before
+// the cap. Before the anti-stalemate rule (see legalMoves()'s own comment
+// above), Hard could ping-pong a token between two already-claimed cells
+// forever — MAX_TURNS silently reclassified that as an ordinary "draw"
+// here, which is exactly why the real bug wasn't caught by this script's
+// own win/loss-ratio checks and had to be reported from real play instead.
+function playMatchWithTurns(diffFirst, diffSecond) {
   let state = emptyGame();
   const diffOf = { human: diffFirst, bot: diffSecond };
   let turn = 'human'; // 'human' role always moves first internally
+  const visited = new Set(); // anti-stalemate rule's real-game history — see legalMoves()'s comment above
   for (let t = 0; t < MAX_TURNS; t++) {
-    const move = botChooseRound(state, turn, diffOf[turn]);
+    const move = botChooseRound(state, turn, diffOf[turn], visited);
     const applied = applyMove(state, move, turn);
     state = applied.state;
-    if (applied.marked && hasFourInRow(state.owner, turn)) return turn; // 'human' or 'bot' role
-    if (boardFull(state.owner)) return 'draw';
+    if (state.tokens) visited.add(tokensKey(state.tokens));
+    if (applied.marked && hasFourInRow(state.owner, turn)) return { winner: turn, turns: t + 1, stalled: false };
+    if (boardFull(state.owner)) return { winner: 'draw', turns: t + 1, stalled: false };
     turn = OTHER[turn];
   }
-  return 'draw';
+  return { winner: 'draw', turns: MAX_TURNS, stalled: true };
+}
+function playMatch(diffFirst, diffSecond) {
+  return playMatchWithTurns(diffFirst, diffSecond).winner;
 }
 
 /* ---------------- head-to-head, alternating who goes first ---------------- */
@@ -297,11 +337,67 @@ function report(label, diffA, diffB, matches) {
   return r;
 }
 
+/* ---------------- anti-stalemate rule ---------------- */
+
+// Direct, deterministic check against the EXACT scenario from the real bug
+// report: "If the board says 4x7, someone moves to 9x7, the next move
+// cannot be to 4x7." tokens=[9,7] (the state right after that move),
+// visited={"4,7","9,7"} (both configs already reached this game) —
+// legalMoves() must exclude moving token 0 back to 4 (which would
+// recreate the visited "4,7"), and must NOT over-restrict anything else.
+function checkAntiStalemateRuleDirectly() {
+  const state = { owner: Array(36).fill(null), tokens: [9, 7] };
+  const visited = new Set(['4,7', '9,7']);
+  const moves = legalMoves(state, visited);
+  if (moves.some(m => m.type === 'move' && m.idx === 0 && m.pos === 4)) {
+    throw new Error('legalMoves() allowed reversing [9,7] back to [4,7] — the anti-stalemate rule is broken');
+  }
+  if (!moves.some(m => m.type === 'move' && m.idx === 1 && m.pos === 3)) {
+    throw new Error('legalMoves() over-restricted — moving the OTHER (untouched) token should still be legal');
+  }
+  if (!moves.some(m => m.type === 'move' && m.idx === 0 && m.pos === 5)) {
+    throw new Error('legalMoves() over-restricted — moving the same token to a DIFFERENT new position should still be legal');
+  }
+  console.log('  ✅ legalMoves() forbids exactly the reversal from the real bug report ([9,7] -> back to [4,7]) and nothing else');
+
+  // The longer-cycle case that proved the reversal-only fix insufficient
+  // (found by direct simulation before this rule shipped): a state that
+  // was ALREADY visited two-or-more moves ago (not just one move ago) must
+  // still be forbidden, even though it isn't a same-single-token reversal
+  // of the immediately-prior move.
+  const cyclingState = { owner: Array(36).fill(null), tokens: [2, 4] };
+  const longHistory = new Set(['2,2', '9,2', '4,2', '2,4', '2,9']); // a real period-6 cycle observed pre-fix
+  const cyclingMoves = legalMoves(cyclingState, longHistory);
+  if (cyclingMoves.some(m => m.type === 'move' && m.idx === 1 && m.pos === 9)) {
+    throw new Error('legalMoves() allowed re-entering a state from 2+ moves ago (a longer cycle, not just an immediate reversal) — this is exactly the gap the reversal-only fix left open');
+  }
+  console.log('  ✅ legalMoves() also forbids re-entering a state from further back than one move ago (closes the longer-cycle gap the simpler reversal-only rule left open)');
+}
+
+// Emergent check: with the rule in place, Hard-vs-Hard (the most likely
+// matchup to fall into a deterministic repeating cycle, since neither side
+// ever makes a genuinely random move) should never exhaust MAX_TURNS.
+// Before the fix, this is exactly the scenario real play reported.
+function checkNoStalls() {
+  const TRIALS = 30;
+  let stalls = 0, maxTurnsSeen = 0;
+  for (let i = 0; i < TRIALS; i++) {
+    const r = playMatchWithTurns('hard', 'hard');
+    if (r.stalled) stalls++;
+    maxTurnsSeen = Math.max(maxTurnsSeen, r.turns);
+  }
+  if (stalls > 0) throw new Error(`${stalls}/${TRIALS} Hard-vs-Hard games hit the ${MAX_TURNS}-turn cap without resolving — the anti-stalemate rule did not fix the real stall`);
+  console.log(`  ✅ ${TRIALS}/${TRIALS} Hard-vs-Hard games resolved (win or genuine full-board draw) well before the ${MAX_TURNS}-turn cap (longest: ${maxTurnsSeen} turns) — no stalls`);
+}
+
+checkAntiStalemateRuleDirectly();
+checkNoStalls();
+
 /* ---------------- run it ---------------- */
 
 const MATCHES = 150; // win rates are decisive (see below) — this many trials is already conclusive and keeps the script fast to re-run
 const t0 = Date.now();
-console.log('Beeline — Product variant: bot difficulty head-to-head simulation\n');
+console.log('\nBeeline — Product variant: bot difficulty head-to-head simulation\n');
 
 const r1 = report('Hard vs Medium', 'hard', 'medium', MATCHES);
 const r2 = report('Medium vs Easy', 'medium', 'easy', MATCHES);

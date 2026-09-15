@@ -31,20 +31,36 @@
 
   <div id="top-bar">
     <div class="pill-group">
+      <div class="stat-pill target-pill">Target <b id="s-target">50</b></div>
       <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
-      <div class="stat-pill">You <b id="s-wins">0</b> · Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
     </div>
     <button id="settings-btn">Settings</button>
   </div>
 
   <!-- SETTINGS -->
   <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
     <div class="section-label">Format</div>
     <div class="chip-row" id="format-row">
       <button class="chip" data-format="2+1">_ _  +  _</button>
       <button class="chip" data-format="2+2">_ _  +  _ _</button>
     </div>
-    <div class="desc-line" id="format-desc"></div>
+    <div class="desc-line-stack" id="format-desc"></div>
 
     <div class="section-label">Bot difficulty</div>
     <div class="chip-row" id="diff-row">
@@ -52,7 +68,6 @@
       <button class="chip" data-diff="medium">Medium</button>
       <button class="chip" data-diff="hard">Hard</button>
     </div>
-    <div class="desc-line" id="diff-desc"></div>
 
     <div class="section-label">Target number</div>
     <div class="target-row">
@@ -82,6 +97,13 @@
       <div class="group-label">Throw away</div>
       <div class="blank-group" id="human-throw"></div>
 
+      <!-- The shared die sits BETWEEN the two players' own blanks, not
+           below both — it's one shared roll feeding both sides, and this
+           position is what actually reads that way; the old below-both
+           placement looked like it belonged to whichever side happened to
+           render nearest it. See CLAUDE.md's Pop redesign note. -->
+      <div id="current-digit-wrap" class="hidden"></div>
+
       <div class="bot-mirror">
         <div class="group-label">Bot's number</div>
         <div class="blank-group" id="bot-inside"></div>
@@ -90,10 +112,8 @@
       </div>
     </div>
 
-    <div id="current-digit-wrap" class="hidden"></div>
-
     <div id="roll-btn-wrap">
-      <button class="primary" id="roll-btn">🎲 Roll</button>
+      <button class="primary" id="roll-btn">Roll</button>
     </div>
 
     <div id="msg" class="feedback-msg"></div>
@@ -138,6 +158,7 @@
 
 </div>
 
+<script src="shared-game.js"></script>
 <script>
 /* ---------------- blank-structure helpers ----------------
    Ported from test/pop-addition-bot-simulation.js after that script's
@@ -325,17 +346,27 @@ const FORMATS = {
   '2+1': { insideLens:[2,1], throwaways:2, target:50,  desc: 'Two blanks plus one blank ( _ _  +  _ ) — max possible sum is 108.' },
   '2+2': { insideLens:[2,2], throwaways:2, target:100, desc: 'Two blanks plus two blanks ( _ _  +  _ _ ) — max possible sum is 198.' },
 };
-const DIFF_DESC = {
-  easy: 'Drops every rolled digit into a random open blank — inside or throw-away.',
-  medium: 'Fills its biggest remaining place value first, but bins a digit as a throw-away once it would risk going over.',
-  hard: 'Simulates thousands of ways the rest of the rolls could go before deciding where each digit goes.'
-};
+// Bot difficulty descriptions were removed from the settings screen — not
+// user-facing (see CLAUDE.md "Layout stability" note on .desc-line-stack
+// for the container-jump bug this also used to trigger). DIFF_NAME stays;
+// it's still shown in the top-bar pill.
 const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. No persistent
+   #scorecard on this game (see CLAUDE.md's Pop/Beeline design note), so
+   there are no scoreboard-header badges to sync — just the top-bar pair. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
 
 /* ---------------- state ---------------- */
 let st = {
   format: '2+1',
   difficulty: 'medium',
+  avatar: 'grogg',
   target: 50,
   insideLens: [2,1],
   throwaways: 2,
@@ -352,27 +383,64 @@ let st = {
 
 /* ---------------- element refs ---------------- */
 const el = id => document.getElementById(id);
+renderGlobalNav('pop'); // see CLAUDE.md "Global navigation"
+renderVariantSwitcher('variant-row', 'pop', 'pop-addition.html'); // jump to a sibling Pop variant — see CLAUDE.md's navigation redesign note
 const screens = { settings: el('screen-settings'), round: el('screen-round'), compute: el('screen-compute'), reveal: el('screen-reveal') };
 function showScreen(name){
   Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
 }
 
 /* ---------------- settings screen ---------------- */
+// Format description: see CLAUDE.md "Layout stability" (.desc-line-stack) —
+// every format's text is rendered at once, stacked in the same CSS Grid
+// cell, so the box is always exactly tall enough for the longest one and
+// never grows/shrinks as the player clicks between formats. FORMATS stays
+// the single source of truth for the text; this just builds the stack from
+// it once at startup.
+function buildFormatDescStack(){
+  const container = el('format-desc');
+  container.innerHTML = '';
+  Object.entries(FORMATS).forEach(([key, f]) => {
+    const node = document.createElement('div');
+    node.className = 'desc-line-option';
+    node.dataset.format = key;
+    node.textContent = f.desc;
+    container.appendChild(node);
+  });
+}
 function renderFormatChips(){
   document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.format === st.format);
   });
-  el('format-desc').textContent = FORMATS[st.format].desc;
+  document.querySelectorAll('#format-desc .desc-line-option').forEach(node=>{
+    node.classList.toggle('active', node.dataset.format === st.format);
+  });
   el('target-input').value = FORMATS[st.format].target;
 }
 document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ st.format = btn.dataset.format; renderFormatChips(); });
 });
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
+
 function renderDiffChips(){
   document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
   });
-  el('diff-desc').textContent = DIFF_DESC[st.difficulty];
+  renderAvatarBadges(); // bot avatar swaps with difficulty
 }
 document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
@@ -388,11 +456,13 @@ el('start-btn').addEventListener('click', ()=>{
   st.score = { human:0, bot:0, ties:0 };
   updateScorePills();
   el('target-tag').textContent = st.target;
+  el('s-target').textContent = st.target;
   el('s-diff').textContent = DIFF_NAME[st.difficulty];
   startMatch();
 });
 el('settings-btn').addEventListener('click', ()=> showScreen('settings'));
 el('change-settings-btn').addEventListener('click', ()=> showScreen('settings'));
+buildFormatDescStack();
 renderFormatChips();
 renderDiffChips();
 
@@ -415,6 +485,16 @@ function startRound(){
   st.rollsDone = 0;
   st.currentDigit = null;
   st.wrongAttempts = 0;
+  // Who places into their OWN blanks first alternates every roll (real
+  // playtesting feedback — the bot always moved first before, which read
+  // as the bot getting first crack at every digit). Starts fresh each
+  // round rather than persisting across "Play again" clicks like Nim's
+  // nextStarter — there's no single decisive "first move" advantage here
+  // the way there is in a race/adversarial game (every blank is each
+  // player's own, not a shared resource), so there's nothing to protect
+  // fairness ACROSS rounds for; alternating WITHIN a round is what the
+  // feedback actually asked for. See rollNextDigit()/handleSlotClick().
+  st.rollFirst = 'bot';
   el('roll-btn-wrap').classList.remove('hidden');
   el('current-digit-wrap').classList.add('hidden');
   el('current-digit-wrap').innerHTML = '';
@@ -458,9 +538,18 @@ function rollNextDigit(){
       st.currentDigit = digit;
       wrap.innerHTML = '';
       wrap.appendChild(buildDie(digit));
-      // shared roll: the bot sees and places the same digit right away
-      st.bot = place(st.bot, botChooseRound(digit, st.bot, st.insideLens, st.target, st.difficulty), digit);
-      renderBlanks();
+      // shared roll: both sides see the same digit at once, but WHO
+      // actually places into their own blanks first alternates each roll
+      // (st.rollFirst — see startRound()). When the bot goes first, it
+      // decides right away, same as always; when the human goes first,
+      // the bot's own placement is deliberately deferred until AFTER the
+      // human clicks a slot (see handleSlotClick) rather than computed
+      // here, so it isn't sitting there already-decided before the human
+      // has even chosen.
+      if (st.rollFirst === 'bot'){
+        st.bot = place(st.bot, botChooseRound(digit, st.bot, st.insideLens, st.target, st.difficulty), digit);
+        renderBlanks();
+      }
     }
   }, 70);
 }
@@ -475,12 +564,31 @@ function handleSlotClick(pos){
   const digit = st.currentDigit;
   st.human = place(st.human, pos, digit);
   st.currentDigit = null;
-  st.rollsDone++;
   el('current-digit-wrap').classList.add('hidden');
   el('current-digit-wrap').innerHTML = '';
-  flashMsg('', false);
   renderBlanks();
 
+  if (st.rollFirst === 'human'){
+    // The bot's move for THIS roll was deliberately withheld until now
+    // (see rollNextDigit) — resolve it after a short "bot is thinking"
+    // beat, the same pacing every other game in this project already
+    // uses for a bot's delayed move, rather than snapping it in instantly.
+    flashMsg('Bot is thinking…', false);
+    setTimeout(()=>{
+      st.bot = place(st.bot, botChooseRound(digit, st.bot, st.insideLens, st.target, st.difficulty), digit);
+      renderBlanks();
+      flashMsg('', false);
+      afterRollResolved();
+    }, 450);
+  } else {
+    flashMsg('', false);
+    afterRollResolved();
+  }
+}
+
+function afterRollResolved(){
+  st.rollsDone++;
+  st.rollFirst = st.rollFirst === 'bot' ? 'human' : 'bot';
   if (st.rollsDone < st.totalBlanks){
     setTimeout(rollNextDigit, 450);
   } else {
@@ -603,10 +711,10 @@ el('reveal-btn').addEventListener('click', ()=>{
 
   const banner = el('winner-banner');
   if (winner === 'tie'){
-    banner.textContent = (humanBusted && botBusted) ? 'Both balloons popped — a tie!' : "It's a tie — you both win! 🤝";
+    banner.textContent = (humanBusted && botBusted) ? 'Both balloons popped — a tie!' : "It's a tie — you both win!";
     st.score.ties++;
   } else if (winner === 'human'){
-    banner.textContent = botBusted ? "Bot's balloon popped — you win! 🎉" : 'You win this match! 🎉';
+    banner.textContent = botBusted ? "Bot's balloon popped — you win!" : 'You win this match!';
     st.score.human++;
   } else {
     banner.textContent = humanBusted ? 'Your balloon popped — bot wins.' : 'Bot wins this match.';

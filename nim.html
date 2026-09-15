@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/nim-track.css">
+<style>
+  /* ---- Nim-specific: the two move buttons. Nothing else on this screen
+     needs game-specific CSS beyond the shared nim-track component and
+     design-system's existing button/answer-check styles. Always visible
+     (never .hidden/.phase-hidden) — only .disabled toggles, same pattern
+     as Beeline's .operand-row.disabled, so this row never participates in
+     the layout-stability concern at all. ---- */
+  .move-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 4px; }
+  .move-btn { font-size: 20px; padding: 14px 0; width: 84px; }
+  .move-row.disabled { pointer-events: none; opacity: 0.55; }
+  /* Marks whichever amount is the CURRENT pending choice while awaiting
+     the answer-check — both buttons are already .primary (always blue),
+     so a separate ring is the only way to show which one is picked, now
+     that picking a different one is allowed before checking (see
+     handleMoveClick()). */
+  .move-btn.selected { outline: 3px solid var(--color-warn); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>NIM</h1>
+  <div class="kicker-wrap"><span class="kicker">Race to 10</span></div>
+  <div id="tagline" class="tagline">Add 1 or 2 to the total each turn — whoever gets it to <b id="target-tag">10</b> or more wins.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
+    <div class="section-label">Bot difficulty</div>
+    <div class="chip-row" id="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+    <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      The total starts at 0. Taking turns, each player adds <strong>1 or 2</strong> to the total —
+      your choice, no dice involved. The instant the total reaches <strong>10 or more</strong>, whoever
+      just moved wins outright, even if their move pushed it past 10. Ties are impossible — the total
+      only ever goes up, so someone always eventually crosses the line. Who goes first alternates every
+      game, since going first is a real, provable advantage in this exact race. The bot always adds
+      correctly, but how far ahead it plans changes with difficulty.
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div class="card hidden" id="screen-game">
+
+    <div class="nim-total-wrap">
+      <div class="nim-total" id="total-display">0</div>
+      <div class="nim-total-label">Total</div>
+    </div>
+    <div class="nim-track" id="nim-track"></div>
+
+    <div id="turn-status" class="feedback-msg"></div>
+
+    <div class="move-row" id="move-row">
+      <button class="primary move-btn" data-amount="1">+1</button>
+      <button class="primary move-btn" data-amount="2">+2</button>
+    </div>
+
+    <div id="answer-area" class="phase-hidden">
+      <div class="equation-line" id="equation-line"></div>
+      <div class="answer-row">
+        <label for="answer-input">New total:</label>
+        <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?"/>
+        <button class="primary" id="check-btn">Check</button>
+      </div>
+      <div id="hint-line" class="hint-line"></div>
+      <div id="compute-msg" class="feedback-msg"></div>
+    </div>
+
+    <div id="winner-banner"></div>
+    <div class="btn-row hidden" id="end-btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+/* ---------------- game engine ----------------
+   Ported from test/nim-bot-simulation.js after that script's head-to-head
+   tier check passed — see CLAUDE.md Bot AI philosophy. Turn-based,
+   deterministic, no dice (same broad category as Beeline) — but a much
+   smaller, fully SOLVED game: a single running total with two legal moves
+   (+1, +2), racing to reach or exceed TARGET. See nim-bot-simulation.js's
+   own header for why "Hard never loses" (the letter of Bot AI philosophy,
+   written for Scuttle/Pop) isn't the right bar here — going first is a
+   PROVEN forced win in this exact target/move-set, not just an edge.
+
+   The actual "what's the best move from here" solver moved to
+   shared-game.js (`nimIsWinningPosition`/`nimOptimalMove`/
+   `nimImmediateWinMove`) once a second real Nim variant
+   (`nim-nickeled-and-dimed.html`) needed the exact same logic — see
+   CLAUDE.md "Where things stand" / "File structure & the point of it".
+   Base Nim's own `reachOrExceed` is `true` (its default) here: reaching
+   OR PASSING 10 always wins, so every move is always legal — this
+   refactor changes nothing about base Nim's actual behavior, only where
+   the computation lives. */
+
+const TARGET = 10;
+const MOVES = [1, 2];
+
+function botEasy(){
+  return MOVES[randInt(MOVES.length)];
+}
+
+function botMedium(total){
+  const m = nimImmediateWinMove(TARGET - total, MOVES);
+  return m !== null ? m : MOVES[randInt(MOVES.length)];
+}
+
+function botHard(total){
+  return nimOptimalMove(TARGET - total, MOVES);
+}
+
+// The fixed entry point every difficulty dispatches through (see CLAUDE.md
+// Code conventions) — here a per-*turn* decision, since Nim is turn-based
+// rather than round-based (same shape as Beeline's botChooseRound).
+function botChooseRound(total, difficulty){
+  if (difficulty === 'easy') return botEasy();
+  if (difficulty === 'medium') return botMedium(total);
+  return botHard(total);
+}
+
+// Win condition (pure — see CLAUDE.md Code conventions). Like Beeline, Nim
+// has no single reveal moment — the total is visible and updates live, turn
+// by turn, for both players — so this is called after every committed
+// move, not from a separate reveal-button handler. Returns null while the
+// round is still in progress. Unlike every other game's decideWinner, this
+// one can never return 'tie': the total only ever increases, so someone
+// always eventually crosses TARGET — there is no draw state in this game
+// at all, not just a rare one.
+function decideWinner(total, mover){
+  if (total >= TARGET) return mover;
+  return null;
+}
+
+// Bot difficulty descriptions were removed from the settings screen — not
+// user-facing (see CLAUDE.md "Layout stability"). DIFF_NAME stays; it's
+// still shown in the top-bar pill.
+const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. No persistent
+   #scorecard on this game (see CLAUDE.md's Nim design note), so there
+   are no scoreboard-header badges to sync — just the top-bar pair. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
+
+/* ---------------- state ---------------- */
+let st = {
+  difficulty: 'medium',
+  avatar: 'grogg',
+  total: 0,
+  turn: 'human',
+  phase: 'idle',           // 'idle' | 'awaiting-answer' | 'bot-thinking' | 'over'
+  pendingMove: null,       // { amount: 1|2 } chosen by the human, awaiting the new-total check
+  wrongAttempts: 0,
+  gameOver: false,
+  winner: null,
+  score: { human:0, bot:0 } // no ties tracked — see decideWinner above, a tie can't happen
+};
+
+// Who starts the NEXT round. Deliberately kept OUTSIDE `st` and untouched
+// by startMatch()'s score reset: going first is a real, provable advantage
+// in this exact race (see the engine comments above), so fairness needs to
+// hold across a whole session of repeated "Play again" clicks, not just
+// within a single already-decided match.
+let nextStarter = 'human';
+
+/* ---------------- element refs & screens ---------------- */
+const el = id => document.getElementById(id);
+renderGlobalNav('nim'); // see CLAUDE.md "Global navigation"
+renderVariantSwitcher('variant-row', 'nim', 'nim.html'); // jump to a sibling Nim variant — see CLAUDE.md's navigation redesign note
+const screens = { settings: el('screen-settings'), game: el('screen-game') };
+
+// Local, not shared-game.js's showScreen() — this game has no persistent
+// #scorecard element (see "Suggested next steps" / the no-scorecard design
+// note in CLAUDE.md's Nim section), and shared-game.js's version
+// unconditionally looks one up. Same pattern Beeline already established
+// for the same reason. Does call fadeIn() (from shared-game.js) on the
+// swap, unlike Beeline's own local version — see CLAUDE.md Known traps.
+function showScreen(name){
+  Object.entries(screens).forEach(([k,node]) => {
+    const wasHidden = node.classList.contains('hidden');
+    node.classList.toggle('hidden', k!==name);
+    if (wasHidden && k===name) fadeIn(node);
+  });
+}
+
+// Local, not shared-game.js's updateScorePills() — that version
+// unconditionally also writes a #s-ties pill, which this game deliberately
+// doesn't have (see the no-ties note by st.score above: a tie is
+// impossible in this game, not just rare, so a stat that would forever
+// read "0" was left out rather than included for consistency's own sake).
+function updateScorePills(score){
+  el('s-wins').textContent = score.human;
+  el('s-bwins').textContent = score.bot;
+}
+
+/* ---------------- settings screen ---------------- */
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
+
+function renderDiffChips(){
+  document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  renderAvatarBadges(); // bot avatar swaps with difficulty
+}
+document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
+el('start-btn').addEventListener('click', ()=>{
+  st.score = { human:0, bot:0 };
+  updateScorePills(st.score);
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', ()=> showScreen('settings'));
+el('change-settings-btn').addEventListener('click', ()=> showScreen('settings'));
+renderDiffChips();
+
+/* ---------------- match / round flow ----------------
+   No multi-round "match" concept here (a single race is quick — as few as
+   5 turns) — same pattern as Pop/Beeline, not Scuttle's 3-round scorecard:
+   each full race IS a "match," cumulative score persists in the top-bar
+   pills across as many "Play again" clicks as the player makes, and
+   "Play again" starts a brand new one. */
+function startMatch(){
+  showScreen('game');
+  startRound();
+}
+
+function startRound(){
+  st.total = 0;
+  st.turn = nextStarter;
+  nextStarter = nextStarter === 'human' ? 'bot' : 'human';
+  st.phase = 'idle';
+  st.pendingMove = null;
+  st.wrongAttempts = 0;
+  st.gameOver = false;
+  st.winner = null;
+  el('turn-status').textContent = st.turn === 'human' ? 'Your turn — add 1 or 2.' : "Bot goes first this round.";
+  el('winner-banner').textContent = '';
+  el('end-btn-row').classList.add('hidden');
+  render();
+  if (st.turn === 'bot') setTimeout(botTurn, 550);
+}
+
+/* ---------------- rendering ---------------- */
+function renderTrack(){
+  const track = el('nim-track');
+  track.innerHTML = '';
+  for (let n = 0; n <= TARGET; n++){
+    const cell = document.createElement('div');
+    let cls = 'nim-cell';
+    if (n === TARGET) cls += ' target';
+    if (n === st.total) cls += ' current'; // current wins over target if they coincide
+    cell.className = cls;
+    cell.textContent = n;
+    track.appendChild(cell);
+  }
+}
+
+function render(){
+  el('total-display').textContent = st.total;
+  renderTrack();
+  // The move row stays enabled through BOTH 'idle' and 'awaiting-answer' —
+  // changing your pick before actually checking the answer is allowed (see
+  // handleMoveClick()), so this only disables once it's genuinely not the
+  // human's turn to move at all.
+  el('move-row').classList.toggle('disabled', st.gameOver || st.turn !== 'human' || (st.phase !== 'idle' && st.phase !== 'awaiting-answer'));
+  document.querySelectorAll('#move-row [data-amount]').forEach(btn=>{
+    btn.classList.toggle('selected', st.phase === 'awaiting-answer' && st.pendingMove !== null && parseInt(btn.dataset.amount, 10) === st.pendingMove.amount);
+  });
+  // Within-round phase content on an already-visible screen — must reserve
+  // its space (see CLAUDE.md "Layout stability"), so .phase-hidden, never
+  // .hidden. Built once at full markup shape in the HTML above already, so
+  // there's nothing to construct here.
+  el('answer-area').classList.toggle('phase-hidden', st.phase !== 'awaiting-answer');
+}
+
+/* ---------------- human move selection ---------------- */
+document.querySelectorAll('#move-row [data-amount]').forEach(btn=>{
+  btn.addEventListener('click', ()=> handleMoveClick(parseInt(btn.dataset.amount, 10)));
+});
+
+function handleMoveClick(amount){
+  if (st.gameOver || st.turn !== 'human') return;
+  if (st.phase !== 'idle' && st.phase !== 'awaiting-answer') return;
+  // Clicking a DIFFERENT amount while still awaiting the answer-check
+  // swaps the pending move and resets the check (fresh equation, cleared
+  // wrong-attempts/hint) instead of locking you into your first pick —
+  // real playtesting feedback: "I should be allowed to change my guess if
+  // I haven't done the calculation yet."
+  st.pendingMove = { amount };
+  enterAwaitingAnswer();
+}
+
+function enterAwaitingAnswer(){
+  st.phase = 'awaiting-answer';
+  st.wrongAttempts = 0;
+  el('answer-input').value = '';
+  el('hint-line').textContent = '';
+  el('compute-msg').textContent = '';
+  el('equation-line').textContent = `${st.total} + ${st.pendingMove.amount} = ?`;
+  render();
+}
+
+el('check-btn').addEventListener('click', checkAnswer);
+el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+
+function checkAnswer(){
+  const guess = parseInt(el('answer-input').value, 10);
+  const correct = st.total + st.pendingMove.amount;
+  if (isNaN(guess)){
+    flashComputeMsg('Type the new total first.', true);
+    return;
+  }
+  if (guess !== correct){
+    st.wrongAttempts++;
+    flashComputeMsg("That's not quite right — check your work.", true);
+    if (st.wrongAttempts >= 2){
+      el('hint-line').textContent = `Hint: ${st.total} + ${st.pendingMove.amount} = ${correct}`;
+    }
+    return;
+  }
+  flashComputeMsg('That checks out!', false);
+  const amount = st.pendingMove.amount;
+  st.pendingMove = null;
+  commitMove(amount, 'human');
+}
+
+function flashComputeMsg(text, isError){
+  const m = el('compute-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+/* ---------------- commit a move (shared by human + bot paths) ---------------- */
+function commitMove(amount, mover){
+  st.total += amount;
+  const label = mover === 'human' ? 'You' : 'Bot';
+  el('turn-status').textContent = `${label} added ${amount}. Total: ${st.total}.`;
+  const winner = decideWinner(st.total, mover);
+  if (winner){ endRound(winner); return; }
+  st.turn = mover === 'human' ? 'bot' : 'human';
+  st.phase = 'idle';
+  render();
+  if (st.turn === 'bot') setTimeout(botTurn, 550);
+}
+
+/* ---------------- bot's turn ---------------- */
+function botTurn(){
+  st.phase = 'bot-thinking';
+  el('turn-status').textContent = 'Bot is thinking…';
+  render();
+  setTimeout(()=>{
+    const amount = botChooseRound(st.total, st.difficulty);
+    commitMove(amount, 'bot');
+  }, 550);
+}
+
+/* ---------------- win-visual effects (typewriter banner only) — see
+   design/mockups/win-visuals-mockup.html and CLAUDE.md "Celebration
+   animations". Plays once, then rests static — never loops.
+   prefers-reduced-motion (shared-game.js) skips straight to final text.
+   No score count-up here: unlike Scuttle/Pop, the total was never hidden
+   — both players watched it update live, turn by turn — so there's
+   nothing being revealed for the first time at the end (same reasoning
+   Beeline's own note gives, though Beeline's is "no number exists at
+   all" — here a number exists, it's just never been secret). ---------------- */
+function typewriterReveal(el, text){
+  el.classList.remove('flash');
+  if (prefersReducedMotion()){
+    el.textContent = text;
+    return;
+  }
+  el.textContent = '';
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length){
+      clearInterval(timer);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    }
+  }, 45);
+}
+
+/* ---------------- end of round ---------------- */
+function endRound(winner){
+  st.phase = 'over';
+  st.gameOver = true;
+  st.winner = winner;
+
+  let bannerText;
+  if (winner === 'human'){
+    bannerText = `You win! You got the total to ${st.total}.`;
+    st.score.human++;
+  } else {
+    bannerText = `Bot wins. Bot got the total to ${st.total}.`;
+    st.score.bot++;
+  }
+  updateScorePills(st.score);
+  el('end-btn-row').classList.remove('hidden');
+  render();
+
+  typewriterReveal(el('winner-banner'), bannerText);
+}
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen('settings');
+</script>
+</body>
+</html>

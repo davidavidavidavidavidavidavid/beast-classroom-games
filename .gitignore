@@ -1,1 +1,13 @@
+# OS cruft
+.DS_Store
+**/.DS_Store
+
+# Dependencies
 node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Claude Code local session/runtime state (not project content)
+.claude/

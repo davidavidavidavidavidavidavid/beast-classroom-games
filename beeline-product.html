@@ -13,6 +13,16 @@
   /* ---- Beeline-specific: disabling the operand row during the bot's turn.
      Everything else is the shared claim-grid component or design-system. ---- */
   .operand-row.disabled { pointer-events: none; opacity: 0.55; }
+  /* Widened further than design-system.css's own already-widened default
+     (860px) — Beeline has genuinely more horizontal content to fill than a
+     single-column game (see "make sizing more dynamic to fill a great
+     proportion of the window"): both .game-layout columns (components/
+     claim-grid.css) grow to use whatever extra room this makes available.
+     Settings-screen content (rules box, chip rows) doesn't need the extra
+     width, so #rules-box caps itself back down for readability rather than
+     stretching into uncomfortably long lines. */
+  #app { max-width: 1100px; }
+  #rules-box { max-width: 640px; margin-left: auto; margin-right: auto; }
 </style>
 </head>
 <body>
@@ -25,20 +35,34 @@
   <div id="top-bar">
     <div class="pill-group">
       <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
-      <div class="stat-pill">You <b id="s-wins">0</b> · Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
     </div>
     <button id="settings-btn">Settings</button>
   </div>
 
   <!-- SETTINGS -->
   <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
     <div class="section-label">Bot difficulty</div>
     <div class="chip-row" id="diff-row">
       <button class="chip" data-diff="easy">Easy</button>
       <button class="chip" data-diff="medium">Medium</button>
       <button class="chip" data-diff="hard">Hard</button>
     </div>
-    <div class="desc-line" id="diff-desc"></div>
     <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
     <button id="how-link">How does this game work?</button>
     <div id="rules-box" class="hidden" style="margin-top:8px;">
@@ -54,31 +78,34 @@
 
   <!-- GAME SCREEN -->
   <div class="card hidden" id="screen-game">
-    <div class="legend"><span><i class="legend-dot human"></i>You</span><span><i class="legend-dot bot"></i>Bot</span></div>
-
-    <div id="claim-grid"></div>
-
-    <div id="turn-status" class="feedback-msg"></div>
-
-    <div id="setup-hint" class="desc-line hidden" style="text-align:center;">Click two numbers below to place your tokens.</div>
-
-    <div class="operand-title">Move along 1–9</div>
-    <div class="operand-row" id="operand-row"></div>
-
-    <div class="token-switch-row hidden" id="token-switch-row">
-      <button id="switch-token-0"></button>
-      <button id="switch-token-1"></button>
-    </div>
-
-    <div id="answer-area" class="hidden">
-      <div class="equation-line" id="equation-line"></div>
-      <div class="answer-row">
-        <label for="answer-input">Product:</label>
-        <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?"/>
-        <button class="primary" id="check-btn">Check</button>
+    <!-- Side-by-side "game board" (right) / "playing space" (left) layout
+         — see components/claim-grid.css's .game-layout comment. DOM order
+         here is board-then-play (matches the narrow-viewport stacked
+         order); the wide layout visually reorders via CSS `order`. -->
+    <div class="game-layout">
+      <div class="game-board-col">
+        <div class="legend"><span><i class="legend-dot human"></i>You</span><span><i class="legend-dot bot"></i>Bot</span></div>
+        <div id="claim-grid"></div>
       </div>
-      <div id="hint-line" class="hint-line"></div>
-      <div id="compute-msg" class="feedback-msg"></div>
+      <div class="game-play-col">
+        <div id="turn-status" class="feedback-msg"></div>
+
+        <div id="setup-hint" class="desc-line phase-hidden" style="text-align:center;">Click two numbers below to place your tokens.</div>
+
+        <div class="operand-title">Move along 1–9</div>
+        <div class="operand-row" id="operand-row"></div>
+
+        <div id="answer-area" class="hidden">
+          <div class="equation-line" id="equation-line"></div>
+          <div class="answer-row">
+            <label for="answer-input">Product:</label>
+            <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?"/>
+            <button class="primary" id="check-btn">Check</button>
+          </div>
+          <div id="hint-line" class="hint-line"></div>
+          <div id="compute-msg" class="feedback-msg"></div>
+        </div>
+      </div>
     </div>
 
     <div id="winner-banner"></div>
@@ -90,6 +117,7 @@
 
 </div>
 
+<script src="shared-game.js"></script>
 <script>
 /* ---------------- board & move engine ----------------
    Ported from test/beeline-product-bot-simulation.js after that script's
@@ -100,17 +128,56 @@
 
 const ROWMIN = 1, ROWMAX = 9;
 
-// Fixed 6x6 board layout: the 36 distinct products of two numbers 1-9,
-// arranged via a deterministic shuffle since the rules doc describes
-// mechanics, not a physical board's exact spatial layout — a reasonable
-// placeholder arrangement, not a transcription of a real printed board.
-const VALUES = [14,54,16,49,32,6,4,72,48,21,2,56,35,64,36,5,9,81,30,40,42,8,7,28,1,15,3,18,27,12,63,24,20,45,25,10];
-const VALUE_INDEX = new Map(VALUES.map((v, i) => [v, i]));
+// The 36 distinct products of two numbers 1-9 — the fixed SET of answer
+// values every match uses. Their CELL POSITIONS are no longer fixed,
+// though (see CLAUDE.md's post-playtest note): `VALUES`/`VALUE_INDEX` are
+// rebuilt via `shuffleArray()` (shared-game.js) at the start of every
+// match in `startMatch()` below, not just once at load — real playtesting
+// found the single always-identical layout memorizable/stale. `BASE_VALUES`
+// is the master, unshuffled list this shuffles FROM each time; `let`, not
+// `const`, since `VALUES`/`VALUE_INDEX` are genuinely reassigned at runtime
+// now, not just read.
+const BASE_VALUES = [14,54,16,49,32,6,4,72,48,21,2,56,35,64,36,5,9,81,30,40,42,8,7,28,1,15,3,18,27,12,63,24,20,45,25,10];
+let VALUES = BASE_VALUES.slice();
+let VALUE_INDEX = new Map(VALUES.map((v, i) => [v, i]));
+function rebuildBoardLayout(){
+  VALUES = shuffleArray(BASE_VALUES);
+  VALUE_INDEX = new Map(VALUES.map((v, i) => [v, i]));
+}
 const W = 6, H = 6;
 const DIRS = [[0, 1], [1, 0], [1, 1], [1, -1]];
 const OTHER = { human: 'bot', bot: 'human' };
 
-function legalMoves(state){
+function tokensKey(tokens){ return tokens[0] + ',' + tokens[1]; }
+
+// Anti-stalemate rule (real playtesting bug report: "hard bot keeps
+// returning to a square number to stop the game from advancing" — see
+// CLAUDE.md's design note for the full story). The FIRST fix tried here —
+// just forbidding an immediate reversal of the last move (exactly what was
+// reported: "if the board says 4x7, someone moves to 9x7, the next move
+// cannot be to 4x7") — was verified INSUFFICIENT by direct simulation
+// before shipping: Hard vs Hard could still fall into a longer repeating
+// cycle (period > 2) that never reverses any SINGLE move but still loops
+// forever, since a deterministic minimax search facing a finite state
+// space must eventually repeat something once no new progress is possible.
+// The real fix tracks every tokens-configuration ALREADY VISITED this
+// whole game (`visited`, a Set of "a,b" keys — see `st.visitedTokenPairs`)
+// and forbids moving into ANY of them, not just the immediately-previous
+// one. This guarantees real forward progress: with only 81 possible
+// tokens-configurations total and 36 board cells, the board fills or
+// someone wins long before every configuration could possibly be
+// exhausted. `visited` is only applied to the TOP-LEVEL move a bot/human
+// is actually about to commit (passed in explicitly, not stored on
+// `state`) — it is deliberately NOT threaded through minimax's own
+// internal recursive lookahead below, since that search already always
+// terminates via its fixed depth cutoff regardless, and re-deriving a
+// fresh copy of the visited set at every recursive node would be real
+// unnecessary overhead for a search that's already bounded and correct
+// without it. Never returns zero moves: if EVERY destination has already
+// been visited (only possible in a vanishingly rare, very-long-game edge
+// case), it falls back to the unfiltered set rather than leaving no legal
+// move at all.
+function legalMoves(state, visited){
   if (state.tokens === null){
     const moves = [];
     for (let a = ROWMIN; a <= ROWMAX; a++) for (let b = a; b <= ROWMAX; b++) moves.push({ type:'setup', a, b });
@@ -122,7 +189,12 @@ function legalMoves(state){
       if (pos !== state.tokens[idx]) moves.push({ type:'move', idx, pos });
     }
   }
-  return moves;
+  if (!visited) return moves;
+  const filtered = moves.filter(m => {
+    const candidate = state.tokens.slice(); candidate[m.idx] = m.pos;
+    return !visited.has(tokensKey(candidate));
+  });
+  return filtered.length > 0 ? filtered : moves;
 }
 
 function applyMove(state, move, symbol){
@@ -200,16 +272,22 @@ function longestRunThrough(owner, idx, symbol){
 }
 
 /* ---------------- bot strategies ---------------- */
+// randInt/prefersReducedMotion/makeDraggable/flipBefore/flipAfter now come
+// from shared-game.js — see CLAUDE.md "File structure & the point of it".
+// showScreen/updateScorePills/resetScorecard/updateScorecard are NOT
+// migrated here yet even though shared-game.js has them too — this game
+// wasn't otherwise being touched, so only what the new drag work actually
+// needed got pulled in, matching CLAUDE.md's own "duplication check
+// before writing something new" rule without doing a bigger unrelated
+// migration under a different task's name.
 
-function randInt(n){ return Math.floor(Math.random()*n); }
-
-function botEasy(state){
-  const moves = legalMoves(state);
+function botEasy(state, visited){
+  const moves = legalMoves(state, visited);
   return moves[randInt(moves.length)];
 }
 
-function botMedium(state, symbol){
-  const moves = legalMoves(state);
+function botMedium(state, symbol, visited){
+  const moves = legalMoves(state, visited);
   const scored = moves.map(m => {
     const applied = applyMove(state, m, symbol);
     const runLen = applied.marked ? longestRunThrough(applied.state.owner, applied.cellIdx, symbol) : 0;
@@ -267,8 +345,8 @@ function minimax(state, symbol, toMove, depth, alpha, beta){
 
 const HARD_DEPTH = 4;
 
-function botHard(state, symbol){
-  const moves = legalMoves(state);
+function botHard(state, symbol, visited){
+  const moves = legalMoves(state, visited);
   let best = null;
   for (const m of moves){
     const applied = applyMove(state, m, symbol);
@@ -282,27 +360,45 @@ function botHard(state, symbol){
 
 // The fixed entry point every difficulty dispatches through (see CLAUDE.md
 // Code conventions) — here a per-*turn* decision, since Beeline is
-// turn-based rather than round-based.
-function botChooseRound(state, symbol, difficulty){
-  if (difficulty === 'easy') return botEasy(state);
-  if (difficulty === 'medium') return botMedium(state, symbol);
-  return botHard(state, symbol);
+// turn-based rather than round-based. `visited` (st.visitedTokenPairs) is
+// the anti-stalemate rule's own real-game history — see legalMoves()'s
+// header comment — optional so existing 3-arg callers (test scripts
+// choosing a move for a hypothetical/scripted position with no real game
+// history to check) keep working unfiltered.
+function botChooseRound(state, symbol, difficulty, visited){
+  if (difficulty === 'easy') return botEasy(state, visited);
+  if (difficulty === 'medium') return botMedium(state, symbol, visited);
+  return botHard(state, symbol, visited);
 }
 
-const DIFF_DESC = {
-  easy: 'Moves to a completely random new spot every turn — sometimes even lands on cells already claimed.',
-  medium: 'Prefers an open cell, and greedily builds its own longest line — but never blocks yours.',
-  hard: 'Thinks several moves ahead, weighing every line on the board — including blocking you.'
-};
+// Bot difficulty descriptions were removed from the settings screen — not
+// user-facing (see CLAUDE.md "Layout stability" note on .desc-line-stack
+// for the container-jump bug this also used to trigger). DIFF_NAME stays;
+// it's still shown in the top-bar pill.
 const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. No persistent
+   #scorecard on this game (see CLAUDE.md's Pop/Beeline design note), so
+   there are no scoreboard-header badges to sync — just the top-bar pair. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
 
 /* ---------------- state ---------------- */
 let st = {
   difficulty: 'medium',
+  avatar: 'grogg',
   owner: Array(36).fill(null),
   tokens: null,             // null until the first placement; else [pos0, pos1]
+  visitedTokenPairs: new Set(), // every tokens-config ["a,b"] seen so far THIS game — see legalMoves()'s anti-stalemate rule
   pendingSetupTokens: [],   // accumulates clicks during the very first placement
-  activeTokenIdx: 0,        // which token a row-click will move, once tokens exist
+  selectedTokenIdx: 0,      // which token a click-a-destination-number will move (a real drag on
+                            // either token is unambiguous on its own and ignores this) — both
+                            // tokens are always draggable; this only disambiguates the click
+                            // fallback path. See CLAUDE.md's Beeline redesign note.
   turn: 'human',            // 'human' always goes first in this build
   phase: 'idle',            // 'idle' | 'awaiting-answer' | 'bot-thinking' | 'over'
   pendingMove: null,        // the move whose product needs confirming before it's applied
@@ -310,22 +406,41 @@ let st = {
   gameOver: false,
   winner: null,
   winningCells: null,
+  winRevealDone: false,   // true once the winning-line stagger+flash+settle sequence finishes
   score: { human:0, bot:0, ties:0 }
 };
 
 /* ---------------- element refs ---------------- */
 const el = id => document.getElementById(id);
+renderGlobalNav('beeline'); // see CLAUDE.md "Global navigation"
+renderVariantSwitcher('variant-row', 'beeline', 'beeline-product.html'); // jump to a sibling Beeline variant — see CLAUDE.md's navigation redesign note
 const screens = { settings: el('screen-settings'), game: el('screen-game') };
 function showScreen(name){
   Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
 }
 
 /* ---------------- settings screen ---------------- */
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
+
 function renderDiffChips(){
   document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
   });
-  el('diff-desc').textContent = DIFF_DESC[st.difficulty];
+  renderAvatarBadges(); // bot avatar swaps with difficulty
 }
 document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
@@ -349,6 +464,7 @@ function updateScorePills(){
 
 /* ---------------- match / round flow ---------------- */
 function startMatch(){
+  rebuildBoardLayout(); // fresh random cell positions each match — see the VALUES comment above
   showScreen('game');
   startRound();
 }
@@ -356,8 +472,9 @@ function startMatch(){
 function startRound(){
   st.owner = Array(36).fill(null);
   st.tokens = null;
+  st.visitedTokenPairs = new Set();
   st.pendingSetupTokens = [];
-  st.activeTokenIdx = 0;
+  st.selectedTokenIdx = 0;
   st.turn = 'human';
   st.phase = 'idle';
   st.pendingMove = null;
@@ -365,6 +482,7 @@ function startRound(){
   st.gameOver = false;
   st.winner = null;
   st.winningCells = null;
+  st.winRevealDone = false;
   el('turn-status').textContent = 'Your turn — click two numbers to place your tokens.';
   el('winner-banner').textContent = '';
   el('end-btn-row').classList.add('hidden');
@@ -389,12 +507,19 @@ function pendingEquationText(){
   return `${a} × ${b}`;
 }
 
+// While the win reveal is still staggering/flashing, revealWinningLine()
+// below drives .win/.flash/.settled directly on the live DOM nodes instead
+// of through render() — see CLAUDE.md "Celebration animations". This only
+// adds them declaratively once that one-shot sequence has finished
+// (winRevealDone), so a normal render() during gameplay never shows a
+// winning line early, and an incidental re-render after the sequence
+// completes still shows the correct settled state instead of nothing.
 function cellClassesFor(i){
   let cls = 'claim-cell';
   const owner = st.owner[i];
   if (owner) cls += ' ' + owner;
-  if (st.gameOver && st.winningCells && st.winningCells.includes(i)){
-    cls += ' win';
+  if (st.gameOver && st.winRevealDone && st.winningCells && st.winningCells.includes(i)){
+    cls += ' win settled';
   } else if (!st.gameOver && st.phase === 'awaiting-answer'){
     const pendingProduct = computePendingProduct();
     if (pendingProduct !== null && VALUES[i] === pendingProduct && !owner) cls += ' pending';
@@ -416,58 +541,188 @@ function renderGrid(){
 function renderOperandRow(){
   const row = el('operand-row');
   row.innerHTML = '';
-  const currentTokens = st.tokens !== null ? st.tokens : st.pendingSetupTokens;
   for (let n = ROWMIN; n <= ROWMAX; n++){
     const cell = document.createElement('div');
     cell.className = 'op-num';
+    cell.dataset.num = n;
     cell.textContent = n;
-
-    const tokensHere = currentTokens.filter(pos => pos === n).length;
-    if (tokensHere > 0){
-      const markers = document.createElement('div');
-      markers.className = 'token-markers';
-      for (let k=0; k<tokensHere; k++){
-        const m = document.createElement('div');
-        m.className = 'token-marker ' + st.turn;
-        markers.appendChild(m);
-      }
-      cell.appendChild(markers);
-    }
-
-    if (st.tokens !== null && st.turn === 'human' && st.phase === 'idle' && n === st.tokens[st.activeTokenIdx]){
-      cell.classList.add('selected', 'human');
-    }
 
     cell.addEventListener('click', ()=> handleRowClick(n));
     row.appendChild(cell);
   }
   row.classList.toggle('disabled', st.gameOver || st.turn !== 'human' || st.phase !== 'idle');
+  renderTokens();
 }
 
-function renderTokenSwitch(){
-  const wrap = el('token-switch-row');
-  if (st.tokens === null || st.turn !== 'human' || st.phase !== 'idle'){
-    wrap.classList.add('hidden');
+/* ---------------- draggable token overlay ----------------
+   See CLAUDE.md "Drag interactions" / design/mockups/drag-interactions-
+   mockup.html. Setup (before st.tokens exists) stays click-only,
+   unchanged — there's no existing token position to drag FROM yet, only
+   two new ones being placed for the first time. Once tokens exist, the
+   ACTIVE one (about to move) becomes a real draggable circle. ---------------- */
+const TOKEN_WIDTH = 26;
+const TOKEN_SNAP_MS = 220; // keep in sync with shared-game.js flipAfter()'s default duration
+
+// Where a token representing move `idx` should VISUALLY sit right now —
+// its pending target if one's been proposed (dragged or clicked, still
+// awaiting the answer-check, per the "typing the correct product" gate in
+// checkAnswer() below — matches the equation text, which already shows
+// the pending move) or its actual committed position otherwise.
+function tokenDisplayNum(idx){
+  if (st.pendingMove && st.pendingMove.type === 'move' && st.pendingMove.idx === idx) return st.pendingMove.pos;
+  return st.tokens[idx];
+}
+
+function tokenLeftForNum(num, row){
+  const cell = row.querySelector(`.op-num[data-num="${num}"]`);
+  if (!cell) return 0;
+  const rowRect = row.getBoundingClientRect();
+  const cellRect = cell.getBoundingClientRect();
+  return (cellRect.left - rowRect.left) + cellRect.width/2 - TOKEN_WIDTH/2;
+}
+
+// Nearest number to a given pointer X — real hit-testing only works in a
+// real browser (jsdom has no layout engine, getBoundingClientRect is
+// always zero there — smoke tests stub it per-cell, see CLAUDE.md "Drag
+// interactions").
+function nearestNumForX(clientX){
+  const cells = document.querySelectorAll('#operand-row .op-num');
+  let best = ROWMIN, bestDist = Infinity;
+  cells.forEach(cell => {
+    const rect = cell.getBoundingClientRect();
+    const dist = Math.abs(clientX - (rect.left + rect.width/2));
+    if (dist < bestDist){ bestDist = dist; best = parseInt(cell.dataset.num, 10); }
+  });
+  return best;
+}
+
+// Animates a token from wherever it currently is (mid-drag, expressed as
+// a translateX transform) to its resting `left` for `num` — a real
+// settle, not a jump. prefers-reduced-motion (shared-game.js) skips
+// straight there with no transition — same governing rule as every other
+// animation in this project: a small fixed number of times, then rest
+// static, never loop (see CLAUDE.md "Celebration animations").
+function snapTokenTo(tok, num, row){
+  const currentLeft = parseFloat(tok.style.left) || 0;
+  const dragged = /translateX\((-?[\d.]+)px\)/.exec(tok.style.transform || '');
+  const dx = dragged ? parseFloat(dragged[1]) : 0;
+  const targetLeft = tokenLeftForNum(num, row);
+
+  tok.style.transition = 'none';
+  tok.style.transform = '';
+  tok.style.left = (currentLeft + dx) + 'px';
+
+  if (prefersReducedMotion()){
+    tok.style.left = targetLeft + 'px';
     return;
   }
-  wrap.classList.remove('hidden');
-  const b0 = el('switch-token-0'), b1 = el('switch-token-1');
-  b0.textContent = 'Move token at ' + st.tokens[0];
-  b1.textContent = 'Move token at ' + st.tokens[1];
-  b0.classList.toggle('active', st.activeTokenIdx === 0);
-  b1.classList.toggle('active', st.activeTokenIdx === 1);
+  void tok.offsetWidth; // force reflow so the transition below actually animates
+  tok.style.transition = `left ${TOKEN_SNAP_MS}ms ease`;
+  tok.style.left = targetLeft + 'px';
 }
-el('switch-token-0').addEventListener('click', ()=>{ st.activeTokenIdx = 0; render(); });
-el('switch-token-1').addEventListener('click', ()=>{ st.activeTokenIdx = 1; render(); });
+
+// Fixed per-token color AND fixed lane — REVERSED from this project's
+// original design (which swapped both based on whose move a token
+// represented) after real playtesting reported the swapping as confusing.
+// Token 0 is always the light token, always in the below-row lane; token 1
+// is always the dark token, always above — see components/claim-grid.css's
+// own comment for why this is still exactly as safe against the original
+// text-overlap bug as the old swapping design was. BOTH tokens are
+// draggable at all times now (not just one "active" token switched via a
+// separate control, now removed — see CLAUDE.md's Beeline redesign note);
+// a plain click on a token SELECTS it (st.selectedTokenIdx) for the
+// click-a-destination-number fallback path — a direct drag on either
+// token is unambiguous on its own and doesn't need selection at all.
+function renderTokens(){
+  const row = el('operand-row');
+
+  if (st.tokens === null){
+    // Setup: show whichever number(s) have been picked so far as plain,
+    // non-draggable circles, previewing the same fixed token-0/token-1
+    // colors and lanes the real tokens below will use — nothing to drag
+    // yet since these are brand new picks, not an existing position being
+    // repositioned.
+    st.pendingSetupTokens.forEach((num, i) => {
+      const tok = document.createElement('div');
+      tok.className = 'token token-' + i + ' ' + (i === 0 ? 'lane-below' : 'lane-above');
+      tok.style.left = tokenLeftForNum(num, row) + 'px';
+      row.appendChild(tok);
+    });
+    return;
+  }
+
+  const canDrag = st.turn === 'human' && st.phase === 'idle' && !st.gameOver;
+
+  [0, 1].forEach(idx => {
+    const num = tokenDisplayNum(idx);
+    const tok = document.createElement('div');
+    tok.className = 'token token-' + idx + ' ' + (idx === 0 ? 'lane-below' : 'lane-above')
+      + (idx === st.selectedTokenIdx ? ' selected' : '');
+    tok.style.left = tokenLeftForNum(num, row) + 'px';
+    row.appendChild(tok);
+
+    if (canDrag){
+      // A plain click (no drag distance) selects this token for the
+      // click-a-number fallback below — harmless to also fire alongside a
+      // real drag's own pointerup, since selecting a token that's already
+      // mid-move doesn't change anything else.
+      tok.addEventListener('click', () => {
+        if (st.selectedTokenIdx === idx) return;
+        st.selectedTokenIdx = idx;
+        render();
+      });
+      makeDraggable(tok, {
+        onMove: (dx) => { tok.style.transform = `translateX(${dx}px)`; },
+        // Dragging only sets up the equation — it never claims the cell
+        // directly. Same retry-until-correct pattern as everywhere else:
+        // enterAwaitingAnswer() shows the answer-check UI, and only a
+        // CORRECT guess in checkAnswer() below actually calls
+        // commitMove(). There's no "Mark it" shortcut that skips this.
+        onDrop: (dx, dy, e) => {
+          const target = nearestNumForX(e.clientX);
+          if (target === st.tokens[idx]){ snapTokenTo(tok, target, row); return; } // dropped back where it started
+          if (!isLegalHumanMove(idx, target)){
+            snapTokenTo(tok, st.tokens[idx], row); // reject — snap back to where the drag started
+            el('turn-status').textContent = "That would just repeat a position from earlier this game — try a different number.";
+            return;
+          }
+          snapTokenTo(tok, target, row);
+          const delay = prefersReducedMotion() ? 0 : TOKEN_SNAP_MS;
+          setTimeout(() => {
+            st.pendingMove = { type: 'move', idx, pos: target };
+            enterAwaitingAnswer();
+          }, delay);
+        }
+      });
+    }
+  });
+}
 
 function render(){
   renderGrid();
   renderOperandRow();
-  renderTokenSwitch();
-  el('setup-hint').classList.toggle('hidden', !(st.tokens === null && st.phase === 'idle' && st.turn === 'human'));
+  // .phase-hidden (visibility, not display:none — see CLAUDE.md "Layout
+  // stability"), not .hidden: this is within-phase content on an already-
+  // visible screen (setup vs. everything after it), so it must reserve
+  // its space rather than let #operand-row jump up when it disappears.
+  // Found while verifying the drag interactions' own layout stability —
+  // pre-existing, not caused by that work, but directly adjacent to it.
+  el('setup-hint').classList.toggle('phase-hidden', !(st.tokens === null && st.phase === 'idle' && st.turn === 'human'));
 }
 
 /* ---------------- human move selection ---------------- */
+// Anti-stalemate rule (see legalMoves()'s own comment above) applied to the
+// human's own interactions, not just the bot's search — a real game rule,
+// not a bot-only patch. Delegates to the SAME legalMoves() the bot uses
+// (rather than re-deriving the check ad hoc) so the human gets the exact
+// same fallback behavior too: if every destination for this token would
+// repeat a visited config, legalMoves() already falls back to allowing it
+// rather than locking the human out of moving at all.
+function isLegalHumanMove(idx, pos){
+  const moves = legalMoves({ owner: st.owner, tokens: st.tokens }, st.visitedTokenPairs);
+  return moves.some(m => m.type === 'move' && m.idx === idx && m.pos === pos);
+}
+
 function handleRowClick(pos){
   if (st.gameOver || st.turn !== 'human' || st.phase !== 'idle') return;
   if (st.tokens === null){
@@ -477,8 +732,12 @@ function handleRowClick(pos){
     enterAwaitingAnswer();
     return;
   }
-  if (pos === st.tokens[st.activeTokenIdx]) return; // not an actual move
-  st.pendingMove = { type:'move', idx: st.activeTokenIdx, pos };
+  if (pos === st.tokens[st.selectedTokenIdx]) return; // not an actual move
+  if (!isLegalHumanMove(st.selectedTokenIdx, pos)){
+    el('turn-status').textContent = "That would just repeat a position from earlier this game — try a different number.";
+    return;
+  }
+  st.pendingMove = { type:'move', idx: st.selectedTokenIdx, pos };
   enterAwaitingAnswer();
 }
 
@@ -519,7 +778,7 @@ function checkAnswer(){
   el('answer-area').classList.add('hidden');
   if (winner){ endGame(winner); return; }
   st.turn = 'bot';
-  st.activeTokenIdx = 0;
+  st.selectedTokenIdx = 0;
   st.phase = 'idle';
   render();
   setTimeout(botTurn, 550);
@@ -540,6 +799,7 @@ function commitMove(move, symbol){
   const applied = applyMove({ owner: st.owner, tokens: st.tokens }, move, symbol);
   st.owner = applied.state.owner;
   st.tokens = applied.state.tokens;
+  st.visitedTokenPairs.add(tokensKey(st.tokens)); // anti-stalemate rule — see legalMoves()'s comment above
   const product = st.tokens[0] * st.tokens[1];
 
   const label = symbol === 'human' ? 'You' : 'Bot';
@@ -556,14 +816,67 @@ function botTurn(){
   el('turn-status').textContent = 'Bot is thinking…';
   render();
   setTimeout(()=>{
-    const move = botChooseRound({ owner: st.owner, tokens: st.tokens }, 'bot', st.difficulty);
+    const move = botChooseRound({ owner: st.owner, tokens: st.tokens }, 'bot', st.difficulty, st.visitedTokenPairs);
     const winner = commitMove(move, 'bot');
     if (winner){ endGame(winner); return; }
     st.turn = 'human';
     st.phase = 'idle';
-    st.activeTokenIdx = 0;
+    st.selectedTokenIdx = 0;
     render();
   }, 550);
+}
+
+/* ---------------- win-visual effects (typewriter banner + winning-line
+   reveal) — see design/mockups/win-visuals-mockup.html and CLAUDE.md
+   "Celebration animations". Both play a small fixed number of times, then
+   rest static — never loop. prefers-reduced-motion (shared-game.js) skips
+   straight to the final state. (No score count-up here — Beeline has no
+   running numeric score to reveal, just the claiming board.) ---------------- */
+function typewriterReveal(el, text){
+  el.classList.remove('flash');
+  if (prefersReducedMotion()){
+    el.textContent = text;
+    return;
+  }
+  el.textContent = '';
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length){
+      clearInterval(timer);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    }
+  }, 45);
+}
+// Unlike the mockup's demo cells, real claim-grid cells are already colored
+// by the time a line wins (ownership is visible live, turn by turn) — so
+// "reveal one at a time" can't be a color change like the mockup's .you.
+// Adapted here to a per-cell outline ring as the staggered cue instead,
+// then the same shared singleFlash brightness pulse (reused from the
+// winner-banner), then a settled steady state. See claim-grid.css.
+function revealWinningLine(cells){
+  const nodes = document.querySelectorAll('#claim-grid .claim-cell');
+  if (prefersReducedMotion()){
+    cells.forEach(i => nodes[i].classList.add('win', 'settled'));
+    st.winRevealDone = true;
+    return;
+  }
+  cells.forEach((i, order) => {
+    setTimeout(() => {
+      nodes[i].classList.add('win');
+      if (order === cells.length - 1){
+        setTimeout(() => {
+          cells.forEach(j => nodes[j].classList.add('flash'));
+          setTimeout(() => {
+            cells.forEach(j => { nodes[j].classList.remove('flash'); nodes[j].classList.add('settled'); });
+            st.winRevealDone = true;
+          }, 400);
+        }, 150);
+      }
+    }, order * 180);
+  });
 }
 
 /* ---------------- end of game ---------------- */
@@ -573,20 +886,23 @@ function endGame(winner){
   st.winner = winner;
   st.winningCells = winner === 'tie' ? null : findWinningLine(st.owner, winner);
 
-  const banner = el('winner-banner');
+  let bannerText;
   if (winner === 'tie'){
-    banner.textContent = 'The board filled up with no line — a tie!';
+    bannerText = 'The board filled up with no line — a tie!';
     st.score.ties++;
   } else if (winner === 'human'){
-    banner.textContent = 'BEELINE! You win! 🎉';
+    bannerText = 'BEELINE! You win!';
     st.score.human++;
   } else {
-    banner.textContent = 'BEELINE! Bot wins.';
+    bannerText = 'BEELINE! Bot wins.';
     st.score.bot++;
   }
   updateScorePills();
   el('end-btn-row').classList.remove('hidden');
   render();
+
+  typewriterReveal(el('winner-banner'), bannerText);
+  if (st.winningCells) revealWinningLine(st.winningCells);
 }
 
 el('play-again-btn').addEventListener('click', startMatch);

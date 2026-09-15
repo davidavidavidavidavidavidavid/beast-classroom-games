@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+</head>
+<body>
+<div id="app">
+
+  <h1>POP</h1>
+  <div class="kicker-wrap"><span class="kicker">Choose your variant</span></div>
+  <div id="tagline" class="tagline">One digit at a time, no take-backs — land as close as you can without busting.</div>
+
+  <div class="variant-list">
+
+    <a class="variant-card active" href="pop-addition.html">
+      <div class="variant-top">
+        <span class="variant-name">Addition</span>
+        <span class="badge play">Play →</span>
+      </div>
+      <div class="variant-desc">One digit at a time, no take-backs — write each roll into your number or a throw-away before it's gone for good. Get close to the target without busting.</div>
+      <div class="variant-std">Standard 2.NBT.B.5</div>
+    </a>
+
+    <a class="variant-card active" href="pop-subtraction.html">
+      <div class="variant-top">
+        <span class="variant-name">Subtraction</span>
+        <span class="badge play">Play →</span>
+      </div>
+      <div class="variant-desc">Same one-digit-at-a-time rules, but your number is the first blank group minus the second. Get close to the target without busting.</div>
+      <div class="variant-std">Standard 2.NBT.B.7</div>
+    </a>
+
+    <a class="variant-card active" href="pop-expression.html">
+      <div class="variant-top">
+        <span class="variant-name">Expression</span>
+        <span class="badge play">Play →</span>
+      </div>
+      <div class="variant-desc">A longer mix of blank groups added and subtracted left to right. Get close to the target without busting — going negative pops your balloon too.</div>
+      <div class="variant-std">Standard 2.NBT.B.5</div>
+    </a>
+
+    <a class="variant-card active" href="pop-perimeter.html">
+      <div class="variant-top">
+        <span class="variant-name">Perimeter</span>
+        <span class="badge play">Play →</span>
+      </div>
+      <div class="variant-desc">Build a rectangle's length and width one digit at a time — land the perimeter (2×length + 2×width) as close to the target as you can.</div>
+      <div class="variant-std">Standard 3.NBT.A.2, 3.MD.D.8</div>
+    </a>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Big Number</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">Build a single number one digit at a time, landing as close as you can to the target — closest above AND below can both win.</div>
+    </div>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Powers of Ten</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">Place digits with a hidden decimal point — no target number, just the biggest value left standing.</div>
+    </div>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Multiplication</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">Draw from a shrinking deck of digit cards and build the closest product to the target.</div>
+    </div>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Fraction Multiplication</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">Build two fractions one digit at a time and multiply your way as close to the target as you can.</div>
+    </div>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Fraction Addition &amp; Subtraction</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">Build fractions one digit at a time, adding and subtracting your way toward the target.</div>
+    </div>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Mixed Number Multiplication</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">Build mixed numbers one digit at a time and multiply your way as close to the target as you can.</div>
+    </div>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Mixed Number Addition &amp; Subtraction</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">Build mixed numbers one digit at a time, adding and subtracting your way toward the target.</div>
+    </div>
+
+  </div>
+
+  <div class="menu-footer">More variants unlock as they're built.</div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+renderGlobalNav('pop'); // see CLAUDE.md "Global navigation"
+</script>
+</body>
+</html>

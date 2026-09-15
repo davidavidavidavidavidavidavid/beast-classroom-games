@@ -1,0 +1,43 @@
+/* ==========================================================================
+   NIM TRACK — shared by the Nim family (a single running total racing
+   toward, or away from, a target). Extracted immediately on Nim's first
+   real build, following the same components/ convention as dice-slot.css
+   (Scuttle) and claim-grid.css (Beeline): pull a family's visual out of the
+   game file the moment it's actually built for real, not preemptively —
+   see CLAUDE.md "File structure & the point of it". Every currently-known
+   Nim variant (Subtraction Nim's countdown, Nickeled & Dimed's cents,
+   Place Value Nim's block count, ...) is the same shape — one running
+   total, one target — so this is written generically (no game-specific
+   numbers baked in) to be reused as-is by whichever variant gets built
+   next, not just this one.
+
+   Deliberately NOT included: any indication of which cells the total
+   "passed through" on its way up. A move can jump by more than 1 (+2 here,
+   bigger increments in other variants), so shading intermediate cells
+   would visually claim the total stopped somewhere it never did — see
+   CLAUDE.md's general "read the actual rules, don't imply mechanics that
+   didn't happen" discipline. Only two cells are ever marked: the current
+   total and the target.
+   ========================================================================== */
+
+.nim-total-wrap { text-align: center; margin: 6px 0 14px; }
+.nim-total { font-family: var(--font-sans); font-size: 44px; font-weight: 800; color: var(--color-text-primary); line-height: 1; }
+.nim-total-label { font-family: var(--font-sans); font-size: 13.5px; font-weight: 700; letter-spacing: 0.4px; color: var(--color-text-tertiary); text-transform: uppercase; margin-top: 2px; }
+
+.nim-track { display: flex; justify-content: center; gap: 3px; flex-wrap: wrap; margin-bottom: 16px; }
+.nim-cell {
+  width: 26px; height: 26px; border: 2px solid var(--color-border-tertiary); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-sans); font-size: 12px; font-weight: 700; color: var(--color-text-tertiary);
+  background: var(--color-background-primary); flex-shrink: 0;
+}
+/* The goal cell — a dashed outline, not a fill, since it's a destination,
+   not something that's happened yet. */
+.nim-cell.target { border-color: var(--color-ink); border-style: dashed; color: var(--color-text-secondary); }
+/* The current total. Plain Beast Blue regardless of whose move produced
+   it — this track is about total-vs-target, not about players; "whose
+   turn" is communicated separately (each game's own turn-status line). If
+   the current total and the target are ever the same cell, .current wins
+   (applied second in cellClassesFor()-style helpers) since "we're here"
+   matters more moment-to-moment than "this was the goal." */
+.nim-cell.current { background: var(--color-beast-blue); border-color: var(--color-beast-blue); color: #fff; }

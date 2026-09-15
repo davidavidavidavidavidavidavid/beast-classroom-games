@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detective: Fraction Equivalence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/wordle-slot.css">
+<style>
+  /* ---- Detective-specific: layout for history rows, the dev/playtest
+     panel (deliberately muted — secondary, not styled like a primary game
+     action), and the endurance "danger" pill state. Everything else is
+     shared design-system.css or components/wordle-slot.css. ---- */
+  .hist-row { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  #input-wrap {
+    display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 10px;
+    /* Layout stability, applied to a NEW trigger CLAUDE.md's existing
+       categories don't quite cover: the number of digit boxes per part
+       grows from 1 to 2 digits as puzzles get harder, and #input-wrap is
+       rebuilt from scratch every puzzle (never hidden/shown, so neither
+       .phase-hidden nor .hidden apply — this is a content-SIZE claim, not
+       a visibility toggle). Worked out by exact box-model arithmetic
+       (fixed pixel sizes, no text-wrapping ambiguity to need a real-browser
+       check for, unlike .desc-line-stack's grid auto-sizing): a .num-group's
+       HEIGHT never depends on how many boxes are in it (44px either way),
+       so puzzle-to-puzzle height was already constant before this rule
+       existed. The only way that could change is the whole row wrapping to
+       a second line — computed worst case (both fractions 2-digit
+       numerator AND denominator, the hardest level allows) is ~204px of
+       content, comfortably inside any realistic container width this
+       project targets, so that wrap is never actually reachable either.
+       min-height here is a deliberate, provable GUARANTEE (bounded exactly
+       — no LEVELS entry ever exceeds 2 digits per part, maxAns <= 99 always
+       — not a guess) that nothing below #input-wrap can ever jump, rather
+       than a fix for a jump that was empirically happening. */
+    min-height: 108px;
+  }
+  /* Input-left / history-right layout — see this file's own HTML comment
+     above .game-columns for the full reasoning. Side by side above
+     ~560px (the narrowest width the digit keyboard's own 10 keys-plus-
+     gaps actually needs, ~385px, plus a usable history column next to
+     it); a single stacked column below that, same collapse pattern
+     index.html's .game-grid already uses at its own breakpoint. */
+  .game-columns { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+  .game-input-col { flex: 1 1 auto; min-width: 0; width: 100%; }
+  .game-history-col { flex: 1 1 auto; min-width: 0; width: 100%; }
+  #history-label { text-align: center; }
+  /* Bounded + internally scrollable — a second, independent layer of the
+     same fix: even stacked (narrow viewports) or with a long endurance-
+     mode tally, the history column can grow internally without ever
+     pushing the input/keyboard/page footer down. */
+  #history { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; padding: 2px; }
+  @media (min-width: 560px) {
+    .game-columns { flex-direction: row; }
+    .game-input-col { flex: 1 1 55%; }
+    .game-history-col { flex: 1 1 45%; }
+  }
+  #dev-toggle {
+    display: block; text-align: center; font-family: var(--font-sans); font-weight: 500; font-size: 13px;
+    color: var(--color-text-tertiary); text-decoration: underline; background: none; border: none; box-shadow: none;
+    padding: 4px; margin: 0 auto 6px; text-transform: none; letter-spacing: normal;
+  }
+  #dev-toggle:active { transform: none; }
+  #dev-panel { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 8px 10px; margin-bottom: 0.75rem; background: var(--color-background-secondary); border: 2px solid var(--color-border-tertiary); border-radius: 4px; }
+  #dev-panel label { font-family: var(--font-sans); font-size: 12px; color: var(--color-text-tertiary); }
+  #dev-panel select, #dev-panel button { font-size: 12px; padding: 4px 8px; }
+  #ans-display { font-family: var(--font-sans); font-size: 12px; font-weight: 700; color: var(--color-error); }
+  #guesses-pill.danger b { color: var(--color-error); }
+  #endurance-bar { text-align: center; padding: 8px 12px; margin-bottom: 0.75rem; background: var(--color-background-secondary); border: 2px solid var(--color-border-tertiary); border-radius: 4px; }
+  #endurance-bar p { font-family: var(--font-sans); font-size: 13px; color: var(--color-text-secondary); margin-bottom: 6px; }
+  /* First real use of --color-warn (see components/wordle-slot.css) for a
+     message severity between error/success — the dev panel's own
+     playtesting notices ("skipped to round 10", etc.). Scoped here since
+     only this dev-only feature needs it so far; promote to
+     design-system.css if a future game needs a warning message too. */
+  .feedback-msg.warning { color: var(--color-warn); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>DETECTIVE</h1>
+  <div class="kicker-wrap"><span class="kicker">Fraction Equivalence</span></div>
+  <div id="tagline" class="tagline">Guess the fraction hiding in plain sight — six tries, Wordle-style digit feedback.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Round <b id="s-round">1</b></div>
+      <div class="stat-pill">Solved <b id="s-solved">0</b></div>
+      <div class="stat-pill">Streak <b id="s-streak">0</b></div>
+      <div class="stat-pill hidden" id="guesses-pill">Guesses left <b id="s-gleft">50</b></div>
+    </div>
+    <div class="stat-pill" id="level-badge">Level 1</div>
+  </div>
+
+  <button id="how-link">How does this game work?</button>
+  <div id="rules-box" class="hidden" style="margin-bottom:8px;">
+    A target fraction is hidden. Build <strong>any equivalent fraction</strong> — same value, different-looking
+    — one digit at a time. Each guess must actually be a true equation (cross-multiply to check), and each
+    digit gets colored: <strong>green</strong> = right digit in the right spot, <strong>yellow</strong> = right
+    digit, wrong spot, <strong>gray</strong> = not in the answer at all. You get <strong>6 guesses</strong> per
+    puzzle — a hint (the answer's simplified form) unlocks after 2 misses. Difficulty climbs automatically as
+    your round number goes up. After round 10, endurance mode kicks in: unlimited puzzles, but a shared budget
+    of 50 total guesses across all of them.
+  </div>
+
+  <button id="dev-toggle">playtest mode</button>
+  <div id="dev-panel" class="hidden">
+    <label for="level-sel">Force level:</label>
+    <select id="level-sel">
+      <option value="-1">Auto</option>
+      <option value="1">L1 — single-digit, one simplified</option>
+      <option value="2">L2 — 2-digit creep, one simplified</option>
+      <option value="3">L3 — 2-digit, factors only</option>
+      <option value="4">L4 — proper+improper, factors only</option>
+      <option value="5">L5 — proper+improper, any multiple</option>
+      <option value="6">L6 — anything, larger</option>
+    </select>
+    <button id="skip-2digit">Start at 2-digit</button>
+    <button id="skip-r10">Skip to Round 10</button>
+    <button id="regen-btn">Regenerate</button>
+    <button id="reveal-btn">Reveal</button>
+    <span id="ans-display"></span>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div class="card" id="screen-game">
+
+    <div id="endurance-bar" class="hidden">
+      <p>Endurance mode — <b id="s-gleft2">50</b> guesses remaining</p>
+      <div class="dot-track" id="guess-track"></div>
+    </div>
+
+    <!-- Input (build your guess) on the left, tracked guesses on the
+         right — real playtesting feedback: guess history stacking above
+         the input/keyboard pushed the actual "clicking space" further
+         down the screen with every guess, making it unreadable/hard to
+         use consistently. Splitting them into their own columns means a
+         growing history can never move the input/keyboard at all; #history
+         also gets its own bounded, scrollable height as a second layer of
+         the same fix (a full 6-guess puzzle, or endurance mode's much
+         longer tally, still can't grow the page — see CLAUDE.md's
+         Detective redesign note). Narrow viewports fall back to a single
+         stacked column (input first, history below it) via the media
+         query in this file's own <style> block, the same collapse
+         breakpoint pattern index.html's .game-grid already uses. -->
+    <div class="game-columns">
+      <div class="game-input-col">
+        <div class="dot-track" id="dots"></div>
+        <div id="input-wrap"></div>
+        <div id="msg" class="feedback-msg"></div>
+
+        <div id="keyboard">
+          <div class="kb-row">
+            <div class="kb-key" data-k="1">1</div><div class="kb-key" data-k="2">2</div>
+            <div class="kb-key" data-k="3">3</div><div class="kb-key" data-k="4">4</div>
+            <div class="kb-key" data-k="5">5</div><div class="kb-key" data-k="6">6</div>
+            <div class="kb-key" data-k="7">7</div><div class="kb-key" data-k="8">8</div>
+            <div class="kb-key" data-k="9">9</div><div class="kb-key" data-k="0">0</div>
+          </div>
+          <div class="kb-row">
+            <div class="kb-key wide" data-k="DEL">⌫ del</div>
+            <div class="kb-key wide" data-k="ENTER">enter</div>
+          </div>
+        </div>
+
+        <div id="hint-text" class="hint-line"></div>
+        <div class="btn-row" id="action-row">
+          <button id="hint-btn" class="phase-hidden">Hint</button>
+          <button class="primary phase-hidden" id="next-btn">Next puzzle →</button>
+        </div>
+      </div>
+
+      <div class="game-history-col">
+        <div class="section-label" id="history-label">Your guesses</div>
+        <div id="history"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER SCREEN (endurance mode running out of guesses) -->
+  <div class="card hidden" id="screen-gameover" style="text-align:center;">
+    <h2 id="go-title" style="font-family:var(--font-sans);font-size:20px;margin-bottom:8px;"></h2>
+    <p id="go-body" style="font-family:var(--font-sans);color:var(--color-text-secondary);margin-bottom:14px;"></p>
+    <button class="primary" id="go-restart">Play again</button>
+  </div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+/* ---------------- pure math ---------------- */
+function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+/* ---------------- puzzle generator (Fraction Equivalence-specific) ----------------
+   Ported verbatim from design/legacy/fraction-detective-original.html — the
+   LEVELS table, getRoundLevel(), and generatePuzzle()'s rejection-sampling
+   loop are preserved EXACTLY (same constraints, same retry cap, same
+   fallback puzzle) per CLAUDE.md's Detective design note: this is tuned
+   game design, not something to "clean up." The only change is swapping
+   inlined `Math.floor(Math.random() * X)` for shared-game.js's `randInt(X)`
+   — an identical formula, so the actual puzzle distribution is untouched;
+   it's the same "check shared-game.js before writing a new helper"
+   discipline as every other game, not a rewrite.
+
+   generatePuzzle() itself returns a GENERIC puzzle object (see
+   wrapFractionPuzzle below) that the game-loop scaffolding below consumes
+   without knowing it's a fraction — a sibling Detective variant (decimal
+   equivalence, factor pairs, ...) only needs to supply its own version of
+   everything in THIS section; nothing below it should need to change. */
+
+const LEVELS = {
+  1: { name: 'Level 1', maxBase: 8,  maxAns: 9,  improper: false, mustSimplified: true,  factorsOnly: true  },
+  2: { name: 'Level 2', maxBase: 12, maxAns: 24, improper: false, mustSimplified: true,  factorsOnly: true  },
+  3: { name: 'Level 3', maxBase: 12, maxAns: 36, improper: false, mustSimplified: false, factorsOnly: true  },
+  4: { name: 'Level 4', maxBase: 15, maxAns: 45, improper: true,  mustSimplified: false, factorsOnly: true  },
+  5: { name: 'Level 5', maxBase: 15, maxAns: 60, improper: true,  mustSimplified: false, factorsOnly: false },
+  6: { name: 'Level 6', maxBase: 20, maxAns: 99, improper: true,  mustSimplified: false, factorsOnly: false },
+};
+
+function getRoundLevel(r) {
+  if (r <= 3)  return 1;
+  if (r <= 7)  return 2;
+  if (r <= 12) return 3;
+  if (r <= 17) return 4;
+  if (r <= 23) return 5;
+  return 6;
+}
+
+// Wraps a fraction-specific answer into the generic contract the game loop
+// needs: `parts` (the flat guessable values), `equivalentOrderings` (every
+// parts-arrangement that represents the SAME underlying claim — used for
+// BOTH win-checking against the target and duplicate-guess checking
+// against history, since "an equation and its flip say the same thing" is
+// one symmetry concept, not two), `isValidGuess` (is this even a true
+// equation), `hintText`/`displayText` (precomputed human-readable strings
+// for the hint button and the loss/reveal messages — the original computed
+// this fraction-formatted string in two separate places; unifying it into
+// one generator-owned field is a safe dedupe, not a change to the
+// preserved sampling logic above).
+function wrapFractionPuzzle(ans, bN, bD, k1, k2, lvNum) {
+  const parts = [ans.n1, ans.d1, ans.n2, ans.d2];
+  return {
+    parts,
+    equivalentOrderings(p) { return [p, [p[2], p[3], p[0], p[1]]]; },
+    isValidGuess(p) { return p[0] * p[3] === p[2] * p[1]; },
+    hintText: `the simplified form is ${bN}/${bD}`,
+    displayText: `${ans.n1}/${ans.d1} = ${ans.n2}/${ans.d2}`,
+    meta: { bN, bD, k1, k2, lvNum },
+  };
+}
+
+function generatePuzzle(lvNum) {
+  const lv = LEVELS[lvNum];
+  for (let att = 0; att < 2000; att++) {
+    const maxN = lv.improper ? lv.maxBase : lv.maxBase - 1;
+    let bN = 1 + randInt(maxN);
+    let bD = lv.improper
+      ? (1 + randInt(lv.maxBase))
+      : (bN + 1 + randInt(lv.maxBase - bN));
+    if (bD < 1 || bN < 1) continue;
+    const g = gcd(bN, bD); bN = bN / g; bD = bD / g;
+    if (bN === bD) continue;
+    let k1, k2;
+    const maxK = Math.floor(lv.maxAns / Math.max(bN, bD));
+    if (maxK < 2) continue;
+    if (lv.mustSimplified) {
+      k1 = 1; k2 = 2 + randInt(maxK - 1);
+      if (k2 > maxK) continue;
+    } else if (lv.factorsOnly) {
+      k2 = 2 + randInt(maxK - 1);
+      if (k2 > maxK) continue;
+      const divs = [];
+      for (let d = 1; d < k2; d++) if (k2 % d === 0) divs.push(d);
+      if (!divs.length) continue;
+      k1 = divs[randInt(divs.length)];
+    } else {
+      k1 = 1 + randInt(maxK - 1);
+      k2 = k1 + 1 + randInt(maxK - k1);
+      if (k2 > maxK) continue;
+    }
+    if (k1 < 1 || k2 <= k1) continue;
+    const ans = { n1: bN*k1, d1: bD*k1, n2: bN*k2, d2: bD*k2 };
+    if ([ans.n1, ans.d1, ans.n2, ans.d2].some(v => v > 99 || v < 1)) continue;
+    if (lvNum === 1 && [ans.n1, ans.d1, ans.n2, ans.d2].some(v => v > 9)) continue;
+    return wrapFractionPuzzle(ans, bN, bD, k1, k2, lvNum);
+  }
+  return wrapFractionPuzzle({ n1:1, d1:2, n2:2, d2:4 }, 1, 2, 1, 2, lvNum);
+}
+
+/* ---------------- generic slot management (part-count-agnostic) ----------------
+   Everything from here down only knows about a flat `parts` array and how
+   many digits each part has — no fraction-specific assumptions, per
+   CLAUDE.md's Detective design note. */
+
+function flattenDigits(parts) { return parts.flatMap(v => String(v).split('')); }
+
+function arraysEqual(a, b) { return a.length === b.length && a.every((v, i) => v === b[i]); }
+
+function buildSlots(parts) {
+  st.partDigits = parts.map(v => String(v).length);
+  st.slots = [];
+  for (let p = 0; p < parts.length; p++)
+    for (let d = 0; d < st.partDigits[p]; d++)
+      st.slots.push({ partIdx: p, digitIdx: d, value: '' });
+  st.focusSlot = 0;
+}
+
+// THE Wordle digit-coloring algorithm — preserved exactly, operating on the
+// FULL flattened digit array across every part at once (see CLAUDE.md Known
+// Traps: an earlier per-part version broke on two-digit numbers; this is
+// the deliberate fix, don't regress to a simpler-looking per-part version).
+function colorDigits(guessDigits, targetDigits) {
+  const n = targetDigits.length;
+  const colors = new Array(n).fill('');
+  const tLeft = [...targetDigits];
+  const gLeft = [...guessDigits];
+  for (let i = 0; i < n; i++) {
+    if (gLeft[i] === tLeft[i]) { colors[i] = 'correct'; tLeft[i] = null; gLeft[i] = null; }
+  }
+  for (let i = 0; i < n; i++) {
+    if (gLeft[i] === null) continue;
+    const ti = tLeft.indexOf(gLeft[i]);
+    if (ti !== -1) { colors[i] = 'wrong-pos'; tLeft[ti] = null; }
+    else colors[i] = 'absent';
+  }
+  return colors;
+}
+
+function getPartValue(p) {
+  const my = st.slots.filter(s => s.partIdx === p);
+  if (my.some(s => s.value === '')) return null;
+  return parseInt(my.map(s => s.value).join(''), 10);
+}
+
+/* ---------------- state ---------------- */
+let st = {
+  round: 1, puzzle: null, history: [], guesses: 0, solved: 0, streak: 0,
+  gameOver: false, devLevel: -1, hintUsed: false,
+  endurance: false, guessesLeft: 50, guessLog: [],
+  slots: [], partDigits: [], focusSlot: 0,
+};
+function currentLevel() { return st.devLevel > 0 ? st.devLevel : getRoundLevel(st.round); }
+
+/* ---------------- element refs & screens ----------------
+   Single-player puzzle game — no bot, no decideWinner, no avatar picker,
+   no You/Bot scoreboard (see CLAUDE.md's Detective design note for why
+   those two-player conventions don't apply here). What DOES still apply:
+   `st` as the state object name, and a showScreen()-style lifecycle for
+   the one real top-level swap this game has — the endurance-mode
+   "out of guesses" summary, the only place play stops entirely rather
+   than just starting a fresh puzzle. */
+const el = id => document.getElementById(id);
+renderGlobalNav('detective'); // see CLAUDE.md "Global navigation"
+const screens = { game: el('screen-game'), gameover: el('screen-gameover') };
+function showScreen(name) {
+  Object.entries(screens).forEach(([k, node]) => {
+    const wasHidden = node.classList.contains('hidden');
+    node.classList.toggle('hidden', k !== name);
+    if (wasHidden && k === name) fadeIn(node);
+  });
+}
+
+el('how-link').addEventListener('click', () => { el('rules-box').classList.toggle('hidden'); });
+
+/* ---------------- rendering ---------------- */
+function renderInputSlots() {
+  const wrap = el('input-wrap');
+  wrap.innerHTML = '';
+  if (st.gameOver) return;
+  const makeNumGroup = (p) => {
+    const g = document.createElement('div'); g.className = 'num-group';
+    st.slots.forEach((s, gi) => {
+      if (s.partIdx !== p) return;
+      const box = document.createElement('div');
+      box.className = 'dbox inp' + (gi === st.focusSlot ? ' focused' : '') + (s.value !== '' ? ' filled' : '');
+      box.textContent = s.value;
+      const car = document.createElement('div'); car.className = 'caret'; box.appendChild(car);
+      box.addEventListener('click', () => { st.focusSlot = gi; renderInputSlots(); });
+      g.appendChild(box);
+    });
+    return g;
+  };
+  const makeFrac = (nP, dP) => {
+    const frac = document.createElement('div'); frac.className = 'frac';
+    frac.appendChild(makeNumGroup(nP));
+    const bar = document.createElement('div'); bar.className = 'fbar'; frac.appendChild(bar);
+    frac.appendChild(makeNumGroup(dP));
+    return frac;
+  };
+  wrap.appendChild(makeFrac(0, 1));
+  const eq = document.createElement('div'); eq.className = 'eq-sign'; eq.textContent = '=';
+  wrap.appendChild(eq);
+  wrap.appendChild(makeFrac(2, 3));
+}
+
+function slotInput(digit) {
+  if (st.focusSlot >= st.slots.length) return;
+  const s = st.slots[st.focusSlot];
+  if (s.digitIdx === 0 && s.value === '' && digit === '0' && st.partDigits[s.partIdx] > 1) {
+    setMsg('No leading zeros!', 'error'); setTimeout(() => setMsg(''), 900); return;
+  }
+  s.value = digit;
+  let next = st.focusSlot + 1;
+  while (next < st.slots.length && st.slots[next].value !== '') next++;
+  st.focusSlot = next < st.slots.length ? next : st.slots.length - 1;
+  renderInputSlots();
+}
+
+function slotDel() {
+  if (st.slots[st.focusSlot] && st.slots[st.focusSlot].value !== '') st.slots[st.focusSlot].value = '';
+  else if (st.focusSlot > 0) { st.focusSlot--; st.slots[st.focusSlot].value = ''; }
+  renderInputSlots();
+}
+
+function clearSlots() { st.slots.forEach(s => s.value = ''); st.focusSlot = 0; renderInputSlots(); }
+
+function updateKbColors() {
+  const rank = { correct: 3, 'wrong-pos': 2, absent: 1 };
+  const targetDigits = new Set(flattenDigits(st.puzzle.parts));
+  const digitBest = {};
+  st.history.forEach(row => {
+    if (row.invalid) return;
+    row.slotColors.forEach((c, i) => {
+      const d = row.digits[i];
+      if (c === 'absent' && targetDigits.has(d)) return;
+      if (!digitBest[d] || (rank[c] || 0) > (rank[digitBest[d]] || 0)) digitBest[d] = c;
+    });
+  });
+  document.querySelectorAll('.kb-key[data-k]').forEach(btn => {
+    const k = btn.dataset.k;
+    btn.className = 'kb-key' + (k.length > 1 ? ' wide' : '');
+    if (digitBest[k]) btn.classList.add(digitBest[k]);
+  });
+}
+
+function makeHistFrac(nVal, dVal, nSlotColors, dSlotColors, inv) {
+  const frac = document.createElement('div'); frac.className = 'frac';
+  const makeGroup = (val, slotColors) => {
+    const g = document.createElement('div'); g.className = 'num-group';
+    String(val).split('').forEach((ch, i) => {
+      const b = document.createElement('div');
+      b.className = 'dbox ' + (inv ? 'inv' : (slotColors[i] || 'absent'));
+      b.textContent = ch; g.appendChild(b);
+    });
+    return g;
+  };
+  frac.appendChild(makeGroup(nVal, nSlotColors));
+  const bar = document.createElement('div'); bar.className = 'fbar'; frac.appendChild(bar);
+  frac.appendChild(makeGroup(dVal, dSlotColors));
+  return frac;
+}
+
+function renderHistory() {
+  const hist = el('history'); hist.innerHTML = '';
+  st.history.forEach(row => {
+    const div = document.createElement('div'); div.className = 'hist-row';
+    if (row.invalid) {
+      const makeInvFrac = (nv, dv) => {
+        const frac = document.createElement('div'); frac.className = 'frac';
+        const makeG = (v) => {
+          const g = document.createElement('div'); g.className = 'num-group';
+          String(v).split('').forEach(ch => {
+            const b = document.createElement('div'); b.className = 'dbox inv'; b.textContent = ch; g.appendChild(b);
+          }); return g;
+        };
+        frac.appendChild(makeG(nv));
+        const bar = document.createElement('div'); bar.className = 'fbar'; frac.appendChild(bar);
+        frac.appendChild(makeG(dv)); return frac;
+      };
+      div.appendChild(makeInvFrac(row.parts[0], row.parts[1]));
+      const eq = document.createElement('div'); eq.className = 'eq-sign'; eq.textContent = '='; div.appendChild(eq);
+      div.appendChild(makeInvFrac(row.parts[2], row.parts[3]));
+    } else {
+      let si = 0;
+      const partColors = st.partDigits.map(nd => { const c = row.slotColors.slice(si, si + nd); si += nd; return c; });
+      div.appendChild(makeHistFrac(row.parts[0], row.parts[1], partColors[0], partColors[1], false));
+      const eq = document.createElement('div'); eq.className = 'eq-sign'; eq.textContent = '='; div.appendChild(eq);
+      div.appendChild(makeHistFrac(row.parts[2], row.parts[3], partColors[2], partColors[3], false));
+    }
+    hist.appendChild(div);
+  });
+}
+
+function renderDots() {
+  const wrap = el('dots'); wrap.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const d = document.createElement('div');
+    d.className = 'g-dot' + (i < st.guesses ? (i === 5 ? ' danger' : ' used') : '');
+    wrap.appendChild(d);
+  }
+}
+
+// #endurance-bar/#guesses-pill: a ONE-TIME, whole-session transition (round
+// >= 10, never reversed short of a full restart) — deliberately `.hidden`,
+// not `.phase-hidden`, unlike the within-puzzle toggles below. Reserving
+// this space from round 1 would mean a permanent visible gap for the
+// several rounds before it's ever relevant; a single one-time jump the
+// moment endurance starts is the better tradeoff here, the same call
+// already made for other games' end-of-match banners — see CLAUDE.md's
+// Detective design note.
+function renderEnduranceBar() {
+  if (!st.endurance) return;
+  el('endurance-bar').classList.remove('hidden');
+  el('guesses-pill').classList.remove('hidden');
+  el('s-gleft').textContent = st.guessesLeft;
+  el('s-gleft2').textContent = st.guessesLeft;
+  el('guesses-pill').classList.toggle('danger', st.guessesLeft <= 10);
+  const track = el('guess-track'); track.innerHTML = '';
+  st.guessLog.forEach(e => { const d = document.createElement('div'); d.className = 'g-dot ' + e; track.appendChild(d); });
+  for (let i = st.guessLog.length; i < 50; i++) { const d = document.createElement('div'); d.className = 'g-dot'; track.appendChild(d); }
+}
+
+function setMsg(txt, type = '') { const m = el('msg'); m.textContent = txt; m.className = 'feedback-msg' + (type ? ' ' + type : ''); }
+
+function shakeInput() {
+  const w = el('input-wrap');
+  w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake');
+}
+
+/* ---------------- lifecycle ---------------- */
+function showGameOver(title, body) {
+  el('go-title').textContent = title;
+  el('go-body').textContent = body;
+  showScreen('gameover');
+}
+
+function startMatch() {
+  const keepDevLevel = st.devLevel;
+  st = {
+    round: 1, puzzle: null, history: [], guesses: 0, solved: 0, streak: 0,
+    gameOver: false, devLevel: keepDevLevel, hintUsed: false,
+    endurance: false, guessesLeft: 50, guessLog: [],
+    slots: [], partDigits: [], focusSlot: 0,
+  };
+  el('endurance-bar').classList.add('hidden');
+  el('guesses-pill').classList.add('hidden');
+  showScreen('game');
+  startRound();
+}
+
+function startRound() {
+  st.puzzle = generatePuzzle(currentLevel());
+  st.history = []; st.guesses = 0; st.gameOver = false; st.hintUsed = false;
+  buildSlots(st.puzzle.parts);
+  renderInputSlots(); renderHistory(); renderDots();
+  setMsg('');
+  el('hint-btn').classList.add('phase-hidden');
+  el('next-btn').classList.add('phase-hidden');
+  el('hint-text').textContent = '';
+  el('ans-display').textContent = '';
+  el('level-badge').textContent = LEVELS[currentLevel()].name + (st.devLevel > 0 ? ' (dev)' : '');
+  el('s-round').textContent = st.round;
+  el('s-solved').textContent = st.solved;
+  el('s-streak').textContent = st.streak;
+  if (st.endurance) renderEnduranceBar();
+  updateKbColors();
+}
+
+/* ---------------- submit / core answer-check ----------------
+   Preserved exactly from the original: the duplicate-guess check, the
+   invalid-equation ephemeral history row (pushed, rendered, then popped
+   back out after 1100ms — NOT a real guess, doesn't consume a turn or an
+   endurance guess), the exact-OR-flipped win rule, the guesses>=6 loss
+   branch (which regresses the round counter by 1, never below 1 — losing
+   makes the NEXT puzzle slightly easier), the hint-unlocks-at-2-misses
+   rule, and endurance mode's budget check running in ALL THREE outcome
+   branches (win/lose/still-playing) since the shared 50-guess budget can
+   run out mid-puzzle, not just at a puzzle's own natural end. */
+function submit() {
+  if (st.gameOver) return;
+  const parts = [0, 1, 2, 3].map(getPartValue);
+  if (parts.some(v => v === null || v < 1)) { setMsg('Fill in all the boxes first!', 'error'); shakeInput(); return; }
+
+  const isDup = st.history.some(r => !r.invalid && st.puzzle.equivalentOrderings(r.parts).some(arr => arraysEqual(parts, arr)));
+  if (isDup) { setMsg("You've already tried that!", 'error'); shakeInput(); return; }
+
+  if (!st.puzzle.isValidGuess(parts)) {
+    setMsg(`${parts[0]}/${parts[1]} ≠ ${parts[2]}/${parts[3]} — not a true equation!`, 'error');
+    st.history.push({ parts, invalid: true });
+    renderHistory(); shakeInput();
+    setTimeout(() => { st.history.pop(); renderHistory(); setMsg(''); }, 1100);
+    return;
+  }
+
+  const won = st.puzzle.equivalentOrderings(st.puzzle.parts).some(arr => arraysEqual(parts, arr));
+
+  const targetDigits = flattenDigits(st.puzzle.parts);
+  const guessDigits = flattenDigits(parts);
+  const slotColors = won ? targetDigits.map(() => 'correct') : colorDigits(guessDigits, targetDigits);
+
+  if (st.endurance) { st.guessesLeft--; st.guessLog.push('used'); }
+
+  st.history.push({ parts, slotColors, digits: guessDigits });
+  st.guesses++;
+  renderHistory(); renderDots(); updateKbColors();
+  clearSlots();
+
+  if (won) {
+    if (st.endurance) st.guessLog[st.guessLog.length - 1] = 'won';
+    st.solved++; st.streak++;
+    setMsg(`Case closed in ${st.guesses} ${st.guesses === 1 ? 'guess' : 'guesses'}! \u{1F50D}`, 'success');
+    el('s-solved').textContent = st.solved;
+    el('s-streak').textContent = st.streak;
+    el('hint-btn').classList.add('phase-hidden');
+    st.gameOver = true;
+    if (st.devLevel < 0) st.round++;
+    if (st.endurance) {
+      renderEnduranceBar();
+      if (st.guessesLeft <= 0) { setTimeout(() => showGameOver('Out of guesses!', `You solved ${st.solved} puzzles. Impressive endurance!`), 800); return; }
+    }
+    el('next-btn').classList.remove('phase-hidden');
+
+  } else if (st.guesses >= 6) {
+    if (st.endurance) st.guessLog[st.guessLog.length - 1] = 'lost';
+    st.streak = 0;
+    setMsg(`The answer was ${st.puzzle.displayText}`, 'error');
+    el('s-streak').textContent = 0;
+    el('hint-btn').classList.add('phase-hidden');
+    st.gameOver = true;
+    if (st.devLevel < 0) st.round = Math.max(1, st.round - 1);
+    if (st.endurance) {
+      renderEnduranceBar();
+      if (st.guessesLeft <= 0) { setTimeout(() => showGameOver('Out of guesses!', `You solved ${st.solved} puzzles before running out of guesses.`), 1200); return; }
+    }
+    el('next-btn').classList.remove('phase-hidden');
+
+  } else {
+    if (st.guesses >= 2 && !st.hintUsed) el('hint-btn').classList.remove('phase-hidden');
+    const left = 6 - st.guesses;
+    let msg = `Valid equation — but not the one! ${left} ${left === 1 ? 'guess' : 'guesses'} left.`;
+    if (st.endurance && st.guessesLeft <= 5) msg += ` (${st.guessesLeft} total left!)`;
+    setMsg(msg);
+    if (st.endurance) {
+      renderEnduranceBar();
+      if (st.guessesLeft <= 0) { setTimeout(() => showGameOver('Out of guesses!', `You solved ${st.solved} puzzles before running out of guesses.`), 600); return; }
+    }
+  }
+}
+
+/* ---------------- input handling ---------------- */
+function handleKey(k) {
+  if (st.gameOver) return;
+  if (k === 'ENTER') { submit(); return; }
+  if (k === 'DEL') { slotDel(); return; }
+  if (!/^\d$/.test(k)) return;
+  slotInput(k);
+}
+
+el('keyboard').addEventListener('click', e => {
+  const btn = e.target.closest('.kb-key'); if (btn) handleKey(btn.dataset.k);
+});
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Backspace') { e.preventDefault(); handleKey('DEL'); }
+  else if (e.key === 'Enter') { e.preventDefault(); handleKey('ENTER'); }
+  else if (e.key === 'ArrowRight' || e.key === 'Tab') { e.preventDefault(); st.focusSlot = Math.min(st.slots.length - 1, st.focusSlot + 1); renderInputSlots(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); st.focusSlot = Math.max(0, st.focusSlot - 1); renderInputSlots(); }
+  else if (/^\d$/.test(e.key)) { e.preventDefault(); handleKey(e.key); }
+});
+
+el('next-btn').addEventListener('click', () => {
+  if (!st.endurance && st.round >= 10) { st.endurance = true; st.guessesLeft = 50; st.guessLog = []; }
+  startRound();
+});
+el('hint-btn').addEventListener('click', () => {
+  st.hintUsed = true; el('hint-btn').classList.add('phase-hidden');
+  el('hint-text').textContent = `Hint: ${st.puzzle.hintText}`;
+});
+el('go-restart').addEventListener('click', () => startMatch());
+
+/* ---------------- dev / playtest panel (secondary — see CLAUDE.md) ---------------- */
+el('dev-toggle').addEventListener('click', () => { el('dev-panel').classList.toggle('hidden'); });
+el('level-sel').addEventListener('change', e => { st.devLevel = parseInt(e.target.value, 10); });
+el('regen-btn').addEventListener('click', () => startRound());
+el('reveal-btn').addEventListener('click', () => { el('ans-display').textContent = st.puzzle.displayText; });
+el('skip-2digit').addEventListener('click', () => {
+  st.devLevel = 3; el('level-sel').value = '3';
+  startRound(); setMsg('Playtesting L3 — 2-digit fractions', 'warning');
+});
+el('skip-r10').addEventListener('click', () => {
+  st.round = 10; st.solved = 9; st.devLevel = -1;
+  el('level-sel').value = '-1';
+  el('s-round').textContent = st.round;
+  el('s-solved').textContent = st.solved;
+  startRound(); setMsg('Skipped to round 10 — next round triggers endurance mode', 'warning');
+});
+
+/* ---------------- initial load ---------------- */
+showScreen('game');
+startRound();
+</script>
+</body>
+</html>

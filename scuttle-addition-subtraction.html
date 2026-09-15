@@ -20,30 +20,44 @@
 
   <div id="top-bar">
     <div class="pill-group">
+      <div class="stat-pill target-pill">Target <b id="s-target">500</b></div>
       <div class="stat-pill">Round <b id="s-round">1</b>/3</div>
       <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
-      <div class="stat-pill">You <b id="s-wins">0</b> · Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
     </div>
     <button id="settings-btn">Settings</button>
   </div>
 
   <!-- SETTINGS SCREEN -->
   <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
     <div class="section-label">Bot difficulty</div>
     <div class="chip-row">
       <button class="chip" data-diff="easy">Easy</button>
       <button class="chip" data-diff="medium">Medium</button>
       <button class="chip" data-diff="hard">Hard</button>
     </div>
-    <div id="diff-desc" class="desc-line"></div>
-
     <div class="section-label">Target number</div>
     <div class="target-row">
       <input type="number" id="target-input" value="500" min="0" max="999" inputmode="numeric"/>
       <label class="small">the number to land closest to</label>
     </div>
     <div class="btn-row">
-      <button id="random-target-btn">🎲 Random target</button>
+      <button id="random-target-btn">Random target</button>
       <button class="primary" id="start-btn">Start game</button>
     </div>
     <button id="how-link">How does this game work?</button>
@@ -59,7 +73,7 @@
 
   <!-- PERSISTENT SCOREBOARD: visible for the whole match, from round 1 through reveal -->
   <div class="card hidden" id="scorecard">
-    <div class="sc-head"><span></span><span class="you-h">You</span><span class="bot-h">Bot</span></div>
+    <div class="sc-head"><span></span><span class="you-h"><img class="avatar-badge you" id="sc-you-badge" src="" alt="">You</span><span class="bot-h"><img class="avatar-badge bot" id="sc-bot-badge" src="" alt="">Bot</span></div>
     <div class="sc-row"><span class="rd-label">Round 1</span><span class="sc-val you empty" id="sc-you-1">–</span><span class="sc-val bot empty" id="sc-bot-1">–</span></div>
     <div class="sc-row"><span class="rd-label">Round 2</span><span class="sc-val you empty" id="sc-you-2">–</span><span class="sc-val bot empty" id="sc-bot-2">–</span></div>
     <div class="sc-row"><span class="rd-label">Round 3</span><span class="sc-val you empty" id="sc-you-3">–</span><span class="sc-val bot empty" id="sc-bot-3">–</span></div>
@@ -70,23 +84,23 @@
     <div id="round-label">Round <span id="r-num">1</span> of 3</div>
 
     <div id="roll-btn-wrap">
-      <button class="primary" id="roll-btn">🎲 Roll dice</button>
+      <button class="primary" id="roll-btn">Roll dice</button>
     </div>
 
-    <div id="dice-row" class="hidden"></div>
+    <div id="dice-row" class="phase-hidden"></div>
 
-    <div id="slots-wrap" class="hidden">
+    <div id="slots-wrap" class="phase-hidden">
       <div class="slot-labels"><span>Hun</span><span>Ten</span><span>One</span></div>
       <div id="slots-row"></div>
     </div>
 
-    <div id="lock-wrap" class="hidden">
+    <div id="lock-wrap" class="phase-hidden">
       <button class="primary" id="lock-btn" disabled>Lock in number</button>
     </div>
 
     <div id="msg" class="feedback-msg"></div>
 
-    <div class="center hidden" id="next-round-wrap" style="margin-top:12px;">
+    <div class="center phase-hidden" id="next-round-wrap" style="margin-top:12px;">
       <button class="primary" id="next-round-btn">Next round →</button>
     </div>
   </div>
@@ -102,7 +116,7 @@
     </div>
     <div id="hint-line" class="hint-line"></div>
     <div id="compute-msg" class="feedback-msg"></div>
-    <div class="center hidden" id="reveal-wrap">
+    <div class="center phase-hidden" id="reveal-wrap">
       <button class="primary" id="reveal-btn">Reveal results →</button>
     </div>
   </div>
@@ -132,39 +146,20 @@
 
 </div>
 
+<script src="shared-game.js"></script>
 <script>
-/* ---------------- core math helpers ---------------- */
-function rollDie(){ return Math.floor(Math.random()*10); }
-function rollThree(){ return [rollDie(), rollDie(), rollDie()]; }
-
-const IDX_PERMS = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
-
-// Unique 3-digit values from arranging `digits`. Leading zeros (a 0 in the
-// hundreds place) are excluded unless every digit is a 0, in which case
-// there is no valid alternative and we fall back to allowing it.
-function uniquePerms(digits){
-  const seen = new Set(); const out = [];
-  for (const p of IDX_PERMS){
-    const d0 = digits[p[0]], d1 = digits[p[1]], d2 = digits[p[2]];
-    if (d0 === 0) continue;
-    const val = d0*100 + d1*10 + d2;
-    if (!seen.has(val)){ seen.add(val); out.push(val); }
-  }
-  if (out.length === 0){
-    for (const p of IDX_PERMS){
-      const val = digits[p[0]]*100 + digits[p[1]]*10 + digits[p[2]];
-      if (!seen.has(val)){ seen.add(val); out.push(val); }
-    }
-  }
-  return out;
-}
+/* ---------------- core math helpers ----------------
+   rollDie/rollN/randInt/permutations/combinations/buildNumber/
+   uniqueArrangements all live in shared-game.js now — see CLAUDE.md
+   "File structure & the point of it". Everything below is genuinely
+   specific to Add/Sub's own round-by-round bot planning. */
 
 // Every achievable final result: for each way to arrange round-3's digits,
 // pick which of the three numbers sits "first" (no sign choice) and freely
 // add/subtract the other two. This mirrors the human's ability to reorder
 // all three numbers before choosing operators. Returned sorted best-first.
 function allRound3Combos(n1, n2, digits3, target){
-  const perms = uniquePerms(digits3);
+  const perms = uniqueArrangements(digits3);
   const combos = [];
   for (const v of perms){
     const nums = [n1, n2, v];
@@ -205,10 +200,9 @@ function evalRound3Easy(n1, n2, digits3, target){
 }
 
 /* ---------------- bot strategies (rounds 1 & 2 only) ---------------- */
-function randInt(n){ return Math.floor(Math.random()*n); }
 
 function botEasy(digits){
-  const perms = uniquePerms(digits);
+  const perms = uniqueArrangements(digits);
   return perms[randInt(perms.length)];
 }
 
@@ -216,7 +210,7 @@ function botEasy(digits){
 // share" of the target and never reasons about how it might reorder or
 // re-sign numbers later. That reasoning is reserved for Hard.
 function botMedium(digits, target){
-  const perms = uniquePerms(digits);
+  const perms = uniqueArrangements(digits);
   let best = null;
   for (const v of perms){
     const d = Math.abs(v - target/3);
@@ -228,12 +222,12 @@ function botMedium(digits, target){
 // Hard bot: approximates the true expected value of each choice by sampling
 // many possible future rolls, rather than reasoning about only one target.
 function hardEvalRound2(n1, digits2, target, innerSamples){
-  const perms = uniquePerms(digits2);
+  const perms = uniqueArrangements(digits2);
   let best = null;
   for (const v2 of perms){
     let sum = 0;
     for (let i=0;i<innerSamples;i++){
-      const r3 = evalRound3(n1, v2, rollThree(), target);
+      const r3 = evalRound3(n1, v2, rollN(3), target);
       sum += r3.dist;
     }
     const avg = sum/innerSamples;
@@ -243,13 +237,13 @@ function hardEvalRound2(n1, digits2, target, innerSamples){
 }
 
 function hardEvalRound1(digits1, target, outerSamples, innerSamples){
-  const perms = uniquePerms(digits1);
+  const perms = uniqueArrangements(digits1);
   let best = null;
   for (const v1 of perms){
     let sum = 0;
     for (let i=0;i<outerSamples;i++){
-      const v2 = hardEvalRound2(v1, rollThree(), target, innerSamples);
-      const r3 = evalRound3(v1, v2, rollThree(), target);
+      const v2 = hardEvalRound2(v1, rollN(3), target, innerSamples);
+      const r3 = evalRound3(v1, v2, rollN(3), target);
       sum += r3.dist;
     }
     const avg = sum/outerSamples;
@@ -265,16 +259,24 @@ function botChooseRound(round, digits, n1, target, difficulty){
   return hardEvalRound2(n1, digits, target, 220);
 }
 
-const DIFF_DESC = {
-  easy: "Shuffles its digits at random, and even at the end sometimes settles for its second-best total instead of the best.",
-  medium: "Aims each number at a fair share of the target — steady, not deep.",
-  hard: "Simulates thousands of possible future rolls before committing to a number."
-};
+// Bot difficulty descriptions were removed from the settings screen — not
+// user-facing (see CLAUDE.md "Layout stability" note on .desc-line-stack
+// for the container-jump bug this also used to trigger). DIFF_NAME stays;
+// it's still shown in the top-bar pill.
 const DIFF_NAME = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
 
 /* ---------------- state ---------------- */
 let st = {
   difficulty: 'medium',
+  avatar: 'grogg',
   target: 500,
   round: 1,
   humanNums: [],
@@ -291,20 +293,42 @@ let st = {
 
 /* ---------------- element refs ---------------- */
 const el = id => document.getElementById(id);
+renderGlobalNav('scuttle'); // see CLAUDE.md "Global navigation"
+renderVariantSwitcher('variant-row', 'scuttle', 'scuttle-addition-subtraction.html'); // jump to a sibling Scuttle variant — see CLAUDE.md's navigation redesign note
 const screens = { settings: el('screen-settings'), round: el('screen-round'), compute: el('screen-compute'), reveal: el('screen-reveal') };
-function showScreen(name){
-  Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
-  // The scoreboard stays visible for the whole match (round -> compute -> reveal)
-  // and is only tucked away while the player is on the settings screen.
-  el('scorecard').classList.toggle('hidden', name === 'settings');
-}
+// fadeIn/showScreen/updateScorePills/resetScorecard/updateScorecard all
+// live in shared-game.js now — see CLAUDE.md "File structure & the point
+// of it". showScreen(screens, name) takes `screens` (above) as a
+// parameter since its keys are genuinely game-specific.
 
 /* ---------------- settings screen ---------------- */
+// Avatar picker + badges: renderAvatarBadges() pushes st.avatar (you) and
+// the difficulty-matched bot avatar into every badge slot (top bar +
+// scoreboard header) at once, so a difficulty change and an avatar pick
+// both stay in sync via the one function.
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+  el('sc-you-badge').src = youSrc;
+  el('sc-bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
+
 function renderDiffChips(){
   document.querySelectorAll('.chip-row [data-diff]').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
   });
-  el('diff-desc').textContent = DIFF_DESC[st.difficulty];
+  renderAvatarBadges(); // bot avatar swaps with difficulty
 }
 document.querySelectorAll('.chip-row [data-diff]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
@@ -319,39 +343,15 @@ el('start-btn').addEventListener('click', ()=>{
   const t = parseInt(el('target-input').value, 10);
   st.target = isNaN(t) ? 500 : Math.max(0, Math.min(999, t));
   st.score = { human:0, bot:0, ties:0 };
-  updateScorePills();
+  updateScorePills(st.score);
   el('target-tag').textContent = st.target;
+  el('s-target').textContent = st.target;
   el('s-diff').textContent = DIFF_NAME[st.difficulty];
   startMatch();
 });
-el('settings-btn').addEventListener('click', ()=>{ showScreen('settings'); });
-el('change-settings-btn').addEventListener('click', ()=>{ showScreen('settings'); });
+el('settings-btn').addEventListener('click', ()=>{ showScreen(screens, 'settings'); });
+el('change-settings-btn').addEventListener('click', ()=>{ showScreen(screens, 'settings'); });
 renderDiffChips();
-
-function updateScorePills(){
-  el('s-wins').textContent = st.score.human;
-  el('s-bwins').textContent = st.score.bot;
-  el('s-ties').textContent = st.score.ties;
-}
-
-/* ---------------- persistent scoreboard ---------------- */
-function resetScorecard(){
-  for (let i=1;i<=3;i++){
-    const y = el('sc-you-'+i), b = el('sc-bot-'+i);
-    y.textContent = '–'; y.classList.add('empty');
-    b.textContent = '–'; b.classList.add('empty');
-  }
-}
-function updateScorecard(){
-  st.humanNums.forEach((v,i)=>{
-    const y = el('sc-you-'+(i+1));
-    y.textContent = v; y.classList.remove('empty');
-  });
-  st.botNums.forEach((v,i)=>{
-    const b = el('sc-bot-'+(i+1));
-    b.textContent = v; b.classList.remove('empty');
-  });
-}
 
 /* ---------------- match / round flow ---------------- */
 function startMatch(){
@@ -363,7 +363,7 @@ function startMatch(){
   st.ops = [1,1];
   el('s-round').textContent = st.round;
   resetScorecard();
-  showScreen('round');
+  showScreen(screens, 'round');
   startRound();
 }
 
@@ -371,19 +371,19 @@ function startRound(){
   st.roll = null;
   st.slotAssignment = [null,null,null];
   el('r-num').textContent = st.round;
-  el('roll-btn-wrap').classList.remove('hidden');
-  el('dice-row').classList.add('hidden');
-  el('slots-wrap').classList.add('hidden');
-  el('lock-wrap').classList.add('hidden');
-  el('next-round-wrap').classList.add('hidden');
+  el('roll-btn-wrap').classList.remove('phase-hidden');
+  el('dice-row').classList.add('phase-hidden');
+  el('slots-wrap').classList.add('phase-hidden');
+  el('lock-wrap').classList.add('phase-hidden');
+  el('next-round-wrap').classList.add('phase-hidden');
   el('msg').textContent = '';
   el('msg').className = '';
 }
 
 el('roll-btn').addEventListener('click', rollDice);
 function rollDice(){
-  el('roll-btn-wrap').classList.add('hidden');
-  el('dice-row').classList.remove('hidden');
+  el('roll-btn-wrap').classList.add('phase-hidden');
+  el('dice-row').classList.remove('phase-hidden');
 
   let ticks = 0;
   const diceRow = el('dice-row');
@@ -395,10 +395,10 @@ function rollDice(){
     ticks++;
     if (ticks > 6){
       clearInterval(spin);
-      st.roll = rollThree();
+      st.roll = rollN(3);
       renderDice();
-      el('slots-wrap').classList.remove('hidden');
-      el('lock-wrap').classList.remove('hidden');
+      el('slots-wrap').classList.remove('phase-hidden');
+      el('lock-wrap').classList.remove('phase-hidden');
       renderSlots();
     }
   }, 70);
@@ -493,14 +493,14 @@ function lockInRound(){
   st.botNums.push(botVal);
   st.botMeta.push(botExtra);
 
-  updateScorecard();
+  updateScorecard(st.humanNums, st.botNums);
 
-  el('lock-wrap').classList.add('hidden');
-  el('slots-wrap').classList.add('hidden');
-  el('dice-row').classList.add('hidden');
+  el('lock-wrap').classList.add('phase-hidden');
+  el('slots-wrap').classList.add('phase-hidden');
+  el('dice-row').classList.add('phase-hidden');
 
   if (st.round < 3){
-    el('next-round-wrap').classList.remove('hidden');
+    el('next-round-wrap').classList.remove('phase-hidden');
   } else {
     setTimeout(goToCompute, 500);
   }
@@ -514,7 +514,7 @@ el('next-round-btn').addEventListener('click', ()=>{
 
 /* ---------------- compute (reorder + operator + answer) phase ---------------- */
 function goToCompute(){
-  showScreen('compute');
+  showScreen(screens, 'compute');
   st.order = [0,1,2];
   st.ops = [1,1];
   st.wrongAttempts = 0;
@@ -523,7 +523,7 @@ function goToCompute(){
   el('check-btn').disabled = false;
   el('compute-msg').textContent = '';
   el('hint-line').textContent = '';
-  el('reveal-wrap').classList.add('hidden');
+  el('reveal-wrap').classList.add('phase-hidden');
   renderEquation();
 }
 
@@ -537,32 +537,84 @@ function swapOrder(posA, posB){
   renderEquation();
 }
 
+// Finds the OTHER .eq-tile (not `excludeTile`) NEAREST the pointer's X
+// position \u2014 nearest-by-center, not exact-pixel hit-testing. This
+// replaced an elementsFromPoint-based version that picked a drop target
+// only when the pointer was precisely over a tile's own box; the instant
+// it passed over the gap between tiles, an operator button, or the "="
+// sign, elementsFromPoint found no tile at all and the blue drop-target
+// highlight would blink off, then back on over the next tile \u2014 real
+// playtesting reported this as "the blue box jumps around too much, hard
+// to plan quickly" (confirmed directly: screenshotting a slow drag across
+// the row showed the highlight present at some sampled pointer positions
+// and completely absent at others in between, not a smooth, predictable
+// sweep). Comparing against every candidate tile's center (same "nearest,
+// not exact" pattern as Beeline's own nearestNumForX()) always finds
+// SOMETHING \u2014 the highlighted tile can only ever change at the midpoint
+// between two tiles, a single clean flip, never a flicker.
+function findDropTile(e, excludeTile){
+  const tiles = Array.from(document.querySelectorAll('.eq-tile')).filter(t => t !== excludeTile);
+  let best = null, bestDist = Infinity;
+  tiles.forEach(tile => {
+    const rect = tile.getBoundingClientRect();
+    const dist = Math.abs(e.clientX - (rect.left + rect.width/2));
+    if (dist < bestDist){ bestDist = dist; best = tile; }
+  });
+  return best;
+}
+function clearDropTargets(){
+  document.querySelectorAll('.eq-tile.drop-target').forEach(t => t.classList.remove('drop-target'));
+}
+
 function renderEquation(){
   const displayed = st.order.map(i => st.humanNums[i]);
   const row = el('equation-row');
+
+  // FLIP (shared-game.js flipBefore/flipAfter \u2014 see CLAUDE.md "Drag
+  // interactions"): snapshot each tile's current on-screen position,
+  // keyed by its underlying humanNums index (st.order[pos]) \u2014 that's the
+  // VALUE's real identity, not its display position, which is exactly
+  // what a swap changes \u2014 before tearing the row down, so the freshly
+  // rendered tiles animate in from where they used to be instead of just
+  // popping into their new spot.
+  const before = flipBefore(row.querySelectorAll('.eq-tile'), 'origIndex');
+
   row.innerHTML = '';
 
   displayed.forEach((val, pos) => {
     const tile = document.createElement('div');
     tile.className = 'eq-tile';
+    tile.dataset.origIndex = st.order[pos];
+    tile.dataset.pos = pos;
 
     const numEl = document.createElement('div');
-    numEl.className = 'eq-num';
+    numEl.className = 'eq-num draggable';
     numEl.textContent = val;
     tile.appendChild(numEl);
 
-    const btnRow = document.createElement('div');
-    btnRow.className = 'reorder-btns';
-    const leftBtn = document.createElement('button');
-    leftBtn.className = 'small'; leftBtn.textContent = '\u25C0';
-    leftBtn.disabled = (pos === 0);
-    leftBtn.addEventListener('click', ()=> swapOrder(pos, pos-1));
-    const rightBtn = document.createElement('button');
-    rightBtn.className = 'small'; rightBtn.textContent = '\u25B6';
-    rightBtn.disabled = (pos === displayed.length-1);
-    rightBtn.addEventListener('click', ()=> swapOrder(pos, pos+1));
-    btnRow.appendChild(leftBtn); btnRow.appendChild(rightBtn);
-    tile.appendChild(btnRow);
+    // Drag-to-swap replaces the old \u25C0\u25B6 stepper buttons \u2014 see CLAUDE.md
+    // "Drag interactions". st.order itself is untouched by this; only how
+    // the player edits it changed.
+    makeDraggable(numEl, {
+      // Locked once the answer checks out (same signal already used to
+      // disable the answer input/check button/+- toggles at that point) —
+      // a correct swap-then-answer shouldn't be re-editable after the
+      // reveal button has appeared.
+      onMove: (dx, dy, e) => {
+        if (numEl.classList.contains('locked')) return;
+        numEl.style.transform = `translateX(${dx}px) scale(1.06)`;
+        clearDropTargets();
+        const target = findDropTile(e, tile);
+        if (target) target.classList.add('drop-target');
+      },
+      onDrop: (dx, dy, e) => {
+        numEl.style.transform = '';
+        clearDropTargets();
+        if (numEl.classList.contains('locked')) return;
+        const target = findDropTile(e, tile);
+        if (target) swapOrder(parseInt(tile.dataset.pos, 10), parseInt(target.dataset.pos, 10));
+      }
+    });
 
     row.appendChild(tile);
 
@@ -577,6 +629,8 @@ function renderEquation(){
 
   const eq = document.createElement('div'); eq.className='eq-num'; eq.style.paddingTop='8px'; eq.textContent='=';
   row.appendChild(eq);
+
+  flipAfter(row.querySelectorAll('.eq-tile'), 'origIndex', before);
 }
 
 el('check-btn').addEventListener('click', checkAnswer);
@@ -596,8 +650,9 @@ function checkAnswer(){
   const correct = currentHumanCorrectTotal();
   if (guess === correct){
     flashComputeMsg('That checks out!', false);
-    el('reveal-wrap').classList.remove('hidden');
-    document.querySelectorAll('.op-btn, .reorder-btns button').forEach(b => b.disabled = true);
+    el('reveal-wrap').classList.remove('phase-hidden');
+    document.querySelectorAll('.op-btn').forEach(b => b.disabled = true);
+    document.querySelectorAll('.eq-num.draggable').forEach(t => t.classList.add('locked'));
     el('answer-input').disabled = true;
     el('check-btn').disabled = true;
     st.finalHumanTotal = correct;
@@ -619,6 +674,48 @@ function flashComputeMsg(text, isError){
     const inp = el('answer-input');
     inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
   }
+}
+
+/* ---------------- win-visual effects (typewriter banner + count-up totals)
+   see design/mockups/win-visuals-mockup.html and CLAUDE.md "Celebration
+   animations". Both play a small fixed number of times, then rest static —
+   never loop. prefers-reduced-motion skips straight to the final state. ---------------- */
+function prefersReducedMotion(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function typewriterReveal(el, text){
+  el.classList.remove('flash');
+  if (prefersReducedMotion()){
+    el.textContent = text;
+    return;
+  }
+  el.textContent = '';
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length){
+      clearInterval(timer);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    }
+  }, 45);
+}
+function countUp(el, target, format, steps=18, duration=650){
+  format = format || String;
+  if (prefersReducedMotion()){
+    el.textContent = format(target);
+    return;
+  }
+  let step = 0;
+  const timer = setInterval(() => {
+    step++;
+    el.textContent = format(Math.round((target/steps) * step));
+    if (step >= steps){
+      el.textContent = format(target);
+      clearInterval(timer);
+    }
+  }, duration/steps);
 }
 
 /* ---------------- reveal ---------------- */
@@ -649,33 +746,35 @@ el('reveal-btn').addEventListener('click', ()=>{
   const botEq = formatEquation(st.botNums, finalR3.combo.baseIdx, finalR3.combo.others, finalR3.combo.signs);
 
   el('human-eq').textContent = humanEq;
-  el('human-total').textContent = st.finalHumanTotal;
   el('human-dist').textContent = `${humanDist} away from ${st.target}`;
   el('bot-eq').textContent = botEq;
-  el('bot-total').textContent = botTotal;
   el('bot-dist').textContent = `${botDist} away from ${st.target}`;
 
   const winner = decideWinner(humanDist, botDist);
 
-  const banner = el('winner-banner');
+  let bannerText;
   if (winner === 'tie'){
-    banner.textContent = "It's a tie — you both win! 🤝";
+    bannerText = "It's a tie — you both win!";
     st.score.ties++;
   } else if (winner === 'human'){
-    banner.textContent = 'You win this match! 🎉';
+    bannerText = 'You win this match!';
     st.score.human++;
   } else {
-    banner.textContent = 'Bot wins this match.';
+    bannerText = 'Bot wins this match.';
     st.score.bot++;
   }
-  updateScorePills();
-  showScreen('reveal');
+  updateScorePills(st.score);
+  showScreen(screens, 'reveal');
+
+  countUp(el('human-total'), st.finalHumanTotal);
+  countUp(el('bot-total'), botTotal);
+  typewriterReveal(el('winner-banner'), bannerText);
 });
 
 el('play-again-btn').addEventListener('click', startMatch);
 
 /* ---------------- init ---------------- */
-showScreen('settings');
+showScreen(screens, 'settings');
 </script>
 </body>
 </html>

@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beeline: Addition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/claim-grid.css">
+<style>
+  /* ---- Beeline-specific: disabling the operand rows during the bot's
+     turn, and TWO rows instead of Product's one (see CLAUDE.md's design
+     note on the two-row engine) — everything else is the shared
+     claim-grid component or design-system. ---- */
+  .operand-row.disabled { pointer-events: none; opacity: 0.55; }
+  /* Widened further than design-system.css's own already-widened default
+     (860px) — Beeline has genuinely more horizontal content to fill than a
+     single-column game (see "make sizing more dynamic to fill a great
+     proportion of the window"): both .game-layout columns (components/
+     claim-grid.css) grow to use whatever extra room this makes available. */
+  #app { max-width: 1100px; }
+  #rules-box { max-width: 640px; margin-left: auto; margin-right: auto; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>BEELINE</h1>
+  <div class="kicker-wrap"><span class="kicker">Addition</span></div>
+  <div id="tagline" class="tagline">Move your two tokens, mark the sum, connect four in a row to win.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
+    <div class="section-label">Bot difficulty</div>
+    <div class="chip-row" id="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+    <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      You go first. On your first turn, place one token on EACH of the two rows below — that's your sum, so
+      mark it on the grid above. From then on, each turn you move <strong>one</strong> of your two tokens
+      (either row) to a new number and mark the new sum. If that value is already claimed, you don't get to
+      mark it — your turn just ends, no penalty beyond that. You also can't move back to a position you've
+      already visited this game — that would just undo progress instead of making a new one. There's no dice
+      involved — every move is your own choice. Whoever connects <strong>four in a row</strong> (horizontal,
+      vertical, or diagonal) first wins — that's a BEELINE! The bot always adds correctly, but how far ahead
+      it plans changes with difficulty.
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div class="card hidden" id="screen-game">
+    <!-- Side-by-side "game board" (right) / "playing space" (left) layout
+         — see components/claim-grid.css's .game-layout comment. -->
+    <div class="game-layout">
+      <div class="game-board-col">
+        <div class="legend"><span><i class="legend-dot human"></i>You</span><span><i class="legend-dot bot"></i>Bot</span></div>
+        <div id="claim-grid"></div>
+      </div>
+      <div class="game-play-col">
+        <div id="turn-status" class="feedback-msg"></div>
+
+        <div id="setup-hint" class="desc-line phase-hidden" style="text-align:center;">Click one number on each row below to place your tokens.</div>
+
+        <div class="operand-title" id="row-a-title">Row A (1–9)</div>
+        <div class="operand-row" id="operand-row-a"></div>
+        <div class="operand-title" id="row-b-title">Row B (1–9)</div>
+        <div class="operand-row" id="operand-row-b"></div>
+
+        <div id="answer-area" class="hidden">
+          <div class="equation-line" id="equation-line"></div>
+          <div class="answer-row">
+            <label for="answer-input">Sum:</label>
+            <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?"/>
+            <button class="primary" id="check-btn">Check</button>
+          </div>
+          <div id="hint-line" class="hint-line"></div>
+          <div id="compute-msg" class="feedback-msg"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="winner-banner"></div>
+    <div class="btn-row hidden" id="end-btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+/* ---------------- board & move engine ----------------
+   Uses shared-game.js's Beeline two-row engine (beelineLegalMoves/
+   beelineApplyMove/beelineHasFourInRow/beelineBotEasy/Medium/Hard/etc —
+   see that file's own header comment) — this file only supplies what's
+   genuinely Addition-specific: the row ranges, the value function (a+b),
+   and the board's own achievable-value set (2-18, 17 distinct values,
+   round-robin filled to the 36-cell grid — not an even split, since 17
+   doesn't divide 36; the first two values in list order get a 3rd cell
+   instead of 2, see shared-game.js's beelineBuildBoardValues comment).
+   Verified via test/beeline-two-row-bot-simulation.js before this file
+   was written. */
+
+const ROW_A_RANGE = [1, 9], ROW_B_RANGE = [1, 9];
+const ROW_RANGES = [ROW_A_RANGE, ROW_B_RANGE];
+function valueFn(tokens){ return tokens[0] + tokens[1]; }
+const DISTINCT_VALUES = Array.from({length:17}, (_,i)=>i+2); // 2..18
+function formatValue(v){ return String(v); }
+
+let VALUES = [];
+let VALUE_TO_CELLS = new Map();
+function rebuildBoardLayout(){
+  VALUES = shuffleArray(beelineBuildBoardValues(DISTINCT_VALUES, 36));
+  VALUE_TO_CELLS = beelineBuildValueToCells(VALUES);
+}
+rebuildBoardLayout();
+
+function decideWinner(owner){ return beelineDecideWinner(owner); }
+
+/* ---------------- bot strategies (thin wrappers into the shared engine) ---------------- */
+function botChooseRound(state, symbol, difficulty, visited){
+  if (difficulty === 'easy') return beelineBotEasy(state, ROW_RANGES, visited);
+  if (difficulty === 'medium') return beelineBotMedium(state, symbol, ROW_RANGES, valueFn, VALUE_TO_CELLS, visited);
+  return beelineBotHard(state, symbol, ROW_RANGES, valueFn, VALUE_TO_CELLS, visited);
+}
+
+const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. No persistent
+   #scorecard on this game (see CLAUDE.md's Pop/Beeline design note), so
+   there are no scoreboard-header badges to sync — just the top-bar pair. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
+
+/* ---------------- state ---------------- */
+let st = {
+  difficulty: 'medium',
+  avatar: 'grogg',
+  owner: Array(36).fill(null),
+  tokens: null,             // null until the first placement; else [rowA pos, rowB pos]
+  visitedTokenPairs: new Set(), // every tokens-config seen so far this game — anti-stalemate rule
+  pendingSetupTokens: {},   // { a: n } while the first row is picked, then also { b: n }
+  selectedTokenIdx: 0,      // which token (0=row A, 1=row B) a click will move
+  turn: 'human',
+  phase: 'idle',            // 'idle' | 'awaiting-answer' | 'bot-thinking' | 'over'
+  pendingMove: null,
+  wrongAttempts: 0,
+  gameOver: false,
+  winner: null,
+  winningCells: null,
+  winRevealDone: false,
+  score: { human:0, bot:0, ties:0 }
+};
+
+/* ---------------- element refs ---------------- */
+const el = id => document.getElementById(id);
+renderGlobalNav('beeline'); // see CLAUDE.md "Global navigation"
+renderVariantSwitcher('variant-row', 'beeline', 'beeline-addition.html'); // jump to a sibling Beeline variant
+const screens = { settings: el('screen-settings'), game: el('screen-game') };
+function showScreen(name){
+  Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
+}
+
+/* ---------------- settings screen ---------------- */
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
+
+function renderDiffChips(){
+  document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  renderAvatarBadges(); // bot avatar swaps with difficulty
+}
+document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
+el('start-btn').addEventListener('click', ()=>{
+  st.score = { human:0, bot:0, ties:0 };
+  updateScorePills();
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', ()=> showScreen('settings'));
+el('change-settings-btn').addEventListener('click', ()=> showScreen('settings'));
+renderDiffChips();
+
+function updateScorePills(){
+  el('s-wins').textContent = st.score.human;
+  el('s-bwins').textContent = st.score.bot;
+  el('s-ties').textContent = st.score.ties;
+}
+
+/* ---------------- match / round flow ---------------- */
+function startMatch(){
+  rebuildBoardLayout(); // fresh random cell positions each match
+  showScreen('game');
+  startRound();
+}
+
+function startRound(){
+  st.owner = Array(36).fill(null);
+  st.tokens = null;
+  st.visitedTokenPairs = new Set();
+  st.pendingSetupTokens = {};
+  st.selectedTokenIdx = 0;
+  st.turn = 'human';
+  st.phase = 'idle';
+  st.pendingMove = null;
+  st.wrongAttempts = 0;
+  st.gameOver = false;
+  st.winner = null;
+  st.winningCells = null;
+  st.winRevealDone = false;
+  el('turn-status').textContent = 'Your turn — click one number on each row to place your tokens.';
+  el('winner-banner').textContent = '';
+  el('end-btn-row').classList.add('hidden');
+  el('answer-area').classList.add('hidden');
+  render();
+}
+
+/* ---------------- rendering ---------------- */
+function computePendingTokens(){
+  if (!st.pendingMove) return st.tokens;
+  if (st.pendingMove.type === 'setup') return [st.pendingMove.a, st.pendingMove.b];
+  const t = st.tokens.slice();
+  t[st.pendingMove.idx] = st.pendingMove.pos;
+  return t;
+}
+function computePendingValue(){
+  if (!st.pendingMove) return null;
+  return valueFn(computePendingTokens());
+}
+function pendingEquationText(){
+  if (!st.pendingMove) return '';
+  const t = computePendingTokens();
+  return `${t[0]} + ${t[1]}`;
+}
+
+function cellClassesFor(i){
+  let cls = 'claim-cell';
+  const owner = st.owner[i];
+  if (owner) cls += ' ' + owner;
+  if (st.gameOver && st.winRevealDone && st.winningCells && st.winningCells.includes(i)){
+    cls += ' win settled';
+  } else if (!st.gameOver && st.phase === 'awaiting-answer'){
+    const pendingValue = computePendingValue();
+    if (pendingValue !== null && VALUES[i] === pendingValue && !owner) cls += ' pending';
+  }
+  return cls;
+}
+
+function renderGrid(){
+  const grid = el('claim-grid');
+  grid.innerHTML = '';
+  VALUES.forEach((v,i)=>{
+    const c = document.createElement('div');
+    c.className = cellClassesFor(i);
+    c.textContent = formatValue(v);
+    grid.appendChild(c);
+  });
+}
+
+/* ---------------- two operand rows + draggable tokens ----------------
+   See CLAUDE.md "Drag interactions". Each row holds exactly ONE token
+   (row A's token is index 0, row B's is index 1) — genuinely simpler than
+   Product Beeline's shared-row case (no two tokens ever share a row
+   here), so there's no lane-above/below split needed within a row; each
+   token just sits in that row's own single lane. */
+const TOKEN_SNAP_MS = 220; // keep in sync with shared-game.js flipAfter()'s default duration
+
+function tokenLeftForNum(num, row){
+  const cell = row.querySelector(`.op-num[data-num="${num}"]`);
+  if (!cell) return 0;
+  const rowRect = row.getBoundingClientRect();
+  const cellRect = cell.getBoundingClientRect();
+  return (cellRect.left - rowRect.left) + cellRect.width/2 - 13; // 13 = TOKEN_WIDTH/2
+}
+function nearestNumForX(row, clientX, range){
+  const cells = row.querySelectorAll('.op-num');
+  let best = range[0], bestDist = Infinity;
+  cells.forEach(cell => {
+    const rect = cell.getBoundingClientRect();
+    const dist = Math.abs(clientX - (rect.left + rect.width/2));
+    if (dist < bestDist){ bestDist = dist; best = parseInt(cell.dataset.num, 10); }
+  });
+  return best;
+}
+function snapTokenTo(tok, num, row){
+  const currentLeft = parseFloat(tok.style.left) || 0;
+  const dragged = /translateX\((-?[\d.]+)px\)/.exec(tok.style.transform || '');
+  const dx = dragged ? parseFloat(dragged[1]) : 0;
+  const targetLeft = tokenLeftForNum(num, row);
+  tok.style.transition = 'none';
+  tok.style.transform = '';
+  tok.style.left = (currentLeft + dx) + 'px';
+  if (prefersReducedMotion()){ tok.style.left = targetLeft + 'px'; return; }
+  void tok.offsetWidth;
+  tok.style.transition = `left ${TOKEN_SNAP_MS}ms ease`;
+  tok.style.left = targetLeft + 'px';
+}
+
+// Anti-stalemate rule (see shared-game.js's beelineLegalMoves comment)
+// applied to the human's own interactions, not just the bot's search.
+function isLegalHumanMove(idx, pos){
+  const moves = beelineLegalMoves({ owner: st.owner, tokens: st.tokens }, ROW_RANGES, st.visitedTokenPairs);
+  return moves.some(m => m.type === 'move' && m.idx === idx && m.pos === pos);
+}
+
+function renderOneRow(containerId, idx, range, labelPrefix){
+  const row = el(containerId);
+  row.innerHTML = '';
+  for (let n = range[0]; n <= range[1]; n++){
+    const cell = document.createElement('div');
+    cell.className = 'op-num';
+    cell.dataset.num = n;
+    cell.textContent = n;
+    cell.addEventListener('click', ()=> handleRowClick(idx, n));
+    row.appendChild(cell);
+  }
+  const disabled = st.gameOver || st.turn !== 'human' || st.phase !== 'idle';
+  row.classList.toggle('disabled', disabled);
+
+  if (st.tokens === null){
+    const picked = st.pendingSetupTokens[idx === 0 ? 'a' : 'b'];
+    if (picked !== undefined){
+      const tok = document.createElement('div');
+      tok.className = 'token token-' + idx + ' lane-below';
+      tok.style.left = tokenLeftForNum(picked, row) + 'px';
+      row.appendChild(tok);
+    }
+    return;
+  }
+
+  const num = (st.pendingMove && st.pendingMove.type === 'move' && st.pendingMove.idx === idx) ? st.pendingMove.pos : st.tokens[idx];
+  const tok = document.createElement('div');
+  tok.className = 'token token-' + idx + ' lane-below' + (idx === st.selectedTokenIdx ? ' selected' : '');
+  tok.style.left = tokenLeftForNum(num, row) + 'px';
+  row.appendChild(tok);
+
+  const canDrag = st.turn === 'human' && st.phase === 'idle' && !st.gameOver;
+  if (canDrag){
+    tok.addEventListener('click', () => {
+      if (st.selectedTokenIdx === idx) return;
+      st.selectedTokenIdx = idx;
+      render();
+    });
+    makeDraggable(tok, {
+      onMove: (dx) => { tok.style.transform = `translateX(${dx}px)`; },
+      onDrop: (dx, dy, e) => {
+        const target = nearestNumForX(row, e.clientX, range);
+        if (target === st.tokens[idx]){ snapTokenTo(tok, target, row); return; }
+        if (!isLegalHumanMove(idx, target)){
+          snapTokenTo(tok, st.tokens[idx], row);
+          el('turn-status').textContent = "That would just repeat a position from earlier this game — try a different number.";
+          return;
+        }
+        snapTokenTo(tok, target, row);
+        const delay = prefersReducedMotion() ? 0 : TOKEN_SNAP_MS;
+        setTimeout(() => {
+          st.pendingMove = { type: 'move', idx, pos: target };
+          enterAwaitingAnswer();
+        }, delay);
+      }
+    });
+  }
+}
+
+function renderOperandRows(){
+  renderOneRow('operand-row-a', 0, ROW_A_RANGE);
+  renderOneRow('operand-row-b', 1, ROW_B_RANGE);
+}
+
+function render(){
+  renderGrid();
+  renderOperandRows();
+  el('setup-hint').classList.toggle('phase-hidden', !(st.tokens === null && st.phase === 'idle' && st.turn === 'human'));
+}
+
+/* ---------------- human move selection ---------------- */
+function handleRowClick(idx, pos){
+  if (st.gameOver || st.turn !== 'human' || st.phase !== 'idle') return;
+  if (st.tokens === null){
+    const key = idx === 0 ? 'a' : 'b';
+    st.pendingSetupTokens[key] = pos;
+    if (st.pendingSetupTokens.a === undefined || st.pendingSetupTokens.b === undefined){ render(); return; }
+    st.pendingMove = { type:'setup', a: st.pendingSetupTokens.a, b: st.pendingSetupTokens.b };
+    enterAwaitingAnswer();
+    return;
+  }
+  if (pos === st.tokens[idx]) return; // not an actual move
+  st.selectedTokenIdx = idx;
+  if (!isLegalHumanMove(idx, pos)){
+    el('turn-status').textContent = "That would just repeat a position from earlier this game — try a different number.";
+    render();
+    return;
+  }
+  st.pendingMove = { type:'move', idx, pos };
+  enterAwaitingAnswer();
+}
+
+function enterAwaitingAnswer(){
+  st.phase = 'awaiting-answer';
+  st.wrongAttempts = 0;
+  el('answer-input').value = '';
+  el('answer-input').disabled = false;
+  el('check-btn').disabled = false;
+  el('hint-line').textContent = '';
+  el('compute-msg').textContent = '';
+  el('equation-line').textContent = pendingEquationText() + ' = ?';
+  el('answer-area').classList.remove('hidden');
+  render();
+}
+
+el('check-btn').addEventListener('click', checkAnswer);
+el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
+
+function checkAnswer(){
+  const guess = parseInt(el('answer-input').value, 10);
+  const correct = computePendingValue();
+  if (isNaN(guess)){
+    flashComputeMsg('Type the sum first.', true);
+    return;
+  }
+  if (guess !== correct){
+    st.wrongAttempts++;
+    flashComputeMsg("That's not quite right — check your work.", true);
+    if (st.wrongAttempts >= 2){
+      el('hint-line').textContent = `Hint: ${pendingEquationText()} = ${correct}`;
+    }
+    return;
+  }
+  flashComputeMsg('That checks out!', false);
+  const winner = commitMove(st.pendingMove, 'human');
+  st.pendingMove = null;
+  el('answer-area').classList.add('hidden');
+  if (winner){ endGame(winner); return; }
+  st.turn = 'bot';
+  st.selectedTokenIdx = 0;
+  st.phase = 'idle';
+  render();
+  setTimeout(botTurn, 550);
+}
+
+function flashComputeMsg(text, isError){
+  const m = el('compute-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+/* ---------------- commit a move (shared by human + bot paths) ---------------- */
+function commitMove(move, symbol){
+  const applied = beelineApplyMove({ owner: st.owner, tokens: st.tokens }, move, symbol, valueFn, VALUE_TO_CELLS);
+  st.owner = applied.state.owner;
+  st.tokens = applied.state.tokens;
+  st.visitedTokenPairs.add(beelineTokensKey(st.tokens));
+  const value = applied.value;
+
+  const label = symbol === 'human' ? 'You' : 'Bot';
+  el('turn-status').textContent = applied.marked
+    ? `${label} marked ${formatValue(value)}!`
+    : `${label} moved to ${formatValue(value)} — already claimed, turn over.`;
+
+  return decideWinner(st.owner);
+}
+
+/* ---------------- bot's turn ---------------- */
+function botTurn(){
+  st.phase = 'bot-thinking';
+  el('turn-status').textContent = 'Bot is thinking…';
+  render();
+  setTimeout(()=>{
+    const move = botChooseRound({ owner: st.owner, tokens: st.tokens }, 'bot', st.difficulty, st.visitedTokenPairs);
+    const winner = commitMove(move, 'bot');
+    if (winner){ endGame(winner); return; }
+    st.turn = 'human';
+    st.phase = 'idle';
+    st.selectedTokenIdx = 0;
+    render();
+  }, 550);
+}
+
+/* ---------------- win-visual effects (typewriter banner + winning-line
+   reveal) — see CLAUDE.md "Celebration animations". ---------------- */
+function typewriterReveal(el, text){
+  el.classList.remove('flash');
+  if (prefersReducedMotion()){ el.textContent = text; return; }
+  el.textContent = '';
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length){
+      clearInterval(timer);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    }
+  }, 45);
+}
+function revealWinningLine(cells){
+  const nodes = document.querySelectorAll('#claim-grid .claim-cell');
+  if (prefersReducedMotion()){
+    cells.forEach(i => nodes[i].classList.add('win', 'settled'));
+    st.winRevealDone = true;
+    return;
+  }
+  cells.forEach((i, order) => {
+    setTimeout(() => {
+      nodes[i].classList.add('win');
+      if (order === cells.length - 1){
+        setTimeout(() => {
+          cells.forEach(j => nodes[j].classList.add('flash'));
+          setTimeout(() => {
+            cells.forEach(j => { nodes[j].classList.remove('flash'); nodes[j].classList.add('settled'); });
+            st.winRevealDone = true;
+          }, 400);
+        }, 150);
+      }
+    }, order * 180);
+  });
+}
+
+/* ---------------- end of game ---------------- */
+function endGame(winner){
+  st.phase = 'over';
+  st.gameOver = true;
+  st.winner = winner;
+  st.winningCells = winner === 'tie' ? null : beelineFindWinningLine(st.owner, winner);
+
+  let bannerText;
+  if (winner === 'tie'){
+    bannerText = 'The board filled up with no line — a tie!';
+    st.score.ties++;
+  } else if (winner === 'human'){
+    bannerText = 'BEELINE! You win!';
+    st.score.human++;
+  } else {
+    bannerText = 'BEELINE! Bot wins.';
+    st.score.bot++;
+  }
+  updateScorePills();
+  el('end-btn-row').classList.remove('hidden');
+  render();
+
+  typewriterReveal(el('winner-banner'), bannerText);
+  if (st.winningCells) revealWinningLine(st.winningCells);
+}
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen('settings');
+</script>
+</body>
+</html>

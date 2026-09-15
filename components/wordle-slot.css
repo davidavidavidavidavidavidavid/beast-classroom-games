@@ -1,0 +1,96 @@
+/* ==========================================================================
+   COMPONENT: wordle-slot
+   Shared by the Detective family (only one variant built so far: Fraction
+   Equivalence — see CLAUDE.md "Where things stand"). The digit input boxes
+   (.dbox) are conceptually close to Scuttle's .slot (components/dice-
+   slot.css) — a bordered, shadowed box with a big centered digit — but
+   genuinely need their own file rather than reusing dice-slot.css directly:
+   dice-slot.css is documented Scuttle-family-only, and the STATE MODEL here
+   is different in kind, not just in color — a 3-way Wordle feedback
+   (correct/wrong-pos/absent) shared between the digit boxes AND the
+   on-screen keyboard, plus a focus/caret state neither Scuttle nor any
+   other family needs. Same "one component file per engine family" pattern
+   as dice-slot.css/claim-grid.css/nim-track.css — written generically
+   enough (no fraction-specific naming) that a sibling Detective variant
+   (decimal equivalence, factor pairs, ...) can reuse it as-is, matching how
+   nim-track.css was written for the whole Nim family up front.
+   Requires design-system.css to be loaded first (uses its color/shadow
+   tokens) — no brand-new colors invented: correct/wrong-pos/absent/invalid
+   map onto the existing --color-correct/--color-warn/--color-text-tertiary/
+   --color-error tokens (this is that palette's first real use for
+   --color-warn).
+   ========================================================================== */
+
+/* ---------- digit input/history boxes ---------- */
+.frac { display: inline-flex; flex-direction: column; align-items: center; gap: 5px; }
+.num-group { display: flex; gap: 3px; }
+/* The fraction bar (vinculum) — real playtesting found it nearly
+   invisible: at the old 2px/no-offset, it sat right where a .dbox's own
+   hard drop-shadow (--shadow-sm, 3px 3px 0 var(--color-ink)) already
+   extends below the numerator boxes, so the bar and the shadow blended
+   into the same dark line. Thicker, nudged down clear of that shadow
+   zone (margin-top, plus .frac's own gap widened above), and extended a
+   few px past the digit boxes on each side (a fraction bar traditionally
+   overhangs its numerator/denominator slightly) — all three of the real
+   playtesting asks. */
+.fbar { height: 5px; border-radius: 2px; background: var(--color-ink); width: 100%; min-width: 34px; margin: 3px -5px 0; }
+.eq-sign { font-size: 22px; font-weight: 800; color: var(--color-text-tertiary); padding: 0 4px; align-self: center; }
+
+.dbox {
+  width: 38px; height: 44px; border: 2px solid var(--color-ink); border-radius: 4px;
+  box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-sans); font-size: 19px; font-weight: 800;
+  background: var(--color-background-primary); color: var(--color-text-primary);
+  position: relative;
+}
+.dbox.inp { cursor: pointer; }
+.dbox.inp.focused { border-color: var(--color-beast-blue); }
+.dbox.inp.filled { background: var(--color-beast-blue-bg); }
+
+/* Blinking caret — only in an empty, focused input box (never on a filled
+   one, never on a history/keyboard box). */
+.caret { display: none; width: 2px; height: 20px; background: var(--color-text-primary); border-radius: 1px; position: absolute; animation: caretBlink 1s step-end infinite; }
+.dbox.inp.focused:not(.filled) .caret { display: block; }
+@keyframes caretBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* Wordle feedback — shared verbatim between history .dbox cells and
+   #keyboard .kb-key cells, so a digit's best-known color always matches
+   wherever it's shown. */
+.dbox.correct, .kb-key.correct { background: var(--color-correct); border-color: var(--color-correct); color: #fff; }
+.dbox.wrong-pos, .kb-key.wrong-pos { background: var(--color-warn); border-color: var(--color-warn); color: #fff; }
+.dbox.absent, .kb-key.absent { background: var(--color-text-tertiary); border-color: var(--color-text-tertiary); color: #fff; }
+/* Not a Wordle color — a guess that wasn't even a valid equation (see
+   CLAUDE.md's Detective design note on the ephemeral invalid-guess row). */
+.dbox.inv { background: var(--color-error); border-color: var(--color-error); color: #fff; }
+
+/* ---------- on-screen keyboard (touch devices need this, not just a
+   physical keyboard) ----------
+   .kb-key used to be a FIXED 34px regardless of container width — a real,
+   found-not-caused bug (see CLAUDE.md's design note): 10 digit keys at
+   34px + 9x5px gaps need ~385px, wider than the input column ever gets on
+   a real narrow phone (~343px at 375px viewport), so the row silently
+   overflowed the card on both edges. Now flexible (flex:1 1 0, min-width:0)
+   so the row always fits whatever width it's actually given — shrinking
+   on narrow screens, growing up to `max-width` on wide ones, rather than
+   wrapping (CLAUDE.md "Layout stability"'s spirit extended here: keep this
+   one row on one line, not a second line eating extra vertical space) or
+   silently overflowing. */
+#keyboard { display: flex; flex-direction: column; gap: 6px; align-items: center; width: 100%; }
+.kb-row { display: flex; gap: 5px; justify-content: center; width: 100%; }
+.kb-key {
+  flex: 1 1 0; min-width: 0; max-width: 44px; height: 40px; border: 2px solid var(--color-ink); border-radius: 4px;
+  box-shadow: var(--shadow-sm); background: var(--color-background-primary); color: var(--color-text-primary);
+  font-family: var(--font-sans); font-weight: 800; font-size: 15px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none;
+}
+.kb-key:active { transform: translate(3px,3px); box-shadow: 0 0 0 var(--color-ink); }
+.kb-key.wide { max-width: 96px; font-size: 11.5px; }
+
+/* ---------- guess-progress dots (the current puzzle's 6 tries, and
+   endurance mode's 50-guess track) ---------- */
+.dot-track { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+.g-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-tertiary); flex-shrink: 0; }
+.g-dot.used { background: var(--color-text-tertiary); }
+.g-dot.danger { background: var(--color-error); }
+.g-dot.won { background: var(--color-correct); }
+.g-dot.lost { background: var(--color-error); }

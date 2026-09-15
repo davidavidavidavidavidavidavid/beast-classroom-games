@@ -35,6 +35,10 @@
   --shadow-card: 6px 6px 0 var(--color-ink);
   --shadow-btn: 4px 4px 0 var(--color-ink);
   --shadow-sm: 3px 3px 0 var(--color-ink);
+
+  /* Global nav bar height — referenced by both the bar itself and the
+     body's compensating top-padding below, so they can never drift apart. */
+  --nav-height: 44px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -60,9 +64,82 @@ body {
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  padding: 1rem;
+  /* Top padding reserves space for #global-nav (position:fixed, so it
+     doesn't naturally push content down on its own) — see CLAUDE.md
+     "Global navigation". Required on every page, hub included. */
+  padding: calc(var(--nav-height) + 1rem) 1rem 1rem;
 }
-#app { max-width: 600px; width: 100%; margin: auto; }
+/* Was 600px — real feedback: "make sizing more dynamic to fill a great
+   proportion of the window." `width:100%` (of body's content box, itself
+   centered via body's own `justify-content:center`) already means every
+   game uses the FULL available width up to this cap on any viewport
+   narrower than it — .card's own max-width has always just followed
+   #app's, so this single number is genuinely what was capping every
+   game's actual rendered width on a normal desktop window at a
+   comparatively small, dated-looking column. 860px is the new universal
+   floor; Beeline and Detective (the two games with a real side-by-side
+   internal layout, see "Side-by-side board/playing-space layout") widen
+   further still, in their own <style> blocks, since they have genuinely
+   more horizontal content to fill. */
+#app { max-width: 860px; width: 100%; margin: auto; }
+
+/* ---------- global navigation bar ----------
+   Injected by shared-game.js's renderGlobalNav() — see CLAUDE.md "Global
+   navigation" and that function's own header comment. Required on every
+   page; this is the ONLY styling for it (no per-game overrides). Sits
+   above a game's own top bar, never replaces it — a completely separate,
+   thinner strip fixed to the very top of the viewport. */
+#global-nav {
+  position: fixed; top: 0; left: 0; right: 0; height: var(--nav-height);
+  z-index: 40; /* below #boot-screen's z-index:100, so the boot overlay still covers it during the intro */
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 0 12px;
+  background: var(--color-background-primary);
+  border-bottom: var(--border-w) solid var(--color-ink);
+  font-family: var(--font-sans);
+}
+#global-nav-wordmark {
+  font-weight: 800; font-size: 14px; letter-spacing: 0.2px;
+  color: var(--color-text-primary); text-decoration: none; white-space: nowrap;
+}
+#global-nav-wordmark:focus-visible { outline: 2px solid var(--color-beast-blue); outline-offset: 2px; }
+#global-nav-games { position: relative; }
+#global-nav-toggle {
+  font-family: var(--font-sans); font-size: 13px; font-weight: 700;
+  background: none; border: none; box-shadow: none; color: var(--color-text-secondary);
+  padding: 6px 4px; text-transform: none; letter-spacing: normal; cursor: pointer;
+}
+#global-nav-toggle:active { transform: none; }
+#global-nav-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0;
+  display: flex; flex-direction: column; min-width: 190px;
+  background: var(--color-background-primary); border: 2px solid var(--color-ink); border-radius: 4px;
+  box-shadow: var(--shadow-sm); z-index: 41;
+  /* GLOBAL_GAMES lists every catalogued game, not just the built ones (see
+     CLAUDE.md "Global navigation") — comfortably too many rows to fit on
+     screen at once, so the LIST scrolls internally rather than growing the
+     dropdown (or the page) without bound. overflow-x hidden since this is
+     a single-column list, never wider than its own min-width. */
+  max-height: min(60vh, 420px); overflow-y: auto; overflow-x: hidden;
+}
+.global-nav-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; font-size: 13.5px; font-weight: 600; color: var(--color-text-primary);
+  text-decoration: none; border-bottom: 1px solid var(--color-border-tertiary);
+}
+.global-nav-item:last-child { border-bottom: none; }
+a.global-nav-item:hover, a.global-nav-item:focus-visible { background: var(--color-background-secondary); }
+.global-nav-item.current { background: var(--color-beast-blue-bg); }
+.global-nav-item.locked { color: var(--color-text-tertiary); cursor: default; }
+.global-nav-status {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+  color: var(--color-text-tertiary);
+}
+.global-nav-item.current .global-nav-status { color: var(--color-beast-blue); }
+#global-nav-current {
+  font-size: 12.5px; font-weight: 600; color: var(--color-text-tertiary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* ---------- card shell ---------- */
 .card {
@@ -122,6 +199,24 @@ button:focus-visible { outline: 2px solid var(--color-beast-blue); outline-offse
 button.primary { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
 button:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 button.chip.active { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+/* `.chip` as a real LINK — `renderVariantSwitcher()` (shared-game.js), a
+   settings-screen row that jumps to a SIBLING game variant's own file,
+   unlike a same-page difficulty chip which just changes state. The
+   existing chip look above comes from the bare `button` tag selector, so
+   an `<a>`/`<span>` never picks it up automatically — this block gives
+   the identical look to those two tags specifically, scoped narrowly so
+   it can't accidentally restyle an unrelated `<a>`/`<span>` elsewhere. */
+a.chip, span.chip.active {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-sans); font-weight: 800; letter-spacing: 0.3px;
+  text-transform: uppercase; text-decoration: none; cursor: pointer;
+  border: var(--border-w) solid var(--color-ink); border-radius: 4px;
+  background: var(--color-background-primary); color: var(--color-text-primary);
+  padding: 0.7rem 1.1rem; font-size: 17px; box-shadow: var(--shadow-btn);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+a.chip:active { transform: translate(4px,4px); box-shadow: 0 0 0 var(--color-ink); }
+span.chip.active { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); cursor: default; }
 button.small { font-size: 17px; padding: 0.35rem 0.6rem; text-transform: none; letter-spacing: 0; box-shadow: var(--shadow-sm); }
 button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 0 0 0 var(--color-ink); }
 
@@ -143,11 +238,111 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
 .stat-pill b { color: var(--color-text-primary); }
 #settings-btn { font-size: 14px; padding: 7px 11px; }
 
+/* A game's own target number, called out from the rest of the pills —
+   real playtesting found the old plain-tagline-sentence treatment ("Get
+   as close as you can to 500.") too subtle to plan around mid-round.
+   Lives in the same always-visible #top-bar as the score/round/difficulty
+   pills (CLAUDE.md "Global navigation"'s sibling bar for a game's OWN top
+   bar), so it's on screen through every phase of a round, not just the
+   settings screen. Shared here (not per-game) since Scuttle and Pop both
+   need the identical treatment — see CLAUDE.md's navigation/UX redesign
+   note. */
+.stat-pill.target-pill {
+  background: var(--color-background-primary);
+  border-color: var(--color-warn);
+  color: var(--color-warn);
+}
+.stat-pill.target-pill b { color: var(--color-warn); font-size: 18px; }
+
+/* ---------- menu cards (index.html's game grid, and each game family's
+   own sub-menu — scuttle-menu.html, pop-menu.html) ----------
+   Moved here from being scuttle-menu.html-only once a second file
+   (pop-menu.html) needed the exact same card look — see CLAUDE.md "File
+   structure & the point of it". `.variant-list` is a single flex column
+   (a game family's own variants); index.html's own `.game-grid` lays the
+   same `.variant-card`s out in a 2-column grid instead — see that file's
+   own small `<style>` block for the grid rule itself, since nothing else
+   needs a 2-column layout. */
+.variant-list { display: flex; flex-direction: column; gap: 14px; }
+
+.variant-card {
+  display: block; text-decoration: none; color: inherit;
+  background: var(--color-background-primary);
+  border: var(--border-w) solid var(--color-ink);
+  border-radius: 4px;
+  box-shadow: var(--shadow-card);
+  padding: 1rem 1.1rem;
+  position: relative;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.variant-card.active { cursor: pointer; }
+.variant-card.active:active { transform: translate(6px,6px); box-shadow: 0 0 0 var(--color-ink); }
+.variant-card.active:focus-visible { outline: 3px solid var(--color-beast-blue); outline-offset: 2px; }
+.variant-card.locked { opacity: 0.55; }
+
+.variant-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+.variant-name { font-size: 19px; font-weight: 800; }
+.variant-desc { font-size: 14.5px; color: var(--color-text-secondary); line-height: 1.4; }
+.variant-std { font-size: 12.5px; color: var(--color-text-tertiary); margin-top: 6px; font-weight: 600; }
+
+.badge {
+  flex-shrink: 0; font-size: 12px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase;
+  padding: 4px 9px; border-radius: 4px; border: 2px solid var(--color-ink); white-space: nowrap;
+}
+.badge.play { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); text-decoration: none; }
+.badge.soon { background: var(--color-background-secondary); color: var(--color-text-tertiary); }
+
+/* A multi-variant game's own card on index.html — the card itself is no
+   longer one big link (see shared-game.js's renderGameGrid): the "Play"
+   badge above is its own real link to the family's default variant, and
+   this is a player-triggered expand/collapse disclosure revealing the
+   OTHER variants, a one-off toggle just like the settings screen's "How
+   does this game work?" rules box — CLAUDE.md "Layout stability" category
+   2, plain `.hidden`/`fadeIn()`, not `.phase-hidden` (there's no
+   within-round content on this page to keep space reserved for). */
+.variant-expand-toggle {
+  background: none; border: none; padding: 6px 0 0; margin: 0;
+  font-family: var(--font-sans); font-weight: 700; font-size: 12.5px;
+  letter-spacing: 0.2px; color: var(--color-beast-blue); cursor: pointer;
+  text-align: left; text-transform: none; box-shadow: none;
+}
+.variant-expand-toggle:active { transform: none; }
+.variant-expand-toggle:hover { text-decoration: underline; }
+.variant-sublist { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 2px dashed var(--color-ink); }
+.variant-sublink { font-size: 13.5px; font-weight: 600; color: var(--color-text-primary); text-decoration: none; padding: 5px 4px; border-radius: 3px; }
+.variant-sublink:hover { background: var(--color-background-secondary); text-decoration: underline; }
+
+.menu-footer { text-align: center; font-size: 13px; color: var(--color-text-tertiary); margin-top: 1.8rem; }
+
 /* ---------- settings screen scaffolding ---------- */
 .section-label { font-family: var(--font-sans); font-weight: 700; font-size: 17px; letter-spacing: 0.6px; color: var(--color-text-secondary); margin-bottom: 6px; text-transform: uppercase; }
 .chip-row { display: flex; gap: 8px; margin: 4px 0 10px; flex-wrap: wrap; }
 .chip-row button { flex: 1; min-width: 70px; }
 .desc-line { font-family: var(--font-sans); font-size: 15.5px; color: var(--color-text-secondary); min-height: 32px; margin-bottom: 12px; line-height: 1.4; }
+/* Option-description stability: when a settings chip (format, difficulty,
+   ...) swaps in one of several DIFFERENT-LENGTH description strings, sizing
+   the box for "whichever one happens to be active" lets it grow/shrink as
+   the player clicks between chips — everything below jumps, the same
+   failure mode as "Layout stability" above, just for text instead of game
+   state. A hardcoded min-height guess is fragile — it silently stops being
+   tall enough the moment a description string is edited later, and this
+   project's descriptions vary wildly in length across games (two lines for
+   Product Scuttle's format blurbs, five-plus for Subtraction Pop's). Fix:
+   render every option's text at once, stacked in the same CSS Grid cell
+   (`grid-area: 1 / 1`, so they overlap instead of flowing), each
+   `visibility: hidden` except the active one — the row's `auto` track
+   height comes from the tallest option automatically, forever, with no
+   line-counting or re-checking after an edit. Use this instead of plain
+   `.desc-line` + `textContent` for any chip-driven description; `.desc-line`
+   itself stays for genuinely static, single-string text (e.g. a fixed hint
+   line) where there's nothing to grow into. See CLAUDE.md "Layout
+   stability". */
+.desc-line-stack { display: grid; margin-bottom: 12px; }
+.desc-line-stack .desc-line-option {
+  grid-area: 1 / 1; font-family: var(--font-sans); font-size: 15.5px;
+  color: var(--color-text-secondary); line-height: 1.4; visibility: hidden;
+}
+.desc-line-stack .desc-line-option.active { visibility: visible; }
 .target-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .target-row input {
   width: 95px; font-size: 19px; font-family: var(--font-sans); font-weight: 700; text-align: center;
@@ -161,10 +356,43 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 #how-link { display: block; text-align: center; font-family: var(--font-sans); text-transform: none; letter-spacing: normal; font-weight: 500; font-size: 15px; color: var(--color-text-tertiary); margin-top: 10px; background: none; border: none; box-shadow: none; text-decoration: underline; padding: 4px; }
 #how-link:active { transform: none; }
 
+/* ---------- avatars ----------
+   Additive identity layer on top of the blue=you/red=bot color coding —
+   see CLAUDE.md "Avatars". The color coding stays the primary signal
+   everywhere an avatar appears: every badge and the picker's selected
+   frame carry the matching brand color as a border, never a substitute
+   for it. Picker (settings screen) uses the larger .avatar-slot tiles;
+   .avatar-badge is the small inline thumbnail reused in the top bar and
+   the scoreboard header. */
+.avatar-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 10px; }
+.avatar-col { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.avatar-slot {
+  width: 52px; height: 52px; border: 3px solid var(--color-ink); border-radius: 6px;
+  box-shadow: var(--shadow-sm); overflow: hidden; cursor: pointer; position: relative;
+  background: var(--color-background-secondary);
+}
+.avatar-slot img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+.avatar-slot.selected { border-color: var(--color-beast-blue); box-shadow: 3px 3px 0 var(--color-beast-blue); }
+.avatar-slot.selected::after {
+  content: "\2713"; position: absolute; top: -3px; right: -3px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--color-beast-blue); color: #fff; font-size: 10px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; border: 2px solid var(--color-background-primary);
+}
+.avatar-name { font-family: var(--font-sans); font-size: 10.5px; font-weight: 700; color: var(--color-text-secondary); text-transform: uppercase; }
+.avatar-badge {
+  width: 20px; height: 20px; border-radius: 4px; border: 2px solid var(--color-ink);
+  object-fit: cover; image-rendering: pixelated; vertical-align: middle; margin-right: 4px;
+  display: inline-block;
+}
+.avatar-badge.you { border-color: var(--color-beast-blue); }
+.avatar-badge.bot { border-color: var(--color-beast-red); }
+
 /* ---------- persistent scoreboard ---------- */
 #scorecard { padding: 0.9rem 1rem; }
 .sc-head, .sc-row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; }
 .sc-head { font-family: var(--font-sans); font-size: 14px; font-weight: 700; letter-spacing: 0.4px; color: var(--color-text-tertiary); text-transform: uppercase; margin-bottom: 4px; }
+.sc-head .you-h, .sc-head .bot-h { display: inline-flex; align-items: center; }
+.sc-head .avatar-badge { width: 16px; height: 16px; margin-right: 3px; }
 .sc-head .you-h { color: var(--color-beast-blue); }
 .sc-head .bot-h { color: var(--color-beast-red); }
 .sc-row { padding: 4px 0; border-top: 1px solid var(--color-border-tertiary); }
@@ -184,11 +412,25 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 .feedback-msg.error { color: var(--color-error); }
 .feedback-msg.success { color: var(--color-correct); }
 
-/* ---------- equation builder (reorderable number tiles + operators) ---------- */
+/* ---------- equation builder (drag-to-swap number tiles + operators) ----------
+   See CLAUDE.md "Drag interactions" / design/mockups/drag-interactions-
+   mockup.html. .eq-num.draggable is the number tile itself — the grab
+   handle IS the tile, there's no separate button. .dragging (toggled by
+   shared-game.js's makeDraggable()) is the live-drag state; .drop-target
+   goes on the OTHER .eq-tile currently under the pointer. The tile you're
+   not dragging animates into its new spot via FLIP (shared-game.js
+   flipBefore()/flipAfter()), not this file — nothing here handles that
+   motion directly. */
 .eq-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .equation-row { display: flex; align-items: flex-start; justify-content: center; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
 .eq-num { font-family: var(--font-sans); font-size: 26px; font-weight: 800; padding-top: 8px; }
-.reorder-btns { display: flex; gap: 3px; }
+.eq-num.draggable {
+  cursor: grab; border: 2px solid var(--color-ink); border-radius: 4px; background: var(--color-background-primary);
+  box-shadow: var(--shadow-sm); padding: 6px 12px; position: relative; user-select: none;
+}
+.eq-num.draggable.dragging { cursor: grabbing; box-shadow: var(--shadow-btn); z-index: 3; }
+.eq-tile.drop-target .eq-num.draggable { border-color: var(--color-beast-blue); background: var(--color-beast-blue-bg); }
+.eq-num.draggable.locked { cursor: default; opacity: 0.7; }
 .op-btn {
   width: 40px; height: 40px; font-family: var(--font-sans); font-weight: 800; font-size: 18px;
   display: flex; align-items: center; justify-content: center; padding: 0; margin-top: 8px;
@@ -230,8 +472,32 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 .result-status.safe { color: var(--color-correct); }
 .result-status.busted { color: var(--color-error); }
 #winner-banner { font-family: var(--font-sans); font-weight: 800; text-align: center; font-size: 19px; line-height: 1.5; margin: 16px 0 6px; color: var(--color-text-primary); }
+/* Win banner reveal: typewriter text (see each game's typewriterReveal()),
+   then this ONE single brightness flash, then rest static — never loops.
+   See CLAUDE.md "Celebration animations" and design/mockups/win-visuals-
+   mockup.html. Plain filter animation, not a color change, so it composes
+   with whatever text color a given game already sets. */
+#winner-banner.flash { animation: singleFlash 0.35s ease-in-out 1; }
+@keyframes singleFlash { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.9); } }
+@media (prefers-reduced-motion: reduce) { #winner-banner.flash { animation: none; } }
 
 /* ---------- utility ---------- */
 .hidden { display: none !important; }
+/* Within-round/within-phase content (dice row, slot row, answer-check row,
+   hint line, arrangement frames, ...) must never leave the layout while its
+   screen is already visible — removing it via .hidden is what makes the
+   round card's height snap at every phase change and everything below it
+   jump. Use .phase-hidden for any element that toggles based on progress
+   *within* an already-visible screen; its layout space stays reserved even
+   while invisible. Reserve .hidden itself for swapping between entire
+   top-level screens (settings/round/compute/reveal) and one-off user-
+   triggered disclosures (e.g. the rules box) — see CLAUDE.md
+   "Layout stability" for the full rule and how to fade a screen swap in. */
+.phase-hidden { visibility: hidden; }
+/* Replayed (remove/reflow/add, same trick as .shake above) on a screen or
+   the scorecard right after it loses .hidden, so a top-level screen swap
+   fades in instead of popping. Never use this in place of .phase-hidden. */
+.fade-in { animation: fadeIn 0.18s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .center { text-align: center; }
 .btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }

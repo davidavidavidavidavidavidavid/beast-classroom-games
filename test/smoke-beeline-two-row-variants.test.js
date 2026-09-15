@@ -1,0 +1,181 @@
+/*
+ * Lighter jsdom smoke test covering beeline-addition.html,
+ * beeline-decimal.html, beeline-rounding.html, and
+ * beeline-equivalent-fraction.html together.
+ *
+ * Deliberately NOT as deep as smoke-beeline-difference.html's or
+ * smoke-beeline-product.html's own smoke tests (no drag probe, no full
+ * playthrough to a win) — those two already thoroughly exercise the
+ * SHARED engine these four variants also use verbatim (drag mechanics,
+ * the wasted-turn rule, a full win via Hard-quality scripted play), and
+ * test/beeline-two-row-bot-simulation.js already verifies the shared
+ * engine's tier-ordering and anti-stalemate guarantee holds for each of
+ * these four variants' own row ranges specifically. What's actually left
+ * to verify per file — and genuinely NOT shared code — is each variant's
+ * own value function, row-index wiring, and answer-parsing; that's what
+ * this test checks: a real setup move computes the right claimed value
+ * and is accepted by the real Check flow, a second real move computes a
+ * DIFFERENT correct value, and the anti-stalemate rule (already proven
+ * correct in the abstract) is actually wired up to reject a real attempt
+ * to reverse that second move back to the first, via real clicks on the
+ * real handlers.
+ */
+
+'use strict';
+
+const assert = require('assert');
+const { loadGame, runInPage, snapshotAvatarState } = require('./jsdom-helpers');
+
+const VARIANTS = [
+  {
+    file: 'beeline-addition.html',
+    rowA: [1, 9], rowB: [1, 9],
+    setup: [3, 4], move: [5], // move row A (idx 0) to 5
+    claimedValue: (t) => t[0] + t[1],
+    answerFor: (t) => String(t[0] + t[1]),
+  },
+  {
+    file: 'beeline-decimal.html',
+    rowA: [1, 6], rowB: [1, 6],
+    setup: [3, 4], move: [5],
+    claimedValue: (t) => t[0] * 10 + t[1],
+    answerFor: (t) => '0.' + String(t[0] * 10 + t[1]).padStart(2, '0'),
+  },
+  {
+    file: 'beeline-rounding.html',
+    rowA: [1, 9], rowB: [0, 9],
+    setup: [3, 7], move: null, moveRow: 1, movePos: 2, // move row B (idx 1) to 2
+    claimedValue: (t) => Math.round((t[0] * 10 + t[1]) / 10) * 10,
+    answerFor: (t) => String(Math.round((t[0] * 10 + t[1]) / 10) * 10),
+  },
+  {
+    file: 'beeline-equivalent-fraction.html',
+    rowA: [1, 7], rowB: [1, 7],
+    setup: [6, 4], move: [3], // move row A (idx 0) to 3
+    claimedValue: (t) => { const g = gcd(t[0], t[1]); return (t[0]/g) + '/' + (t[1]/g); },
+    answerFor: (t) => String(gcd(t[0], t[1])), // the GCF, not the claimed fraction — see the file's own design note
+  },
+];
+
+function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }
+
+function idxFor(pos, range) { return pos - range[0]; }
+
+let failures = 0;
+function check(label, pass, detail) {
+  if (!pass) failures++;
+  console.log(`  ${pass ? '✅' : '❌'} ${label}${pass || !detail ? '' : ` — ${detail}`}`);
+}
+
+VARIANTS.forEach(v => {
+  const dom = loadGame(v.file);
+
+  // Avatars (see CLAUDE.md "Avatars"): defaults should already agree with
+  // st.avatar/st.difficulty before anything is touched — checked per file
+  // in this loop, since a wiring bug could be per-file even though the
+  // underlying avatar-picker/badge code is duplicated identically across
+  // all 6 Beeline files. No persistent #scorecard on any of these (unlike
+  // Scuttle), so scYouBadge/scBotBadge should come back null.
+  const avatarDefaults = snapshotAvatarState(dom);
+  check(`${v.file}: avatar picker defaults to st.avatar`, avatarDefaults.pickerSelected === avatarDefaults.avatar, JSON.stringify(avatarDefaults));
+  check(`${v.file}: top-bar "you" badge matches st.avatar`, avatarDefaults.youBadge === `avatars/${avatarDefaults.avatar}.png`, JSON.stringify(avatarDefaults));
+  check(`${v.file}: top-bar bot badge matches the difficulty-mapped bot avatar`, avatarDefaults.botBadge === `avatars/bot-${avatarDefaults.difficulty}.png`, JSON.stringify(avatarDefaults));
+  check(`${v.file}: no persistent #scorecard, so scoreboard-header badges are null`, avatarDefaults.scYouBadge === null && avatarDefaults.scBotBadge === null, JSON.stringify(avatarDefaults));
+
+  // Full click-interaction independence check — only once, on the first
+  // variant, matching this file's own "don't over-repeat what's already
+  // proven shared code" philosophy (see this file's header comment): the
+  // avatar-picker/badge wiring is byte-identical duplicated code across all
+  // 6 Beeline files, so proving the interaction once here is enough on top
+  // of the per-file default-state check above.
+  if (v === VARIANTS[0]) {
+    runInPage(dom, () => {
+      document.querySelector('#avatar-row [data-avatar="cammy"]').click();
+      document.querySelector('#diff-row [data-diff="hard"]').click();
+    });
+    const afterPick = snapshotAvatarState(dom);
+    check(`${v.file}: clicking an avatar slot updates st.avatar and only the "you" badge`, afterPick.avatar === 'cammy' && afterPick.pickerSelected === 'cammy' && afterPick.youBadge === 'avatars/cammy.png', JSON.stringify(afterPick));
+    check(`${v.file}: clicking a difficulty chip updates only the bot badge, independent of the avatar pick`, afterPick.botBadge === 'avatars/bot-hard.png', JSON.stringify(afterPick));
+  }
+
+  runInPage(dom, () => {
+    document.querySelector('#diff-row [data-diff="easy"]').click();
+    el('start-btn').click();
+  });
+
+  // --- Setup move: place both tokens, confirm the claimed value is right ---
+  const [a1, b1] = v.setup;
+  const setupResult = runInPage(dom, (aIdx, bIdx) => {
+    document.querySelectorAll('#operand-row-a .op-num')[aIdx].click();
+    document.querySelectorAll('#operand-row-b .op-num')[bIdx].click();
+    const claimed = computePendingValue();
+    return { equationText: el('equation-line').textContent, claimed };
+  }, idxFor(a1, v.rowA), idxFor(b1, v.rowB));
+
+  check(`${v.file}: setup(${a1},${b1}) computes the right claimed value`, setupResult.claimed === v.claimedValue([a1, b1]), JSON.stringify(setupResult));
+
+  const answer1 = v.answerFor([a1, b1]);
+  const afterCheck1 = runInPage(dom, (ans) => {
+    el('answer-input').value = ans;
+    el('check-btn').click();
+    return { msg: el('compute-msg').textContent, tokens: st.tokens.slice(), turn: st.turn };
+  }, answer1);
+  check(`${v.file}: correct setup answer (${answer1}) is accepted`, afterCheck1.msg === 'That checks out!', JSON.stringify(afterCheck1));
+  check(`${v.file}: st.tokens committed to [${a1},${b1}]`, JSON.stringify(afterCheck1.tokens) === JSON.stringify([a1, b1]));
+  check(`${v.file}: turn passes to the bot after a correct human move`, afterCheck1.turn === 'bot');
+
+  // Reset back to a clean human-turn state directly (avoids depending on
+  // the bot's own ~550ms delayed move) — same reasoning as every other
+  // game's "direct state poke" pattern for isolating one probe from the
+  // next (see e.g. CLAUDE.md's Nim smoke test notes).
+  runInPage(dom, () => {
+    st.turn = 'human';
+    st.phase = 'idle';
+    st.selectedTokenIdx = 0;
+    render();
+  });
+
+  // --- Second real move: whichever row this variant's own config names,
+  // to a genuinely new value — confirm it computes correctly too. ---
+  const moveRow = v.move ? 0 : v.moveRow;
+  const movePos = v.move ? v.move[0] : v.movePos;
+  const tokensAfterMove = moveRow === 0 ? [movePos, b1] : [a1, movePos];
+  const moveResult = runInPage(dom, (rowSel, idx) => {
+    document.querySelectorAll(rowSel + ' .op-num')[idx].click();
+    return { claimed: computePendingValue(), pendingMove: st.pendingMove };
+  }, moveRow === 0 ? '#operand-row-a' : '#operand-row-b', idxFor(movePos, moveRow === 0 ? v.rowA : v.rowB));
+  check(`${v.file}: second move to row ${moveRow} = ${movePos} computes the right claimed value`, moveResult.claimed === v.claimedValue(tokensAfterMove), JSON.stringify(moveResult));
+  assert.deepStrictEqual(moveResult.pendingMove, { type: 'move', idx: moveRow, pos: movePos });
+
+  const answer2 = v.answerFor(tokensAfterMove);
+  const afterCheck2 = runInPage(dom, (ans) => {
+    el('answer-input').value = ans;
+    el('check-btn').click();
+    return { msg: el('compute-msg').textContent, tokens: st.tokens.slice() };
+  }, answer2);
+  check(`${v.file}: correct second-move answer (${answer2}) is accepted`, afterCheck2.msg === 'That checks out!', JSON.stringify(afterCheck2));
+  check(`${v.file}: st.tokens committed to [${tokensAfterMove}]`, JSON.stringify(afterCheck2.tokens) === JSON.stringify(tokensAfterMove));
+
+  // --- Anti-stalemate rule (real playtesting bug report — see CLAUDE.md's
+  // design note): attempting to move the SAME row right back to its
+  // previous value (recreating [a1,b1]) must be rejected. ---
+  runInPage(dom, () => {
+    st.turn = 'human';
+    st.phase = 'idle';
+    st.selectedTokenIdx = 0;
+    render();
+  });
+  const reversalAttempt = runInPage(dom, (rowSel, idx) => {
+    const before = st.tokens.slice();
+    document.querySelectorAll(rowSel + ' .op-num')[idx].click();
+    return { tokensUnchanged: JSON.stringify(st.tokens) === JSON.stringify(before), pendingStillNull: st.pendingMove === null, turnStatus: el('turn-status').textContent };
+  }, moveRow === 0 ? '#operand-row-a' : '#operand-row-b', idxFor(moveRow === 0 ? a1 : b1, moveRow === 0 ? v.rowA : v.rowB));
+  check(`${v.file}: anti-stalemate rule rejects reversing back to [${a1},${b1}]`, reversalAttempt.tokensUnchanged && reversalAttempt.pendingStillNull && /repeat/i.test(reversalAttempt.turnStatus), JSON.stringify(reversalAttempt));
+});
+
+if (failures > 0) {
+  console.error(`\n  ${failures} case(s) FAILED`);
+  process.exitCode = 1;
+} else {
+  console.log('\n  all two-row Beeline variant smoke checks passed (Addition, Decimal, Rounding, Equivalent Fraction)');
+}

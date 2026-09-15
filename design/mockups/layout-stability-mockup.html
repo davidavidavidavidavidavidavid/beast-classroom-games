@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layout stability mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --color-beast-red: #cd2027; --color-beast-blue: #125392;
+    --color-background-primary: #ffffff; --color-background-secondary: #eef3f8;
+    --color-text-primary: #202020; --color-text-secondary: #5a6470; --color-text-tertiary: #8b96a1;
+    --color-correct: #2f8f4e; --color-ink: var(--color-text-primary); --border-w: 4px;
+    --font-sans: 'Rubik', system-ui, sans-serif; --font-pixel: 'Press Start 2P', var(--font-sans);
+    --shadow-card: 6px 6px 0 var(--color-ink); --shadow-btn: 4px 4px 0 var(--color-ink); --shadow-sm: 3px 3px 0 var(--color-ink);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); background: var(--color-background-secondary); color: var(--color-text-primary);
+    min-height: 100vh; display: flex; justify-content: center; padding: 1rem; }
+  #app { max-width: 480px; width: 100%; margin: auto; }
+  h1 { font-family: var(--font-pixel); font-size: 20px; text-align: center; color: var(--color-beast-red); margin-bottom: 6px; }
+  .kicker-wrap { display: flex; justify-content: center; margin-bottom: 14px; }
+  .kicker { display: inline-block; background: var(--color-background-primary); border: 2px solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-sm); padding: 5px 14px; font-weight: 800; font-size: 13px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--color-beast-blue); }
+
+  .mode-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+  .mode-toggle button { flex: 1; font-family: var(--font-sans); font-weight: 800; text-transform: uppercase; cursor: pointer;
+    border: var(--border-w) solid var(--color-ink); border-radius: 4px; background: var(--color-background-primary); color: var(--color-text-primary);
+    padding: 0.6rem; font-size: 13px; box-shadow: var(--shadow-btn); }
+  .mode-toggle button.active { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+
+  .demo-card {
+    background: var(--color-background-primary); border: var(--border-w) solid var(--color-ink); border-radius: 4px;
+    box-shadow: var(--shadow-card); padding: 1.3rem 1.1rem; margin-bottom: 14px;
+    transition: none;
+  }
+  .demo-card.animated { transition: min-height 0.28s ease; }
+
+  .round-label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--color-text-secondary); text-align: center; margin-bottom: 12px; }
+
+  button.action { font-family: var(--font-sans); font-weight: 800; text-transform: uppercase; cursor: pointer;
+    border: var(--border-w) solid var(--color-ink); border-radius: 4px; background: var(--color-beast-blue); color: #fff;
+    padding: 0.65rem 1rem; font-size: 14px; box-shadow: var(--shadow-btn); width: 100%; }
+  button.action:active { transform: translate(4px,4px); box-shadow: 0 0 0 var(--color-ink); }
+
+  .dice-row { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; }
+  .die { width: 46px; height: 46px; border: 2px solid var(--color-ink); border-radius: 6px; background: var(--color-beast-blue);
+    color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; }
+
+  .slot-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }
+  .slot { width: 46px; height: 52px; border: 2px solid var(--color-ink); border-radius: 4px; background: var(--color-background-secondary);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; cursor: pointer; }
+  .slot.filled { background: var(--color-beast-blue); color: #fff; }
+
+  .check-row { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .check-row input { width: 90px; font-size: 18px; text-align: center; font-family: var(--font-sans); font-weight: 800;
+    padding: 6px; border: 2px solid var(--color-ink); border-radius: 4px; }
+  .msg { text-align: center; font-weight: 700; color: var(--color-correct); min-height: 20px; }
+
+  .note { font-size: 12.5px; color: var(--color-text-tertiary); text-align: center; }
+  .height-tag { position: absolute; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>SCUTTLE</h1>
+  <div class="kicker-wrap"><span class="kicker">Layout stability · mockup</span></div>
+
+  <div class="mode-toggle">
+    <button id="mode-unstable" class="active">Current (unstable)</button>
+    <button id="mode-stable">Fixed (stable)</button>
+  </div>
+
+  <div class="demo-card" id="demo-card">
+    <div class="round-label">Round 1 of 3</div>
+    <div id="stage-content"></div>
+    <button class="action" id="step-btn">Roll dice</button>
+  </div>
+
+  <div class="note" id="mode-note"></div>
+</div>
+
+<script>
+  let mode = 'unstable'; // or 'stable'
+  let step = 0; // 0=before roll, 1=dice+slots shown, 2=filled+check shown, 3=correct
+  const stage = document.getElementById('stage-content');
+  const btn = document.getElementById('step-btn');
+  const card = document.getElementById('demo-card');
+  const note = document.getElementById('mode-note');
+
+  function renderUnstable(){
+    // classic bug: only the CURRENT step's markup exists in the DOM at all,
+    // so the card's height is literally just whatever this step needs.
+    if (step === 0){
+      stage.innerHTML = '';
+    } else if (step === 1){
+      stage.innerHTML = `
+        <div class="dice-row"><div class="die">4</div><div class="die">7</div><div class="die">2</div></div>
+        <div class="slot-row"><div class="slot"></div><div class="slot"></div><div class="slot"></div></div>`;
+    } else if (step === 2){
+      stage.innerHTML = `
+        <div class="dice-row"><div class="die" style="opacity:.3">4</div><div class="die" style="opacity:.3">7</div><div class="die" style="opacity:.3">2</div></div>
+        <div class="slot-row"><div class="slot filled">4</div><div class="slot filled">7</div><div class="slot filled">2</div></div>
+        <div class="check-row"><label>Total:</label><input type="number" placeholder="?"></div>`;
+    } else if (step === 3){
+      stage.innerHTML = `<div class="msg">That checks out! \u2713</div>`;
+    }
+  }
+
+  function renderStable(){
+    // fix: every phase's markup ALWAYS exists in the DOM, reserved space via
+    // a fixed-height wrapper; phases that aren't active yet are just visually
+    // faded/hidden with visibility, not removed from layout.
+    stage.innerHTML = `
+      <div class="dice-row" style="visibility:${step>=1?'visible':'hidden'}">
+        <div class="die" style="opacity:${step>=2?0.3:1}">4</div><div class="die" style="opacity:${step>=2?0.3:1}">7</div><div class="die" style="opacity:${step>=2?0.3:1}">2</div>
+      </div>
+      <div class="slot-row" style="visibility:${step>=1?'visible':'hidden'}">
+        <div class="slot${step>=2?' filled':''}">${step>=2?'4':''}</div>
+        <div class="slot${step>=2?' filled':''}">${step>=2?'7':''}</div>
+        <div class="slot${step>=2?' filled':''}">${step>=2?'2':''}</div>
+      </div>
+      <div class="check-row" style="visibility:${step>=2 && step<3?'visible':'hidden'}">
+        <label>Total:</label><input type="number" placeholder="?">
+      </div>
+      <div class="msg" style="visibility:${step>=3?'visible':'hidden'}">That checks out! \u2713</div>
+    `;
+  }
+
+  const BTN_LABELS = ['Roll dice', 'Arrange the dice above', 'Check answer', 'Next round \u2192'];
+
+  function render(){
+    card.classList.toggle('animated', mode === 'stable');
+    if (mode === 'unstable') renderUnstable(); else renderStable();
+    btn.textContent = BTN_LABELS[step];
+  }
+
+  btn.addEventListener('click', () => {
+    step = (step + 1) % 4;
+    render();
+  });
+
+  document.getElementById('mode-unstable').addEventListener('click', () => {
+    mode = 'unstable'; step = 0;
+    document.getElementById('mode-unstable').classList.add('active');
+    document.getElementById('mode-stable').classList.remove('active');
+    note.textContent = 'Notice the card snaps to a new height at every step — nothing below it stays put.';
+    render();
+  });
+  document.getElementById('mode-stable').addEventListener('click', () => {
+    mode = 'stable'; step = 0;
+    document.getElementById('mode-stable').classList.add('active');
+    document.getElementById('mode-unstable').classList.remove('active');
+    note.textContent = 'Same content, same steps — but the space is always reserved, so nothing jumps.';
+    render();
+  });
+
+  note.textContent = 'Notice the card snaps to a new height at every step — nothing below it stays put.';
+  render();
+</script>
+</body>
+</html>

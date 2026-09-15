@@ -63,6 +63,18 @@ function loadPage(htmlFileName) {
     setTimeout() { return 0; },
   };
   vm.createContext(sandbox);
+
+  // Run any local <script src="....js"></script> (e.g. shared-game.js —
+  // see CLAUDE.md "File structure & the point of it") into the SAME
+  // context first, in document order, same as jsdom-helpers.js's loadGame()
+  // does for the jsdom smoke tests — the inline script below now calls
+  // shared functions (showScreen, etc.) at its own top level, so this
+  // isn't optional for pages that link one.
+  for (const m of html.matchAll(/<script src="([^"]+\.js)"><\/script>/g)) {
+    const sharedCode = fs.readFileSync(path.join(__dirname, '..', m[1]), 'utf8');
+    vm.runInContext(sharedCode, sandbox, { filename: m[1] });
+  }
+
   vm.runInContext(code, sandbox, { filename: htmlFileName });
   return sandbox; // function declarations (decideWinner, etc.) attach here
 }

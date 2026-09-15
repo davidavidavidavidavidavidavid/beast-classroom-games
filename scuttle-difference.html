@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scuttle: Difference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/dice-slot.css">
+<style>
+  /* ---- Difference-specific: the two-number-frame layout, identical shape
+     to Product Scuttle's own .product-frames (same split-a-shared-roll-
+     into-two-numbers mechanic) — just a minus sign between the frames
+     instead of a times sign. ---- */
+  .product-frames { display: flex; align-items: flex-end; justify-content: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .num-frame { text-align: center; }
+  .frame-label { font-size: 13px; font-weight: 700; letter-spacing: 0.3px; color: var(--color-text-tertiary); text-transform: uppercase; margin-bottom: 6px; }
+  .frame-slots { display: flex; gap: 6px; }
+  .minus-sign { font-size: 30px; font-weight: 800; padding-bottom: 12px; color: var(--color-text-secondary); }
+  .slot { width: 46px; height: 54px; font-size: 24px; cursor: default; }
+  .slot.filled { cursor: pointer; }
+  .answer-input { width: 150px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>SCUTTLE</h1>
+  <div class="kicker-wrap"><span class="kicker">Difference</span></div>
+  <div id="tagline" class="tagline">Score the smallest sum over <b id="target-tag">100</b> — or the biggest sum if nobody clears it.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill target-pill">Min <b id="s-target">100</b></div>
+      <div class="stat-pill">Round <b id="s-round">1</b>/3</div>
+      <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+    </div>
+    <button id="settings-btn">Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
+    <div class="section-label">Format</div>
+    <div class="chip-row" id="format-row">
+      <button class="chip" data-format="2digit">2-digit</button>
+      <button class="chip" data-format="3digit">3-digit</button>
+    </div>
+    <div class="desc-line-stack" id="format-desc"></div>
+
+    <div class="section-label">Bot difficulty</div>
+    <div class="chip-row" id="diff-row">
+      <button class="chip" data-diff="easy">Easy</button>
+      <button class="chip" data-diff="medium">Medium</button>
+      <button class="chip" data-diff="hard">Hard</button>
+    </div>
+
+    <div class="section-label">Minimum sum</div>
+    <div class="target-row">
+      <input type="number" id="target-input" value="100" min="0" inputmode="numeric"/>
+      <label class="small">smallest sum over this number wins</label>
+    </div>
+    <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
+    <button id="how-link">How does this game work?</button>
+    <div id="rules-box" class="hidden" style="margin-top:8px;">
+      Each round, roll the dice and split the digits into <strong>two numbers</strong> — you choose which digits go
+      where, and in what order. (No number can start with a 0 unless every digit you rolled is a 0.) Subtract the
+      smaller number from the larger — that's your score for the round. After three rounds, add your three
+      round-scores together. Whoever has the <strong>smallest total that's still over the minimum</strong> wins. If
+      nobody clears the minimum, the <strong>biggest</strong> total wins instead. Exact ties are friendly — you both
+      win! The bot always calculates correctly, but how well it splits and arranges its digits changes with difficulty.
+    </div>
+  </div>
+
+  <!-- PERSISTENT SCOREBOARD -->
+  <div class="card hidden" id="scorecard">
+    <div class="sc-head"><span></span><span class="you-h"><img class="avatar-badge you" id="sc-you-badge" src="" alt="">You</span><span class="bot-h"><img class="avatar-badge bot" id="sc-bot-badge" src="" alt="">Bot</span></div>
+    <div class="sc-row"><span class="rd-label">Round 1</span><span class="sc-val you empty" id="sc-you-1">–</span><span class="sc-val bot empty" id="sc-bot-1">–</span></div>
+    <div class="sc-row"><span class="rd-label">Round 2</span><span class="sc-val you empty" id="sc-you-2">–</span><span class="sc-val bot empty" id="sc-bot-2">–</span></div>
+    <div class="sc-row"><span class="rd-label">Round 3</span><span class="sc-val you empty" id="sc-you-3">–</span><span class="sc-val bot empty" id="sc-bot-3">–</span></div>
+  </div>
+
+  <!-- ROUND SCREEN -->
+  <div class="card hidden" id="screen-round">
+    <div id="round-label">Round <span id="r-num">1</span> of 3</div>
+
+    <div id="roll-btn-wrap">
+      <button class="primary" id="roll-btn">Roll dice</button>
+    </div>
+
+    <div id="dice-row" class="phase-hidden"></div>
+
+    <div id="frames-wrap" class="phase-hidden">
+      <div class="product-frames">
+        <div class="num-frame">
+          <div class="frame-label">Number 1</div>
+          <div class="frame-slots" id="slots-n1"></div>
+        </div>
+        <div class="minus-sign">−</div>
+        <div class="num-frame">
+          <div class="frame-label">Number 2</div>
+          <div class="frame-slots" id="slots-n2"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="msg" class="feedback-msg"></div>
+
+    <div id="diff-check-wrap" class="phase-hidden">
+      <div class="equation-line" id="diff-equation"></div>
+      <div class="answer-row">
+        <label for="diff-answer-input">Difference:</label>
+        <input type="number" class="answer-input" id="diff-answer-input" inputmode="numeric" placeholder="?"/>
+        <button class="primary" id="diff-check-btn">Check</button>
+      </div>
+      <div class="hint-line" id="diff-hint-line"></div>
+      <div class="feedback-msg" id="diff-msg"></div>
+    </div>
+
+    <div class="center phase-hidden" id="next-round-wrap" style="margin-top:12px;">
+      <button class="primary" id="next-round-btn">Next round →</button>
+    </div>
+  </div>
+
+  <!-- SUM SCREEN -->
+  <div class="card hidden" id="screen-sum">
+    <div class="section-label" style="text-align:center;">Add up your three round scores</div>
+    <div class="equation-line" id="sum-equation"></div>
+    <div class="answer-row">
+      <label for="sum-answer-input">Total:</label>
+      <input type="number" class="answer-input" id="sum-answer-input" inputmode="numeric" placeholder="?"/>
+      <button class="primary" id="sum-check-btn">Check</button>
+    </div>
+    <div class="hint-line" id="sum-hint-line"></div>
+    <div class="feedback-msg" id="sum-msg"></div>
+    <div class="center phase-hidden" id="sum-reveal-wrap" style="margin-top:12px;">
+      <button class="primary" id="sum-reveal-btn">Reveal results →</button>
+    </div>
+  </div>
+
+  <!-- REVEAL SCREEN -->
+  <div class="card hidden" id="screen-reveal">
+    <div class="compare-grid">
+      <div class="side human">
+        <h3>You</h3>
+        <div class="result-total" id="human-total"></div>
+        <div class="result-status" id="human-status"></div>
+      </div>
+      <div class="side bot">
+        <h3>Bot</h3>
+        <div class="result-total" id="bot-total"></div>
+        <div class="result-status" id="bot-status"></div>
+      </div>
+    </div>
+    <div id="winner-banner"></div>
+    <div class="btn-row">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+/* ---------------- core helpers ----------------
+   rollDie/rollN/randInt/permutations/combinations/buildNumber all live in
+   shared-game.js now — see CLAUDE.md "File structure & the point of it".
+   Everything below is genuinely specific to Difference's own split-into-
+   two-numbers-and-subtract mechanic. Ported from
+   test/scuttle-difference-bot-simulation.js after that script's head-to-
+   head tier check passed — see CLAUDE.md Bot AI philosophy. */
+
+// Every valid way to split `digits` into a d1-digit and a d2-digit number
+// (no leading zeros, unless every digit is a 0 and there's no alternative),
+// scored by their absolute difference. Direct analog of Product Scuttle's
+// own enumerateProductOptions — see that file — just a different value
+// function (Math.abs(num1-num2) instead of num1*num2).
+function enumerateDifferenceOptions(digits, d1, d2){
+  const idx = digits.map((_,i)=>i);
+  const subsets = combinations(idx, d1);
+  const seen = new Set(); const results=[];
+  for (const subset of subsets){
+    const complement = idx.filter(i=>!subset.includes(i));
+    for (const p1 of permutations(subset)){
+      if (d1>1 && digits[p1[0]]===0) continue;
+      const num1 = buildNumber(digits,p1);
+      for (const p2 of permutations(complement)){
+        if (d2>1 && digits[p2[0]]===0) continue;
+        const num2 = buildNumber(digits,p2);
+        const key = num1+'x'+num2;
+        if (!seen.has(key)){ seen.add(key); results.push({num1,num2,diff:Math.abs(num1-num2)}); }
+      }
+    }
+  }
+  if (results.length===0){
+    for (const subset of subsets){
+      const complement = idx.filter(i=>!subset.includes(i));
+      for (const p1 of permutations(subset)){
+        const num1 = buildNumber(digits,p1);
+        for (const p2 of permutations(complement)){
+          const num2 = buildNumber(digits,p2);
+          const key = num1+'x'+num2;
+          if (!seen.has(key)){ seen.add(key); results.push({num1,num2,diff:Math.abs(num1-num2)}); }
+        }
+      }
+    }
+  }
+  return results;
+}
+
+/* ---------------- bot strategies ----------------
+   Verified in test/scuttle-difference-bot-simulation.js BEFORE being ported
+   here, per CLAUDE.md Bot AI philosophy — including a real trap caught by
+   that simulation, not assumed from Product Scuttle's own (differently-
+   shaped) bot logic: see that file's own header comment and CLAUDE.md's
+   design note for why "maximize the round, refine only at the end"
+   (Product's approach) actually made Hard LOSE to random play on the
+   3-digit format here, and the fix (a target-aware per-round pacing
+   heuristic) that replaced it for both Medium and Hard. */
+
+function largestArrangement(digitsArr){
+  const sorted = digitsArr.slice().sort((a,b)=>b-a);
+  return buildNumber(sorted, sorted.map((_,i)=>i));
+}
+function smallestArrangement(digitsArr){
+  const sorted = digitsArr.slice().sort((a,b)=>a-b);
+  if (sorted.length>1 && sorted[0]===0){
+    const firstNonZero = sorted.findIndex(d=>d!==0);
+    if (firstNonZero!==-1){
+      const swapped = sorted.slice();
+      swapped[0]=sorted[firstNonZero]; swapped[firstNonZero]=0;
+      return buildNumber(swapped, swapped.map((_,i)=>i));
+    }
+  }
+  return buildNumber(sorted, sorted.map((_,i)=>i));
+}
+function fixLeadingZero(digitsArr){
+  if (digitsArr.length>1 && digitsArr[0]===0){
+    const idx = digitsArr.findIndex((d,i)=> i>0 && d!==0);
+    if (idx!==-1){
+      const copy = digitsArr.slice();
+      copy[0]=digitsArr[idx]; copy[idx]=0;
+      return copy;
+    }
+  }
+  return digitsArr;
+}
+
+function botEasyDifference(digits,d1,d2){
+  const options = enumerateDifferenceOptions(digits,d1,d2);
+  return options[randInt(options.length)];
+}
+// Target-aware, human-plausible: below target, segregate the biggest
+// digits into one number and the smallest into the other (maximizes
+// spread — the round's own difference). At or above target, balance the
+// two numbers instead (interleave big/small digits between them, same
+// intuition Product Scuttle's own Medium uses for keeping two factors
+// close) to keep this round's contribution small rather than piling on
+// unnecessary overshoot.
+function botMediumDifference(digits,d1,d2,runningSum,target){
+  if (runningSum >= target){
+    const sortedIdx = digits.map((_,i)=>i).sort((a,b)=>digits[b]-digits[a]);
+    let g1=[], g2=[];
+    sortedIdx.forEach((i,pos)=> (pos%2===0 ? g1 : g2).push(digits[i]));
+    g1 = g1.slice(0,d1).sort((a,b)=>b-a);
+    g2 = g2.slice(0,d2).sort((a,b)=>b-a);
+    const arr1 = fixLeadingZero(g1), arr2 = fixLeadingZero(g2);
+    const num1 = buildNumber(arr1, arr1.map((_,i)=>i));
+    const num2 = buildNumber(arr2, arr2.map((_,i)=>i));
+    return {num1,num2,diff:Math.abs(num1-num2)};
+  }
+  const sortedIdx = digits.map((_,i)=>i).sort((a,b)=>digits[b]-digits[a]);
+  const bigIdx = sortedIdx.slice(0,d1);
+  const smallIdx = sortedIdx.slice(d1,d1+d2);
+  const num1 = largestArrangement(bigIdx.map(i=>digits[i]));
+  const num2 = smallestArrangement(smallIdx.map(i=>digits[i]));
+  return {num1,num2,diff:Math.abs(num1-num2)};
+}
+// Hard: exact brute force over every valid split. Non-final rounds pace
+// toward an even per-round share of whatever target distance remains
+// ((target-runningSum)/roundsLeft), picking whichever real option lands
+// closest to that share — NOT "always maximize" (that was the bug this
+// simulation caught, see the header comment above). The final round is an
+// exact one-shot optimization: the smallest total that still clears the
+// target, or the largest available if none can.
+function botHardDifferenceRound(digits,d1,d2, runningSum, target, round){
+  const options = enumerateDifferenceOptions(digits,d1,d2);
+  const isFinalRound = round===3;
+  if (!isFinalRound){
+    const roundsLeft = 3-round+1;
+    const shareTarget = Math.max(0, target-runningSum) / roundsLeft;
+    let best=options[0], bestDist=Math.abs(options[0].diff-shareTarget);
+    for (const o of options){
+      const dist = Math.abs(o.diff-shareTarget);
+      if (dist<bestDist){ bestDist=dist; best=o; }
+    }
+    return best;
+  }
+  let bestOver=null, bestAny=null;
+  for (const o of options){
+    const total = runningSum+o.diff;
+    if (total>target && (!bestOver || total<bestOver.total)) bestOver={...o,total};
+    if (!bestAny || total>bestAny.total) bestAny={...o,total};
+  }
+  return bestOver || bestAny;
+}
+function botChooseRound(round, digits, d1, d2, runningSum, target, difficulty){
+  if (difficulty==='easy') return botEasyDifference(digits,d1,d2);
+  if (difficulty==='medium') return botMediumDifference(digits,d1,d2,runningSum,target);
+  return botHardDifferenceRound(digits,d1,d2, runningSum, target, round);
+}
+
+const FORMATS = {
+  '2digit': { dice:4, d1:2, d2:2, target:100, desc: 'Roll 4 dice → make two 2-digit numbers, subtract the smaller from the larger.' },
+  '3digit': { dice:6, d1:3, d2:3, target:500, desc: 'Roll 6 dice → make two 3-digit numbers, subtract the smaller from the larger.' },
+};
+// Bot difficulty descriptions were removed from the settings screen — not
+// user-facing (see CLAUDE.md "Layout stability" note on .desc-line-stack
+// for the container-jump bug this also used to trigger). DIFF_NAME stays;
+// it's still shown in the top-bar pill.
+const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
+
+/* ---------------- state ---------------- */
+let st = {
+  format: '2digit',
+  difficulty: 'medium',
+  avatar: 'grogg',
+  target: 100,
+  round: 1,
+  humanDiffs: [], botDiffs: [],
+  roll: null,
+  slotsN1: [], slotsN2: [],
+  score: { human:0, bot:0, ties:0 },
+  wrongAttempts: 0,
+  sumWrongAttempts: 0,
+  finalHumanSum: null,
+  finalBotSum: null
+};
+
+/* ---------------- element refs ---------------- */
+const el = id => document.getElementById(id);
+renderGlobalNav('scuttle'); // see CLAUDE.md "Global navigation"
+renderVariantSwitcher('variant-row', 'scuttle', 'scuttle-difference.html'); // jump to a sibling Scuttle variant — see CLAUDE.md's navigation redesign note
+const screens = { settings: el('screen-settings'), round: el('screen-round'), sum: el('screen-sum'), reveal: el('screen-reveal') };
+// fadeIn/showScreen/updateScorePills/resetScorecard/updateScorecard all
+// live in shared-game.js now — see CLAUDE.md "File structure & the point
+// of it". showScreen(screens, name) takes `screens` (above) as a
+// parameter since its keys are genuinely game-specific.
+
+/* ---------------- settings ---------------- */
+function buildFormatDescStack(){
+  const container = el('format-desc');
+  container.innerHTML = '';
+  Object.entries(FORMATS).forEach(([key, f]) => {
+    const node = document.createElement('div');
+    node.className = 'desc-line-option';
+    node.dataset.format = key;
+    node.textContent = f.desc;
+    container.appendChild(node);
+  });
+}
+function renderFormatChips(){
+  document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.format === st.format);
+  });
+  document.querySelectorAll('#format-desc .desc-line-option').forEach(node=>{
+    node.classList.toggle('active', node.dataset.format === st.format);
+  });
+  el('target-input').value = FORMATS[st.format].target;
+}
+document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.format = btn.dataset.format; renderFormatChips(); });
+});
+function renderDiffChips(){
+  document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
+  });
+  renderAvatarBadges(); // bot avatar swaps with difficulty
+}
+document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
+});
+
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+  el('sc-you-badge').src = youSrc;
+  el('sc-bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
+el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
+el('start-btn').addEventListener('click', ()=>{
+  const t = parseInt(el('target-input').value, 10);
+  st.target = isNaN(t) ? FORMATS[st.format].target : Math.max(0, t);
+  st.score = { human:0, bot:0, ties:0 };
+  updateScorePills(st.score);
+  el('target-tag').textContent = st.target.toLocaleString();
+  el('s-target').textContent = st.target.toLocaleString();
+  el('s-diff').textContent = DIFF_NAME[st.difficulty];
+  startMatch();
+});
+el('settings-btn').addEventListener('click', ()=> showScreen(screens, 'settings'));
+el('change-settings-btn').addEventListener('click', ()=> showScreen(screens, 'settings'));
+buildFormatDescStack();
+renderFormatChips();
+renderDiffChips();
+
+/* ---------------- match / round flow ---------------- */
+function startMatch(){
+  st.round = 1;
+  st.humanDiffs = []; st.botDiffs = [];
+  el('s-round').textContent = st.round;
+  resetScorecard();
+  showScreen(screens, 'round');
+  startRound();
+}
+function fmt(){ return FORMATS[st.format]; }
+
+function startRound(){
+  const {d1,d2} = fmt();
+  st.roll = null;
+  st.slotsN1 = Array(d1).fill(null);
+  st.slotsN2 = Array(d2).fill(null);
+  st.wrongAttempts = 0;
+  el('r-num').textContent = st.round;
+  el('roll-btn-wrap').classList.remove('phase-hidden');
+  el('dice-row').classList.add('phase-hidden');
+  el('frames-wrap').classList.add('phase-hidden');
+  el('diff-check-wrap').classList.add('phase-hidden');
+  el('next-round-wrap').classList.add('phase-hidden');
+  el('msg').textContent=''; el('msg').className='';
+  el('diff-answer-input').value='';
+  el('diff-hint-line').textContent='';
+  el('diff-msg').textContent='';
+}
+
+el('roll-btn').addEventListener('click', rollDice);
+function rollDice(){
+  el('roll-btn-wrap').classList.add('phase-hidden');
+  el('dice-row').classList.remove('phase-hidden');
+  const diceCount = fmt().dice;
+
+  let ticks=0;
+  const diceRow = el('dice-row');
+  const spin = setInterval(()=>{
+    diceRow.innerHTML='';
+    for (let i=0;i<diceCount;i++) diceRow.appendChild(buildDie(randInt(10), false, false));
+    ticks++;
+    if (ticks>6){
+      clearInterval(spin);
+      st.roll = rollN(diceCount);
+      renderDice();
+      el('frames-wrap').classList.remove('phase-hidden');
+      renderFrames();
+    }
+  }, 70);
+}
+
+function buildDie(value, used, pickable){
+  const wrap = document.createElement('div');
+  wrap.className = 'die-wrap' + (used?' used':'') + (pickable?' pickable':'');
+  const shape = document.createElement('div'); shape.className='die-shape';
+  const num = document.createElement('div'); num.className='die-num'; num.textContent=value;
+  wrap.appendChild(shape); wrap.appendChild(num);
+  return wrap;
+}
+
+function renderDice(){
+  const diceRow = el('dice-row');
+  diceRow.innerHTML='';
+  st.roll.forEach((val,i)=>{
+    const used = st.slotsN1.includes(i) || st.slotsN2.includes(i);
+    const d = buildDie(val, used, !used);
+    if (!used) d.addEventListener('click', ()=> placeDigit(i));
+    diceRow.appendChild(d);
+  });
+}
+
+function flashMsg(text, cls){ const m=el('msg'); m.textContent=text; m.className=cls||'error'; }
+
+// Clicking a die fills the leftmost empty box: Number 1's slots first (in
+// order), then Number 2's. To put a digit somewhere else, click a filled
+// slot to send it back to the pool, then click dice again in the order
+// that gets you the split you want.
+function nextEmptySlot(){
+  const n1Idx = st.slotsN1.findIndex(s => s===null);
+  if (n1Idx !== -1) return { frame:'n1', arr:st.slotsN1, index:n1Idx };
+  const n2Idx = st.slotsN2.findIndex(s => s===null);
+  if (n2Idx !== -1) return { frame:'n2', arr:st.slotsN2, index:n2Idx };
+  return null;
+}
+
+function placeDigit(rollIndex){
+  const target = nextEmptySlot();
+  if (!target) return;
+  if (target.index===0 && target.arr.length>1 && st.roll[rollIndex]===0){
+    const unplaced = st.roll.map((_,i)=>i).filter(i => !st.slotsN1.includes(i) && !st.slotsN2.includes(i));
+    const hasNonZeroAlt = unplaced.some(i => i!==rollIndex && st.roll[i]!==0);
+    if (hasNonZeroAlt){
+      flashMsg("That number can't start with 0 — place a different digit there first.");
+      return;
+    }
+  }
+  target.arr[target.index] = rollIndex;
+  flashMsg('','');
+  renderDice();
+  renderFrames();
+}
+
+function clearSlot(frameName, slotIndex){
+  const arr = frameName==='n1' ? st.slotsN1 : st.slotsN2;
+  if (arr[slotIndex]===null) return;
+  arr[slotIndex] = null;
+  flashMsg('','');
+  renderDice();
+  renderFrames();
+}
+
+function renderFrameSlots(containerId, frameName, arr){
+  const row = el(containerId);
+  row.innerHTML='';
+  arr.forEach((rollIdx,i)=>{
+    const s = document.createElement('div');
+    s.className = 'slot' + (rollIdx!==null ? ' filled' : '');
+    s.textContent = rollIdx!==null ? st.roll[rollIdx] : '';
+    if (rollIdx!==null) s.addEventListener('click', ()=> clearSlot(frameName,i));
+    row.appendChild(s);
+  });
+}
+
+function renderFrames(){
+  renderFrameSlots('slots-n1','n1',st.slotsN1);
+  renderFrameSlots('slots-n2','n2',st.slotsN2);
+  const full = !st.slotsN1.includes(null) && !st.slotsN2.includes(null);
+  if (full){
+    const num1 = buildNumber(st.roll, st.slotsN1);
+    const num2 = buildNumber(st.roll, st.slotsN2);
+    // The equation always shows larger-minus-smaller, regardless of which
+    // frame the player happened to put the bigger digits in — the game
+    // scores an unsigned difference (see CLAUDE.md's design note), and
+    // "23 − 87 = ?" reading as if it wants -64 would be confusing for a
+    // standard that doesn't expect negative results.
+    const big = Math.max(num1,num2), small = Math.min(num1,num2);
+    el('diff-check-wrap').classList.remove('phase-hidden');
+    el('diff-equation').textContent = `${big} − ${small} = ?`;
+  } else {
+    el('diff-check-wrap').classList.add('phase-hidden');
+  }
+}
+
+el('diff-check-btn').addEventListener('click', checkDifference);
+el('diff-answer-input').addEventListener('keydown', e=>{ if (e.key==='Enter') checkDifference(); });
+function checkDifference(){
+  const guess = parseInt(el('diff-answer-input').value, 10);
+  const num1 = buildNumber(st.roll, st.slotsN1);
+  const num2 = buildNumber(st.roll, st.slotsN2);
+  const correct = Math.abs(num1-num2);
+  if (isNaN(guess)){ flashDiffMsg('Type in the difference first.', true); return; }
+  if (guess===correct){
+    flashDiffMsg('That checks out!', false);
+    lockInRound(num1, num2, correct);
+  } else {
+    st.wrongAttempts++;
+    flashDiffMsg("That's not quite right — check your work.", true);
+    if (st.wrongAttempts>=2){
+      el('diff-hint-line').textContent = `Hint: ${Math.max(num1,num2)} − ${Math.min(num1,num2)} = ${correct}`;
+    }
+  }
+}
+function flashDiffMsg(text, isError){
+  const m = el('diff-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('diff-answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+function lockInRound(num1, num2, diff){
+  st.humanDiffs.push(diff);
+
+  const {d1,d2} = fmt();
+  const runningBotSum = st.botDiffs.reduce((a,b)=>a+b,0);
+  const choice = botChooseRound(st.round, st.roll, d1, d2, runningBotSum, st.target, st.difficulty);
+  st.botDiffs.push(choice.diff);
+
+  updateScorecard(st.humanDiffs, st.botDiffs);
+
+  el('frames-wrap').classList.add('phase-hidden');
+  el('dice-row').classList.add('phase-hidden');
+  el('diff-check-wrap').classList.add('phase-hidden');
+
+  if (st.round<3){
+    el('next-round-wrap').classList.remove('phase-hidden');
+  } else {
+    setTimeout(goToSum, 500);
+  }
+}
+
+el('next-round-btn').addEventListener('click', ()=>{
+  st.round++;
+  el('s-round').textContent = st.round;
+  startRound();
+});
+
+/* ---------------- sum phase ---------------- */
+function goToSum(){
+  showScreen(screens, 'sum');
+  st.sumWrongAttempts = 0;
+  el('sum-answer-input').value='';
+  el('sum-answer-input').disabled=false;
+  el('sum-check-btn').disabled=false;
+  el('sum-hint-line').textContent='';
+  el('sum-msg').textContent='';
+  el('sum-reveal-wrap').classList.add('phase-hidden');
+  const [p1,p2,p3] = st.humanDiffs;
+  el('sum-equation').textContent = `${p1} + ${p2} + ${p3} = ?`;
+}
+
+el('sum-check-btn').addEventListener('click', checkSum);
+el('sum-answer-input').addEventListener('keydown', e=>{ if (e.key==='Enter') checkSum(); });
+function checkSum(){
+  const guess = parseInt(el('sum-answer-input').value, 10);
+  const [p1,p2,p3] = st.humanDiffs;
+  const correct = p1+p2+p3;
+  if (isNaN(guess)){ flashSumMsg('Type in the total first.', true); return; }
+  if (guess===correct){
+    flashSumMsg('That checks out!', false);
+    st.finalHumanSum = correct;
+    el('sum-reveal-wrap').classList.remove('phase-hidden');
+    el('sum-answer-input').disabled=true;
+    el('sum-check-btn').disabled=true;
+  } else {
+    st.sumWrongAttempts++;
+    flashSumMsg("That's not quite right — check your work.", true);
+    if (st.sumWrongAttempts>=2){
+      el('sum-hint-line').textContent = `Hint: ${p1} + ${p2} = ${p1+p2}, then add ${p3}.`;
+    }
+  }
+}
+function flashSumMsg(text, isError){
+  const m = el('sum-msg');
+  m.textContent = text;
+  m.style.color = isError ? 'var(--color-error)' : 'var(--color-correct)';
+  if (isError){
+    const inp = el('sum-answer-input');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  }
+}
+
+/* ---------------- win condition (pure — see CLAUDE.md Code conventions) ---------------- */
+// Identical shape to Product Scuttle's own decideWinner — same "same shell
+// as Product" reuse the source rules describe (see design/game-catalog.csv):
+// smallest total still over the target wins; if neither total clears the
+// target, the largest total wins instead. Exact ties are friendly (both win).
+function decideWinner(humanSum, botSum, target){
+  const humanOver = humanSum > target;
+  const botOver = botSum > target;
+  if (humanOver && botOver) return humanSum===botSum ? 'tie' : (humanSum<botSum ? 'human':'bot');
+  if (humanOver && !botOver) return 'human';
+  if (!humanOver && botOver) return 'bot';
+  return humanSum===botSum ? 'tie' : (humanSum>botSum ? 'human':'bot');
+}
+
+/* ---------------- win-visual effects (typewriter banner + count-up totals)
+   see design/mockups/win-visuals-mockup.html and CLAUDE.md "Celebration
+   animations". Both play a small fixed number of times, then rest static —
+   never loop. prefers-reduced-motion skips straight to the final state. ---------------- */
+function typewriterReveal(el, text){
+  el.classList.remove('flash');
+  if (prefersReducedMotion()){
+    el.textContent = text;
+    return;
+  }
+  el.textContent = '';
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length){
+      clearInterval(timer);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    }
+  }, 45);
+}
+function countUp(el, target, format, steps=18, duration=650){
+  format = format || String;
+  if (prefersReducedMotion()){
+    el.textContent = format(target);
+    return;
+  }
+  let step = 0;
+  const timer = setInterval(() => {
+    step++;
+    el.textContent = format(Math.round((target/steps) * step));
+    if (step >= steps){
+      el.textContent = format(target);
+      clearInterval(timer);
+    }
+  }, duration/steps);
+}
+
+/* ---------------- reveal ---------------- */
+el('sum-reveal-btn').addEventListener('click', ()=>{
+  st.finalBotSum = st.botDiffs.reduce((a,b)=>a+b,0);
+  const target = st.target;
+  const humanOver = st.finalHumanSum>target;
+  const botOver = st.finalBotSum>target;
+
+  el('human-status').textContent = humanOver ? 'Over the minimum' : 'Under the minimum';
+  el('human-status').className = 'result-status ' + (humanOver?'over':'under');
+  el('bot-status').textContent = botOver ? 'Over the minimum' : 'Under the minimum';
+  el('bot-status').className = 'result-status ' + (botOver?'over':'under');
+
+  const winner = decideWinner(st.finalHumanSum, st.finalBotSum, target);
+
+  let bannerText;
+  if (winner==='tie'){ bannerText = "It's a tie — you both win!"; st.score.ties++; }
+  else if (winner==='human'){ bannerText = 'You win this match!'; st.score.human++; }
+  else { bannerText = 'Bot wins this match.'; st.score.bot++; }
+  updateScorePills(st.score);
+  showScreen(screens, 'reveal');
+
+  countUp(el('human-total'), st.finalHumanSum);
+  countUp(el('bot-total'), st.finalBotSum);
+  typewriterReveal(el('winner-banner'), bannerText);
+});
+
+el('play-again-btn').addEventListener('click', startMatch);
+
+/* ---------------- init ---------------- */
+showScreen(screens, 'settings');
+</script>
+</body>
+</html>

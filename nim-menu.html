@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+</head>
+<body>
+<div id="app">
+
+  <h1>NIM</h1>
+  <div class="kicker-wrap"><span class="kicker">Choose your variant</span></div>
+  <div id="tagline" class="tagline">Alternate adding fixed amounts to a shared total — reach the target first, or force your opponent into it.</div>
+
+  <div class="variant-list">
+
+    <a class="variant-card active" href="nim.html">
+      <div class="variant-top">
+        <span class="variant-name">Race to 10</span>
+        <span class="badge play">Play →</span>
+      </div>
+      <div class="variant-desc">Add 1 or 2 to the total each turn — whoever gets it to 10 or more wins.</div>
+      <div class="variant-std">Standard 1.OA.C.5</div>
+    </a>
+
+    <a class="variant-card active" href="nim-nickeled-and-dimed.html">
+      <div class="variant-top">
+        <span class="variant-name">Nickeled &amp; Dimed</span>
+        <span class="badge play">Play →</span>
+      </div>
+      <div class="variant-desc">Same race, themed as money — add a nickel or a dime to the pile each turn. Whoever's move brings it to exactly 50¢ wins.</div>
+      <div class="variant-std">Standard 2.MD.C.8</div>
+    </a>
+
+    <a class="variant-card active" href="nim-subtraction.html">
+      <div class="variant-top">
+        <span class="variant-name">Subtraction Nim</span>
+        <span class="badge play">Play →</span>
+      </div>
+      <div class="variant-desc">Same race, in reverse — start from a pile of 20 tokens and remove 1, 2, or 3 each turn. Whoever takes the last token wins.</div>
+      <div class="variant-std">Standard 1.OA.C.5/6</div>
+    </a>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Division Nim</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">Divide a shared total instead of adding — race toward (or away from) 1.</div>
+    </div>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Hexagon Nim</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">A spatial, hex-board twist on the same race-to-target idea — a genuinely different engine, not a rescale of this one.</div>
+    </div>
+
+    <div class="variant-card locked" aria-disabled="true">
+      <div class="variant-top">
+        <span class="variant-name">Place Value Nim</span>
+        <span class="badge soon">Coming soon</span>
+      </div>
+      <div class="variant-desc">Same race-to-target rhythm, but each move adds to a specific place value instead of a bare running total.</div>
+    </div>
+
+  </div>
+
+  <div class="menu-footer">More variants unlock as they're built.</div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+renderGlobalNav('nim'); // see CLAUDE.md "Global navigation"
+</script>
+</body>
+</html>

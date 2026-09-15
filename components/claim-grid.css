@@ -15,10 +15,64 @@
 .legend-dot.human { background: var(--color-beast-blue); }
 .legend-dot.bot { background: var(--color-beast-red); }
 
-#claim-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 16px; }
+/* ---- side-by-side layout: "playing space" (turn status, operand row(s),
+   answer-check) left, "game board" (the claim grid itself) right — real
+   design feedback: "switch to side by side containers, broadly 'game
+   board' on right and 'playing space' on left... avoid as much as
+   possible the need to scroll down." DOM order stays board-THEN-play
+   (matches the original stacked mobile order: see the board's state
+   before acting on it) — the row layout below visually REORDERS them via
+   `order`, it doesn't rely on DOM order, so narrow-viewport stacking is
+   unchanged from before this feature existed.
+
+   The breakpoint (820px) and the two columns' own minimum widths are
+   real, computed numbers, not round guesses: the operand row needs
+   ~408px to avoid its own already-documented 2-line wrap (see CLAUDE.md's
+   Beeline "known, accepted limitation" note), and a 6-column claim grid
+   stays legible at ~300px (6 cells + 5 gaps, ~45px/cell). 408 + 300 + a
+   24px gap = 732px of CONTENT width; #app's own widened max-width for
+   these pages (see each game file's own <style> block) plus body/.card
+   padding is what the 820px viewport breakpoint is sized against — see
+   Testing methodology point 8's discipline on verifying a real pixel
+   layout claim in an actual browser, not just by arithmetic (confirmed
+   with Playwright screenshots at both a narrow and a wide viewport). */
+.game-layout { display: flex; flex-direction: column; gap: 16px; }
+.game-board-col { flex: 1 1 auto; min-width: 0; }
+.game-play-col { flex: 1 1 auto; min-width: 0; }
+@media (min-width: 820px) {
+  .game-layout { flex-direction: row; align-items: flex-start; gap: 24px; }
+  /* Real feedback: "make sizing more dynamic to fill a great proportion
+     of the window." Both columns now grow to fill whatever extra width
+     #app's own widened max-width (see each game file's own <style> block)
+     makes available, rather than the board staying pinned at a fixed
+     300px forever. The BOARD grows faster (flex-grow 1) and further (up
+     to 500px) than the play column (flex-grow 0.6, capped at 560px) —
+     the play column's own content (a turn-status line, an operand row of
+     buttons) doesn't get MORE legible past a certain width the way a
+     6-column grid's cells genuinely do, so letting it keep growing
+     unbounded just left dead whitespace around already-appropriately-sized
+     buttons rather than putting the extra room to visible use; confirmed
+     by comparing real screenshots at 1000px/1400px before settling on
+     this ratio, not by the arithmetic alone. */
+  .game-board-col { flex: 1 1 300px; max-width: 500px; order: 2; }
+  .game-play-col { flex: 0.6 1 420px; max-width: 560px; min-width: 420px; order: 1; }
+}
+
+/* minmax(0, 1fr), not a bare 1fr — a bare 1fr track's implicit min-width
+   is its content's min-content size, so a cell whose text needs more room
+   than an even 1/6 share (e.g. Decimal Beeline's "0.37", 4 characters,
+   at a narrow viewport) silently pushes the whole grid wider than its
+   container instead of shrinking, overflowing the card horizontally.
+   minmax(0, ...) lets the track actually shrink to the even share first,
+   same standard CSS Grid fix as everywhere else this pattern bites — found
+   via a real Playwright viewport check while verifying the new
+   .game-layout side-by-side redesign, not by this redesign itself (the
+   grid's own sizing was already like this before). */
+#claim-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; margin-bottom: 16px; }
 .claim-cell {
   aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-sans); font-weight: 800; font-size: 15px;
+  min-width: 0; overflow: hidden;
+  font-family: var(--font-sans); font-weight: 800; font-size: 21px;
   border: 2px solid var(--color-ink); border-radius: 4px;
   background: var(--color-background-primary); box-shadow: var(--shadow-sm);
   transition: transform 0.15s;
@@ -26,27 +80,78 @@
 .claim-cell.human { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
 .claim-cell.bot { background: var(--color-beast-red); color: #fff; border-color: var(--color-beast-red); }
 .claim-cell.pending { outline: 3px dashed var(--color-text-tertiary); outline-offset: 2px; }
-.claim-cell.win { animation: claimWinPulse 0.6s ease-in-out 2; }
-@keyframes claimWinPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+/* Winning line reveal: beeline-product.html's revealWinningLine() adds
+   .win to each winning cell one at a time (~180ms apart) as the staggered
+   "connecting the dots" cue — a ring, since the cell is already colored by
+   the time a line wins (unlike the mockup's demo cells, ownership here is
+   always visible live). Once every cell has its ring, all four get .flash
+   together — the exact singleFlash pulse from design-system.css, reused
+   as-is, never redefined here — then settle into a permanently darkened
+   steady state. Never loops. See CLAUDE.md "Celebration animations". */
+.claim-cell.win { outline: 3px solid var(--color-ink); outline-offset: 1px; }
+.claim-cell.win.flash { animation: singleFlash 0.35s ease-in-out 1; }
+.claim-cell.win.settled { filter: brightness(0.82); }
+@media (prefers-reduced-motion: reduce) { .claim-cell.win.flash { animation: none; } }
 
 /* ---- operand row: the number line a token moves along ---- */
 .operand-title { text-align: center; font-family: var(--font-sans); font-weight: 700; font-size: 13px; letter-spacing: 0.3px; color: var(--color-text-tertiary); text-transform: uppercase; margin: 10px 0 4px; }
-.operand-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+/* margin: 34px top+bottom, not the original 8px-bottom-only, reserves room
+   for the .token lanes below (see further down) on BOTH sides — always,
+   whether or not a token is actually rendered right now (during setup,
+   before st.tokens exists, none are). Reserving it unconditionally avoids
+   the exact "container jumps when content appears" bug CLAUDE.md's
+   "Layout stability" already covers elsewhere in this project, just
+   applied here to a fixed margin instead of a toggled element. */
+.operand-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; margin: 34px 0; position: relative; }
 .op-num {
   width: 34px; height: 40px; display: flex; align-items: center; justify-content: center;
   font-family: var(--font-sans); font-weight: 800; font-size: 15px;
   border: 2px solid var(--color-ink); border-radius: 4px; background: var(--color-background-primary);
   position: relative; cursor: pointer;
 }
-.op-num.selected { box-shadow: var(--shadow-sm); transform: translate(-1px,-1px); }
-.op-num.selected.human { border-color: var(--color-beast-blue); }
-.op-num.selected.bot { border-color: var(--color-beast-red); }
-.token-markers { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; }
-.token-marker { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--color-ink); cursor: pointer; }
-.token-marker.human { background: var(--color-beast-blue); }
-.token-marker.bot { background: var(--color-beast-red); }
+/* .op-num.selected (an active token's own current cell) no longer applies
+   — that whole concept belonged to the old single-"active"-token design;
+   the token circles themselves already mark their own position clearly
+   now that both are always shown. See CLAUDE.md's Beeline redesign note. */
 
-/* ---- token switcher: which of the two tokens a click will move ---- */
-.token-switch-row { display: flex; justify-content: center; gap: 8px; margin: 6px 0 12px; }
-.token-switch-row button { font-size: 14px; padding: 0.4rem 0.7rem; }
-.token-switch-row button.active { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
+/* ---- draggable token — see CLAUDE.md "Drag interactions" /
+   design/mockups/drag-interactions-mockup.html. Replaces the old small
+   .token-marker dots. Positioned absolutely within .operand-row (not
+   nested inside a specific .op-num cell) so it can follow the pointer
+   CONTINUOUSLY via a CSS transform during a drag instead of jumping
+   discretely between cells the way the raw prototype did — it only ever
+   snaps (an animated `left`, see beeline-product.html's snapTokenTo()) on
+   release.
+
+   FIXED per-token color and lane — REVERSED from this project's original
+   design (which used two fixed LANES but a color/lane that changed with
+   whose move a token represented) after real playtesting reported the
+   swapping as confusing ("never change their color or flip the
+   position"). Token 0 is always the light/white one, always in the
+   below-row lane; token 1 is always the dark/black one, always above —
+   permanent per-token identity, the same way a real board game's two
+   physical pieces never change appearance turn to turn. This still fits
+   the ORIGINAL reason the lanes existed at all (clearing the "Move along
+   1-9" label above the row): .operand-row's own `margin: 34px 0` already
+   reserves BOTH lanes' space unconditionally (see that rule's own
+   comment), so a token sitting in the same lane permanently is exactly as
+   safe as one that used to swap into it only when active — the reserved
+   space was never conditional on which token was "active" to begin with.
+   Both tokens are draggable at all times now too (not just one "active"
+   token switched via a separate control — see CLAUDE.md's Beeline
+   redesign note and the now-removed .token-switch-row below). A
+   currently-SELECTED token (the one a plain click-a-destination-number
+   will move, as opposed to a direct drag which is unambiguous on its own)
+   gets a distinct ring — st.selectedTokenIdx in beeline-product.html. */
+.token {
+  position: absolute; width: 26px; height: 26px; border-radius: 50%;
+  border: 3px solid var(--color-ink); box-shadow: 2px 2px 0 var(--color-ink);
+  z-index: 2; transition: box-shadow 0.1s;
+  cursor: grab; touch-action: none;
+}
+.token.token-0 { background: var(--color-background-primary); }
+.token.token-1 { background: var(--color-ink); }
+.token.selected { box-shadow: 0 0 0 3px var(--color-beast-blue), 2px 2px 0 var(--color-ink); }
+.token.dragging { cursor: grabbing; box-shadow: 3px 3px 0 var(--color-ink); z-index: 3; }
+.token.lane-below { top: 100%; margin-top: 8px; }
+.token.lane-above { bottom: 100%; margin-bottom: 8px; }

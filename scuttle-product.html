@@ -33,15 +33,31 @@
 
   <div id="top-bar">
     <div class="pill-group">
+      <div class="stat-pill target-pill">Min <b id="s-target">1,000</b></div>
       <div class="stat-pill">Round <b id="s-round">1</b>/3</div>
       <div class="stat-pill">Bot: <b id="s-diff">Medium</b></div>
-      <div class="stat-pill">You <b id="s-wins">0</b> · Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
+      <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
     </div>
     <button id="settings-btn">Settings</button>
   </div>
 
   <!-- SETTINGS -->
   <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Choose your avatar</div>
+    <div class="avatar-row" id="avatar-row">
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="grogg"><img src="avatars/grogg.png" alt="Grogg"></div><div class="avatar-name">Grogg</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="alex"><img src="avatars/alex.png" alt="Alex"></div><div class="avatar-name">Alex</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="winnie"><img src="avatars/winnie.png" alt="Winnie"></div><div class="avatar-name">Winnie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="lizzie"><img src="avatars/lizzie.png" alt="Lizzie"></div><div class="avatar-name">Lizzie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="ralph"><img src="avatars/ralph.png" alt="Ralph"></div><div class="avatar-name">Ralph</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="nellie"><img src="avatars/nellie.png" alt="Nellie"></div><div class="avatar-name">Nellie</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="cammy"><img src="avatars/cammy.png" alt="Cammy"></div><div class="avatar-name">Cammy</div></div>
+      <div class="avatar-col"><div class="avatar-slot" data-avatar="max"><img src="avatars/max.png" alt="Max"></div><div class="avatar-name">Max</div></div>
+    </div>
+
     <div class="section-label">Format</div>
     <div class="chip-row" id="format-row">
       <button class="chip" data-format="2x1">2 × 1</button>
@@ -49,7 +65,7 @@
       <button class="chip" data-format="4x1">4 × 1</button>
       <button class="chip" data-format="2x2">2 × 2</button>
     </div>
-    <div class="desc-line" id="format-desc"></div>
+    <div class="desc-line-stack" id="format-desc"></div>
 
     <div class="section-label">Bot difficulty</div>
     <div class="chip-row" id="diff-row">
@@ -57,7 +73,6 @@
       <button class="chip" data-diff="medium">Medium</button>
       <button class="chip" data-diff="hard">Hard</button>
     </div>
-    <div class="desc-line" id="diff-desc"></div>
 
     <div class="section-label">Minimum sum</div>
     <div class="target-row">
@@ -78,7 +93,7 @@
 
   <!-- PERSISTENT SCOREBOARD -->
   <div class="card hidden" id="scorecard">
-    <div class="sc-head"><span></span><span class="you-h">You</span><span class="bot-h">Bot</span></div>
+    <div class="sc-head"><span></span><span class="you-h"><img class="avatar-badge you" id="sc-you-badge" src="" alt="">You</span><span class="bot-h"><img class="avatar-badge bot" id="sc-bot-badge" src="" alt="">Bot</span></div>
     <div class="sc-row"><span class="rd-label">Round 1</span><span class="sc-val you empty" id="sc-you-1">–</span><span class="sc-val bot empty" id="sc-bot-1">–</span></div>
     <div class="sc-row"><span class="rd-label">Round 2</span><span class="sc-val you empty" id="sc-you-2">–</span><span class="sc-val bot empty" id="sc-bot-2">–</span></div>
     <div class="sc-row"><span class="rd-label">Round 3</span><span class="sc-val you empty" id="sc-you-3">–</span><span class="sc-val bot empty" id="sc-bot-3">–</span></div>
@@ -89,12 +104,12 @@
     <div id="round-label">Round <span id="r-num">1</span> of 3</div>
 
     <div id="roll-btn-wrap">
-      <button class="primary" id="roll-btn">🎲 Roll dice</button>
+      <button class="primary" id="roll-btn">Roll dice</button>
     </div>
 
-    <div id="dice-row" class="hidden"></div>
+    <div id="dice-row" class="phase-hidden"></div>
 
-    <div id="frames-wrap" class="hidden">
+    <div id="frames-wrap" class="phase-hidden">
       <div class="product-frames">
         <div class="num-frame">
           <div class="frame-label">Number 1</div>
@@ -110,7 +125,7 @@
 
     <div id="msg" class="feedback-msg"></div>
 
-    <div id="product-check-wrap" class="hidden">
+    <div id="product-check-wrap" class="phase-hidden">
       <div class="equation-line" id="product-equation"></div>
       <div class="answer-row">
         <label for="product-answer-input">Product:</label>
@@ -121,7 +136,7 @@
       <div class="feedback-msg" id="product-msg"></div>
     </div>
 
-    <div class="center hidden" id="next-round-wrap" style="margin-top:12px;">
+    <div class="center phase-hidden" id="next-round-wrap" style="margin-top:12px;">
       <button class="primary" id="next-round-btn">Next round →</button>
     </div>
   </div>
@@ -137,7 +152,7 @@
     </div>
     <div class="hint-line" id="sum-hint-line"></div>
     <div class="feedback-msg" id="sum-msg"></div>
-    <div class="center hidden" id="sum-reveal-wrap" style="margin-top:12px;">
+    <div class="center phase-hidden" id="sum-reveal-wrap" style="margin-top:12px;">
       <button class="primary" id="sum-reveal-btn">Reveal results →</button>
     </div>
   </div>
@@ -165,31 +180,13 @@
 
 </div>
 
+<script src="shared-game.js"></script>
 <script>
-/* ---------------- core helpers ---------------- */
-function rollDie(){ return Math.floor(Math.random()*10); }
-function rollN(n){ return Array.from({length:n}, rollDie); }
-function randInt(n){ return Math.floor(Math.random()*n); }
-
-function permutations(arr){
-  if (arr.length<=1) return [arr.slice()];
-  const out=[];
-  for (let i=0;i<arr.length;i++){
-    const rest = arr.slice(0,i).concat(arr.slice(i+1));
-    for (const p of permutations(rest)) out.push([arr[i]].concat(p));
-  }
-  return out;
-}
-function combinations(arr,k){
-  const results=[];
-  function helper(start, combo){
-    if (combo.length===k){ results.push(combo.slice()); return; }
-    for (let i=start;i<arr.length;i++){ combo.push(arr[i]); helper(i+1,combo); combo.pop(); }
-  }
-  helper(0,[]);
-  return results;
-}
-function buildNumber(digits, idxOrder){ return idxOrder.reduce((acc,i)=>acc*10+digits[i],0); }
+/* ---------------- core helpers ----------------
+   rollDie/rollN/randInt/permutations/combinations/buildNumber all live in
+   shared-game.js now — see CLAUDE.md "File structure & the point of it".
+   Everything below is genuinely specific to Product's own split-into-two-
+   numbers mechanic. */
 
 // Every valid way to split `digits` into a d1-digit and a d2-digit number
 // (no leading zeros, unless every digit is a 0 and there's no alternative).
@@ -282,17 +279,25 @@ const FORMATS = {
   '4x1': { dice:5, d1:4, d2:1, target:100000, desc: 'Roll 5 dice → make a 4-digit number times a 1-digit number.' },
   '2x2': { dice:4, d1:2, d2:2, target:10000,  desc: 'Roll 4 dice → make two 2-digit numbers.' },
 };
-const DIFF_DESC = {
-  easy: 'Splits and arranges its digits completely at random.',
-  medium: 'Gives its biggest digit to the smaller number, then fills in the rest — smart, not perfect.',
-  hard: 'Checks every possible split and arrangement, then plays the best one.'
-};
+// Bot difficulty descriptions were removed from the settings screen — not
+// user-facing (see CLAUDE.md "Layout stability" note on .desc-line-stack
+// for the container-jump bug this also used to trigger). DIFF_NAME stays;
+// it's still shown in the top-bar pill.
 const DIFF_NAME = { easy:'Easy', medium:'Medium', hard:'Hard' };
+
+/* ---------------- avatars (see CLAUDE.md "Avatars") ----------------
+   Additive identity on top of the blue=you/red=bot color coding — never a
+   replacement for it. Player picks their own avatar; the bot's avatar is
+   auto-selected from difficulty, never player-chosen. */
+const AVATAR_ROSTER = ['grogg','alex','winnie','lizzie','ralph','nellie','cammy','max'];
+const BOT_AVATAR_BY_DIFF = { easy: 'bot-easy', medium: 'bot-medium', hard: 'bot-hard' };
+function avatarSrc(name){ return `avatars/${name}.png`; }
 
 /* ---------------- state ---------------- */
 let st = {
   format: '2x1',
   difficulty: 'medium',
+  avatar: 'grogg',
   target: 1000,
   round: 1,
   humanProducts: [], botProducts: [],
@@ -307,18 +312,39 @@ let st = {
 
 /* ---------------- element refs ---------------- */
 const el = id => document.getElementById(id);
+renderGlobalNav('scuttle'); // see CLAUDE.md "Global navigation"
+renderVariantSwitcher('variant-row', 'scuttle', 'scuttle-product.html'); // jump to a sibling Scuttle variant — see CLAUDE.md's navigation redesign note
 const screens = { settings: el('screen-settings'), round: el('screen-round'), sum: el('screen-sum'), reveal: el('screen-reveal') };
-function showScreen(name){
-  Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));
-  el('scorecard').classList.toggle('hidden', name === 'settings');
-}
+// fadeIn/showScreen/updateScorePills/resetScorecard/updateScorecard all
+// live in shared-game.js now — see CLAUDE.md "File structure & the point
+// of it". showScreen(screens, name) takes `screens` (above) as a
+// parameter since its keys are genuinely game-specific.
 
 /* ---------------- settings ---------------- */
+// Format description: see CLAUDE.md "Layout stability" (.desc-line-stack) —
+// every format's text is rendered at once, stacked in the same CSS Grid
+// cell, so the box is always exactly tall enough for the longest one and
+// never grows/shrinks as the player clicks between formats. FORMATS stays
+// the single source of truth for the text; this just builds the stack from
+// it once at startup.
+function buildFormatDescStack(){
+  const container = el('format-desc');
+  container.innerHTML = '';
+  Object.entries(FORMATS).forEach(([key, f]) => {
+    const node = document.createElement('div');
+    node.className = 'desc-line-option';
+    node.dataset.format = key;
+    node.textContent = f.desc;
+    container.appendChild(node);
+  });
+}
 function renderFormatChips(){
   document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.format === st.format);
   });
-  el('format-desc').textContent = FORMATS[st.format].desc;
+  document.querySelectorAll('#format-desc .desc-line-option').forEach(node=>{
+    node.classList.toggle('active', node.dataset.format === st.format);
+  });
   el('target-input').value = FORMATS[st.format].target;
 }
 document.querySelectorAll('#format-row [data-format]').forEach(btn=>{
@@ -328,44 +354,49 @@ function renderDiffChips(){
   document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.diff === st.difficulty);
   });
-  el('diff-desc').textContent = DIFF_DESC[st.difficulty];
+  renderAvatarBadges(); // bot avatar swaps with difficulty
 }
 document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
 });
+
+// Avatar picker + badges: renderAvatarBadges() pushes st.avatar (you) and
+// the difficulty-matched bot avatar into every badge slot (top bar +
+// scoreboard header) at once, so a difficulty change and an avatar pick
+// both stay in sync via the one function.
+function renderAvatarPicker(){
+  document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+    node.classList.toggle('selected', node.dataset.avatar === st.avatar);
+  });
+}
+function renderAvatarBadges(){
+  const youSrc = avatarSrc(st.avatar);
+  const botSrc = avatarSrc(BOT_AVATAR_BY_DIFF[st.difficulty]);
+  el('you-badge').src = youSrc;
+  el('bot-badge').src = botSrc;
+  el('sc-you-badge').src = youSrc;
+  el('sc-bot-badge').src = botSrc;
+}
+document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
+  node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
+});
+renderAvatarPicker();
 el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
 el('start-btn').addEventListener('click', ()=>{
   const t = parseInt(el('target-input').value, 10);
   st.target = isNaN(t) ? FORMATS[st.format].target : Math.max(0, t);
   st.score = { human:0, bot:0, ties:0 };
-  updateScorePills();
+  updateScorePills(st.score);
   el('target-tag').textContent = st.target.toLocaleString();
+  el('s-target').textContent = st.target.toLocaleString();
   el('s-diff').textContent = DIFF_NAME[st.difficulty];
   startMatch();
 });
-el('settings-btn').addEventListener('click', ()=> showScreen('settings'));
-el('change-settings-btn').addEventListener('click', ()=> showScreen('settings'));
+el('settings-btn').addEventListener('click', ()=> showScreen(screens, 'settings'));
+el('change-settings-btn').addEventListener('click', ()=> showScreen(screens, 'settings'));
+buildFormatDescStack();
 renderFormatChips();
 renderDiffChips();
-
-function updateScorePills(){
-  el('s-wins').textContent = st.score.human;
-  el('s-bwins').textContent = st.score.bot;
-  el('s-ties').textContent = st.score.ties;
-}
-
-/* ---------------- scoreboard ---------------- */
-function resetScorecard(){
-  for (let i=1;i<=3;i++){
-    const y = el('sc-you-'+i), b = el('sc-bot-'+i);
-    y.textContent='–'; y.classList.add('empty');
-    b.textContent='–'; b.classList.add('empty');
-  }
-}
-function updateScorecard(){
-  st.humanProducts.forEach((v,i)=>{ const y=el('sc-you-'+(i+1)); y.textContent=v.toLocaleString(); y.classList.remove('empty'); });
-  st.botProducts.forEach((v,i)=>{ const b=el('sc-bot-'+(i+1)); b.textContent=v.toLocaleString(); b.classList.remove('empty'); });
-}
 
 /* ---------------- match / round flow ---------------- */
 function startMatch(){
@@ -373,7 +404,7 @@ function startMatch(){
   st.humanProducts = []; st.botProducts = [];
   el('s-round').textContent = st.round;
   resetScorecard();
-  showScreen('round');
+  showScreen(screens, 'round');
   startRound();
 }
 function fmt(){ return FORMATS[st.format]; }
@@ -385,11 +416,11 @@ function startRound(){
   st.slotsN2 = Array(d2).fill(null);
   st.wrongAttempts = 0;
   el('r-num').textContent = st.round;
-  el('roll-btn-wrap').classList.remove('hidden');
-  el('dice-row').classList.add('hidden');
-  el('frames-wrap').classList.add('hidden');
-  el('product-check-wrap').classList.add('hidden');
-  el('next-round-wrap').classList.add('hidden');
+  el('roll-btn-wrap').classList.remove('phase-hidden');
+  el('dice-row').classList.add('phase-hidden');
+  el('frames-wrap').classList.add('phase-hidden');
+  el('product-check-wrap').classList.add('phase-hidden');
+  el('next-round-wrap').classList.add('phase-hidden');
   el('msg').textContent=''; el('msg').className='';
   el('product-answer-input').value='';
   el('product-hint-line').textContent='';
@@ -398,8 +429,8 @@ function startRound(){
 
 el('roll-btn').addEventListener('click', rollDice);
 function rollDice(){
-  el('roll-btn-wrap').classList.add('hidden');
-  el('dice-row').classList.remove('hidden');
+  el('roll-btn-wrap').classList.add('phase-hidden');
+  el('dice-row').classList.remove('phase-hidden');
   const diceCount = fmt().dice;
 
   let ticks=0;
@@ -412,7 +443,7 @@ function rollDice(){
       clearInterval(spin);
       st.roll = rollN(diceCount);
       renderDice();
-      el('frames-wrap').classList.remove('hidden');
+      el('frames-wrap').classList.remove('phase-hidden');
       renderFrames();
     }
   }, 70);
@@ -497,10 +528,10 @@ function renderFrames(){
   if (full){
     const num1 = buildNumber(st.roll, st.slotsN1);
     const num2 = buildNumber(st.roll, st.slotsN2);
-    el('product-check-wrap').classList.remove('hidden');
+    el('product-check-wrap').classList.remove('phase-hidden');
     el('product-equation').textContent = `${num1} × ${num2} = ?`;
   } else {
-    el('product-check-wrap').classList.add('hidden');
+    el('product-check-wrap').classList.add('phase-hidden');
   }
 }
 
@@ -541,14 +572,14 @@ function lockInRound(num1, num2, product){
   const choice = botChooseRound(st.round, st.roll, d1, d2, runningBotSum, st.target, st.difficulty);
   st.botProducts.push(choice.product);
 
-  updateScorecard();
+  updateScorecard(st.humanProducts, st.botProducts, v => v.toLocaleString());
 
-  el('frames-wrap').classList.add('hidden');
-  el('dice-row').classList.add('hidden');
-  el('product-check-wrap').classList.add('hidden');
+  el('frames-wrap').classList.add('phase-hidden');
+  el('dice-row').classList.add('phase-hidden');
+  el('product-check-wrap').classList.add('phase-hidden');
 
   if (st.round<3){
-    el('next-round-wrap').classList.remove('hidden');
+    el('next-round-wrap').classList.remove('phase-hidden');
   } else {
     setTimeout(goToSum, 500);
   }
@@ -562,14 +593,14 @@ el('next-round-btn').addEventListener('click', ()=>{
 
 /* ---------------- sum phase ---------------- */
 function goToSum(){
-  showScreen('sum');
+  showScreen(screens, 'sum');
   st.sumWrongAttempts = 0;
   el('sum-answer-input').value='';
   el('sum-answer-input').disabled=false;
   el('sum-check-btn').disabled=false;
   el('sum-hint-line').textContent='';
   el('sum-msg').textContent='';
-  el('sum-reveal-wrap').classList.add('hidden');
+  el('sum-reveal-wrap').classList.add('phase-hidden');
   const [p1,p2,p3] = st.humanProducts;
   el('sum-equation').textContent = `${p1.toLocaleString()} + ${p2.toLocaleString()} + ${p3.toLocaleString()} = ?`;
 }
@@ -584,7 +615,7 @@ function checkSum(){
   if (guess===correct){
     flashSumMsg('That checks out!', false);
     st.finalHumanSum = correct;
-    el('sum-reveal-wrap').classList.remove('hidden');
+    el('sum-reveal-wrap').classList.remove('phase-hidden');
     el('sum-answer-input').disabled=true;
     el('sum-check-btn').disabled=true;
   } else {
@@ -617,6 +648,48 @@ function decideWinner(humanSum, botSum, target){
   return humanSum===botSum ? 'tie' : (humanSum>botSum ? 'human':'bot');
 }
 
+/* ---------------- win-visual effects (typewriter banner + count-up totals)
+   see design/mockups/win-visuals-mockup.html and CLAUDE.md "Celebration
+   animations". Both play a small fixed number of times, then rest static —
+   never loop. prefers-reduced-motion skips straight to the final state. ---------------- */
+function prefersReducedMotion(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function typewriterReveal(el, text){
+  el.classList.remove('flash');
+  if (prefersReducedMotion()){
+    el.textContent = text;
+    return;
+  }
+  el.textContent = '';
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length){
+      clearInterval(timer);
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 400);
+    }
+  }, 45);
+}
+function countUp(el, target, format, steps=18, duration=650){
+  format = format || String;
+  if (prefersReducedMotion()){
+    el.textContent = format(target);
+    return;
+  }
+  let step = 0;
+  const timer = setInterval(() => {
+    step++;
+    el.textContent = format(Math.round((target/steps) * step));
+    if (step >= steps){
+      el.textContent = format(target);
+      clearInterval(timer);
+    }
+  }, duration/steps);
+}
+
 /* ---------------- reveal ---------------- */
 el('sum-reveal-btn').addEventListener('click', ()=>{
   st.finalBotSum = st.botProducts.reduce((a,b)=>a+b,0);
@@ -624,27 +697,29 @@ el('sum-reveal-btn').addEventListener('click', ()=>{
   const humanOver = st.finalHumanSum>target;
   const botOver = st.finalBotSum>target;
 
-  el('human-total').textContent = st.finalHumanSum.toLocaleString();
   el('human-status').textContent = humanOver ? 'Over the minimum' : 'Under the minimum';
   el('human-status').className = 'result-status ' + (humanOver?'over':'under');
-  el('bot-total').textContent = st.finalBotSum.toLocaleString();
   el('bot-status').textContent = botOver ? 'Over the minimum' : 'Under the minimum';
   el('bot-status').className = 'result-status ' + (botOver?'over':'under');
 
   const winner = decideWinner(st.finalHumanSum, st.finalBotSum, target);
 
-  const banner = el('winner-banner');
-  if (winner==='tie'){ banner.textContent = "It's a tie — you both win! 🤝"; st.score.ties++; }
-  else if (winner==='human'){ banner.textContent = 'You win this match! 🎉'; st.score.human++; }
-  else { banner.textContent = 'Bot wins this match.'; st.score.bot++; }
-  updateScorePills();
-  showScreen('reveal');
+  let bannerText;
+  if (winner==='tie'){ bannerText = "It's a tie — you both win!"; st.score.ties++; }
+  else if (winner==='human'){ bannerText = 'You win this match!'; st.score.human++; }
+  else { bannerText = 'Bot wins this match.'; st.score.bot++; }
+  updateScorePills(st.score);
+  showScreen(screens, 'reveal');
+
+  countUp(el('human-total'), st.finalHumanSum, v => v.toLocaleString());
+  countUp(el('bot-total'), st.finalBotSum, v => v.toLocaleString());
+  typewriterReveal(el('winner-banner'), bannerText);
 });
 
 el('play-again-btn').addEventListener('click', startMatch);
 
 /* ---------------- init ---------------- */
-showScreen('settings');
+showScreen(screens, 'settings');
 </script>
 </body>
 </html>

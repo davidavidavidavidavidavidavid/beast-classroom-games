@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fraction Detective</title>
+<style>
+  :root {
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #f1efe8;
+    --color-text-primary: #2c2c2a;
+    --color-text-secondary: #5f5e5a;
+    --color-text-tertiary: #888780;
+    --color-border-tertiary: rgba(44,44,42,0.15);
+    --color-border-secondary: rgba(44,44,42,0.3);
+    --color-border-primary: rgba(44,44,42,0.4);
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+    --font-sans: system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-background-primary: #2c2c2a;
+      --color-background-secondary: #444441;
+      --color-text-primary: #f1efe8;
+      --color-text-secondary: #b4b2a9;
+      --color-text-tertiary: #888780;
+      --color-border-tertiary: rgba(241,239,232,0.15);
+      --color-border-secondary: rgba(241,239,232,0.3);
+      --color-border-primary: rgba(241,239,232,0.4);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-background-secondary);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+  }
+  #app { max-width: 600px; width: 100%; background: var(--color-background-primary); border-radius: var(--border-radius-lg); padding: 1.5rem 1rem; margin: auto; }
+  h1 { font-size: 22px; font-weight: 500; color: var(--color-text-primary); text-align: center; }
+  #tagline { font-size: 12px; color: var(--color-text-tertiary); text-align: center; margin-bottom: 1rem; }
+  #top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; flex-wrap: wrap; gap: 6px; }
+  .stat-pill { background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: 20px; padding: 3px 10px; font-size: 12px; color: var(--color-text-secondary); }
+  .stat-pill span { font-weight: 500; color: var(--color-text-primary); }
+  .stat-pill.danger span { color: #A32D2D; }
+  #level-badge { font-size: 12px; padding: 3px 10px; border-radius: 20px; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); color: var(--color-text-secondary); }
+  #dev-toggle { font-size: 11px; color: var(--color-text-tertiary); background: none; border: none; cursor: pointer; text-decoration: underline; font-family: var(--font-sans); padding: 0 0 6px; display: block; }
+  #dev-panel { background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 8px 12px; margin-bottom: .75rem; display: none; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #dev-panel label { font-size: 11px; color: var(--color-text-secondary); }
+  #dev-panel select, #dev-panel button { font-size: 12px; padding: 3px 8px; border-radius: 6px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); cursor: pointer; font-family: var(--font-sans); }
+  #reveal-btn { color: #A32D2D; border-color: #A32D2D; }
+  #ans-display { font-size: 12px; color: #A32D2D; font-weight: 500; }
+  .num-group { display: flex; gap: 3px; }
+  .dbox { width: 38px; height: 42px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); color: var(--color-text-primary); }
+  .dbox.inp { border: 2px solid var(--color-border-secondary); background: var(--color-background-primary); cursor: pointer; position: relative; }
+  .dbox.inp.focused { border-color: #378ADD; }
+  .dbox.inp.filled { border-color: var(--color-border-primary); }
+  .caret { display: none; width: 2px; height: 22px; background: var(--color-text-primary); animation: blink 1s step-end infinite; border-radius: 1px; position: absolute; }
+  .dbox.inp.focused:not(.filled) .caret { display: block; }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+  .dbox.correct { background: #3B6D11; border-color: #3B6D11; color: #fff; }
+  .dbox.wrong-pos { background: #854F0B; border-color: #854F0B; color: #fff; }
+  .dbox.absent { background: #5F5E5A; border-color: #5F5E5A; color: #fff; }
+  .dbox.inv { background: #A32D2D; border-color: #A32D2D; color: #fff; }
+  .frac { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; }
+  .fbar { height: 2px; border-radius: 1px; background: var(--color-border-primary); width: 100%; min-width: 30px; }
+  .eq { font-size: 24px; color: var(--color-text-tertiary); padding: 0 4px; align-self: center; }
+  #history { display: flex; flex-direction: column; gap: 10px; margin-bottom: .75rem; }
+  .hist-row { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  #input-wrap { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px; }
+  .shake { animation: shake .4s ease; }
+  @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+  #dots { display: flex; gap: 5px; justify-content: center; margin-bottom: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-secondary); }
+  .dot.used { background: var(--color-text-tertiary); }
+  .dot.danger { background: #A32D2D; }
+  #msg { text-align: center; font-size: 13px; min-height: 18px; color: var(--color-text-secondary); margin-bottom: 8px; }
+  #msg.error { color: #791F1F; }
+  #msg.success { color: #27500A; }
+  #msg.warning { color: #854F0B; }
+  #keyboard { display: flex; flex-direction: column; gap: 5px; align-items: center; margin-bottom: .75rem; }
+  .kb-row { display: flex; gap: 5px; }
+  .kb-key { width: 36px; height: 38px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 14px; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; transition: background .15s, color .15s; font-family: var(--font-sans); }
+  .kb-key:active { transform: scale(.95); }
+  .kb-key.wide { width: 60px; font-size: 12px; }
+  .kb-key.correct { background: #3B6D11; border-color: #3B6D11; color: #fff; }
+  .kb-key.wrong-pos { background: #854F0B; border-color: #854F0B; color: #fff; }
+  .kb-key.absent { background: #5F5E5A; border-color: #5F5E5A; color: #fff; }
+  #action-row { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+  #action-row button { padding: 7px 20px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-size: 13px; cursor: pointer; font-family: var(--font-sans); }
+  #action-row button:hover { background: var(--color-background-secondary); }
+  #next-btn { display: none; font-weight: 500; }
+  #hint-btn { display: none; font-size: 12px; color: var(--color-text-secondary); }
+  #hint-text { text-align: center; font-size: 12px; color: var(--color-text-tertiary); margin-top: 4px; min-height: 16px; }
+  #endurance-bar { display: none; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 8px 14px; margin-bottom: .75rem; text-align: center; }
+  #endurance-bar p { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  #guess-track { display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; }
+  .gt-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-border-secondary); }
+  .gt-dot.used { background: #5F5E5A; }
+  .gt-dot.won { background: #3B6D11; }
+  .gt-dot.lost { background: #A32D2D; }
+  #gameover { display: none; text-align: center; padding: 1.5rem 1rem; }
+  #gameover h2 { font-size: 20px; font-weight: 500; color: var(--color-text-primary); margin-bottom: .5rem; }
+  #gameover p { font-size: 14px; color: var(--color-text-secondary); margin-bottom: 1rem; }
+  #gameover button { padding: 8px 24px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); font-size: 14px; cursor: pointer; font-family: var(--font-sans); }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Fraction Detective</h1>
+  <div id="tagline">Find the equivalent fraction hiding in plain sight</div>
+  <div id="top-bar">
+    <div style="display:flex;gap:5px;flex-wrap:wrap">
+      <div class="stat-pill">Round <span id="s-round">1</span></div>
+      <div class="stat-pill">Solved <span id="s-solved">0</span></div>
+      <div class="stat-pill">Streak <span id="s-streak">0</span></div>
+      <div class="stat-pill" id="guesses-pill" style="display:none">Guesses left <span id="s-gleft">50</span></div>
+    </div>
+    <div id="level-badge">Level 1</div>
+  </div>
+  <button id="dev-toggle">playtest mode</button>
+  <div id="dev-panel">
+    <label>Force level:</label>
+    <select id="level-sel">
+      <option value="-1">Auto</option>
+      <option value="1">L1 — single-digit, one simplified</option>
+      <option value="2">L2 — 2-digit creep, one simplified</option>
+      <option value="3">L3 — 2-digit, factors only</option>
+      <option value="4">L4 — proper+improper, factors only</option>
+      <option value="5">L5 — proper+improper, any multiple</option>
+      <option value="6">L6 — anything, larger</option>
+    </select>
+    <button id="skip-2digit">Start at 2-digit</button>
+    <button id="skip-r10">Skip to Round 10</button>
+    <button id="regen-btn">Regenerate</button>
+    <button id="reveal-btn">Reveal</button>
+    <span id="ans-display"></span>
+  </div>
+  <div id="endurance-bar">
+    <p>Endurance mode — <span id="s-gleft2">50</span> guesses remaining</p>
+    <div id="guess-track"></div>
+  </div>
+  <div id="history"></div>
+  <div id="dots"></div>
+  <div id="input-wrap"></div>
+  <div id="msg"></div>
+  <div id="keyboard">
+    <div class="kb-row">
+      <div class="kb-key" data-k="1">1</div><div class="kb-key" data-k="2">2</div>
+      <div class="kb-key" data-k="3">3</div><div class="kb-key" data-k="4">4</div>
+      <div class="kb-key" data-k="5">5</div><div class="kb-key" data-k="6">6</div>
+      <div class="kb-key" data-k="7">7</div><div class="kb-key" data-k="8">8</div>
+      <div class="kb-key" data-k="9">9</div><div class="kb-key" data-k="0">0</div>
+    </div>
+    <div class="kb-row">
+      <div class="kb-key wide" data-k="DEL">⌫ del</div>
+      <div class="kb-key wide" data-k="ENTER" style="width:72px">enter</div>
+    </div>
+  </div>
+  <div id="hint-text"></div>
+  <div id="action-row">
+    <button id="hint-btn">💡 hint</button>
+    <button id="next-btn">Next puzzle →</button>
+  </div>
+  <div id="gameover">
+    <h2 id="go-title">Game over</h2>
+    <p id="go-body"></p>
+    <button id="go-restart">Play again</button>
+  </div>
+</div>
+
+<script>
+const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+
+const LEVELS = {
+  1: { name: 'Level 1', maxBase: 8,  maxAns: 9,  improper: false, mustSimplified: true,  factorsOnly: true  },
+  2: { name: 'Level 2', maxBase: 12, maxAns: 24, improper: false, mustSimplified: true,  factorsOnly: true  },
+  3: { name: 'Level 3', maxBase: 12, maxAns: 36, improper: false, mustSimplified: false, factorsOnly: true  },
+  4: { name: 'Level 4', maxBase: 15, maxAns: 45, improper: true,  mustSimplified: false, factorsOnly: true  },
+  5: { name: 'Level 5', maxBase: 15, maxAns: 60, improper: true,  mustSimplified: false, factorsOnly: false },
+  6: { name: 'Level 6', maxBase: 20, maxAns: 99, improper: true,  mustSimplified: false, factorsOnly: false },
+};
+
+function getRoundLevel(r) {
+  if (r <= 3)  return 1;
+  if (r <= 7)  return 2;
+  if (r <= 12) return 3;
+  if (r <= 17) return 4;
+  if (r <= 23) return 5;
+  return 6;
+}
+
+function generatePuzzle(lvNum) {
+  const lv = LEVELS[lvNum];
+  for (let att = 0; att < 2000; att++) {
+    const maxN = lv.improper ? lv.maxBase : lv.maxBase - 1;
+    let bN = 1 + Math.floor(Math.random() * maxN);
+    let bD = lv.improper
+      ? (1 + Math.floor(Math.random() * lv.maxBase))
+      : (bN + 1 + Math.floor(Math.random() * (lv.maxBase - bN)));
+    if (bD < 1 || bN < 1) continue;
+    const g = gcd(bN, bD); bN = bN / g; bD = bD / g;
+    if (bN === bD) continue;
+    let k1, k2;
+    const maxK = Math.floor(lv.maxAns / Math.max(bN, bD));
+    if (maxK < 2) continue;
+    if (lv.mustSimplified) {
+      k1 = 1; k2 = 2 + Math.floor(Math.random() * (maxK - 1));
+      if (k2 > maxK) continue;
+    } else if (lv.factorsOnly) {
+      k2 = 2 + Math.floor(Math.random() * (maxK - 1));
+      if (k2 > maxK) continue;
+      const divs = [];
+      for (let d = 1; d < k2; d++) if (k2 % d === 0) divs.push(d);
+      if (!divs.length) continue;
+      k1 = divs[Math.floor(Math.random() * divs.length)];
+    } else {
+      k1 = 1 + Math.floor(Math.random() * (maxK - 1));
+      k2 = k1 + 1 + Math.floor(Math.random() * (maxK - k1));
+      if (k2 > maxK) continue;
+    }
+    if (k1 < 1 || k2 <= k1) continue;
+    const ans = { n1: bN*k1, d1: bD*k1, n2: bN*k2, d2: bD*k2 };
+    if ([ans.n1, ans.d1, ans.n2, ans.d2].some(v => v > 99 || v < 1)) continue;
+    if (lvNum === 1 && [ans.n1, ans.d1, ans.n2, ans.d2].some(v => v > 9)) continue;
+    return { ans, bN, bD, k1, k2, lvNum };
+  }
+  return { ans: { n1:1, d1:2, n2:2, d2:4 }, bN:1, bD:2, k1:1, k2:2, lvNum };
+}
+
+let slots = [], partDigits = [], focusSlot = 0;
+
+function buildSlots(ans) {
+  partDigits = [String(ans.n1).length, String(ans.d1).length, String(ans.n2).length, String(ans.d2).length];
+  slots = [];
+  for (let p = 0; p < 4; p++)
+    for (let d = 0; d < partDigits[p]; d++)
+      slots.push({ partIdx: p, digitIdx: d, value: '' });
+  focusSlot = 0;
+}
+
+function answerToDigits(ans) {
+  return [ans.n1, ans.d1, ans.n2, ans.d2].flatMap(v => String(v).split(''));
+}
+
+function guessToDigits(n1, d1, n2, d2) {
+  return [n1, d1, n2, d2].flatMap(v => String(v).split(''));
+}
+
+function colorDigits(guessDigits, targetDigits) {
+  const n = targetDigits.length;
+  const colors = new Array(n).fill('');
+  const tLeft = [...targetDigits];
+  const gLeft = [...guessDigits];
+  for (let i = 0; i < n; i++) {
+    if (gLeft[i] === tLeft[i]) { colors[i] = 'correct'; tLeft[i] = null; gLeft[i] = null; }
+  }
+  for (let i = 0; i < n; i++) {
+    if (gLeft[i] === null) continue;
+    const ti = tLeft.indexOf(gLeft[i]);
+    if (ti !== -1) { colors[i] = 'wrong-pos'; tLeft[ti] = null; }
+    else colors[i] = 'absent';
+  }
+  return colors;
+}
+
+function getPartValue(p) {
+  const my = slots.filter(s => s.partIdx === p);
+  if (my.some(s => s.value === '')) return null;
+  return parseInt(my.map(s => s.value).join(''), 10);
+}
+
+function renderInputSlots() {
+  const wrap = document.getElementById('input-wrap');
+  wrap.innerHTML = '';
+  if (st.gameOver) return;
+  const makeFrac = (nP, dP) => {
+    const frac = document.createElement('div'); frac.className = 'frac';
+    frac.appendChild(makeNumGroup(nP));
+    const bar = document.createElement('div'); bar.className = 'fbar'; frac.appendChild(bar);
+    frac.appendChild(makeNumGroup(dP));
+    return frac;
+  };
+  const makeNumGroup = (p) => {
+    const g = document.createElement('div'); g.className = 'num-group';
+    slots.forEach((s, gi) => {
+      if (s.partIdx !== p) return;
+      const box = document.createElement('div');
+      box.className = 'dbox inp' + (gi === focusSlot ? ' focused' : '') + (s.value !== '' ? ' filled' : '');
+      box.textContent = s.value;
+      const car = document.createElement('div'); car.className = 'caret'; box.appendChild(car);
+      box.addEventListener('click', () => { focusSlot = gi; renderInputSlots(); });
+      g.appendChild(box);
+    });
+    return g;
+  };
+  wrap.appendChild(makeFrac(0, 1));
+  const eq = document.createElement('div'); eq.className = 'eq'; eq.textContent = '=';
+  wrap.appendChild(eq);
+  wrap.appendChild(makeFrac(2, 3));
+}
+
+function slotInput(digit) {
+  if (focusSlot >= slots.length) return;
+  const s = slots[focusSlot];
+  if (s.digitIdx === 0 && s.value === '' && digit === '0' && partDigits[s.partIdx] > 1) {
+    setMsg('No leading zeros!', 'error'); setTimeout(() => setMsg(''), 900); return;
+  }
+  s.value = digit;
+  let next = focusSlot + 1;
+  while (next < slots.length && slots[next].value !== '') next++;
+  focusSlot = next < slots.length ? next : slots.length - 1;
+  renderInputSlots();
+}
+
+function slotDel() {
+  if (slots[focusSlot] && slots[focusSlot].value !== '') slots[focusSlot].value = '';
+  else if (focusSlot > 0) { focusSlot--; slots[focusSlot].value = ''; }
+  renderInputSlots();
+}
+
+function clearSlots() { slots.forEach(s => s.value = ''); focusSlot = 0; renderInputSlots(); }
+
+function updateKbColors() {
+  const rank = { correct: 3, 'wrong-pos': 2, absent: 1 };
+  const { ans } = st.puzzle;
+  const targetDigits = new Set(answerToDigits(ans));
+  const digitBest = {};
+  st.history.forEach(row => {
+    if (row.invalid) return;
+    row.slotColors.forEach((c, i) => {
+      const d = row.digits[i];
+      if (c === 'absent' && targetDigits.has(d)) return;
+      if (!digitBest[d] || (rank[c] || 0) > (rank[digitBest[d]] || 0)) digitBest[d] = c;
+    });
+  });
+  document.querySelectorAll('.kb-key[data-k]').forEach(btn => {
+    const k = btn.dataset.k;
+    btn.className = 'kb-key' + (k.length > 1 ? ' wide' : '');
+    if (digitBest[k]) btn.classList.add(digitBest[k]);
+  });
+}
+
+function makeHistFrac(nVal, dVal, nSlotColors, dSlotColors, inv) {
+  const frac = document.createElement('div'); frac.className = 'frac';
+  const makeGroup = (val, slotColors) => {
+    const g = document.createElement('div'); g.className = 'num-group';
+    String(val).split('').forEach((ch, i) => {
+      const b = document.createElement('div');
+      b.className = 'dbox ' + (inv ? 'inv' : (slotColors[i] || 'absent'));
+      b.textContent = ch; g.appendChild(b);
+    });
+    return g;
+  };
+  frac.appendChild(makeGroup(nVal, nSlotColors));
+  const bar = document.createElement('div'); bar.className = 'fbar'; frac.appendChild(bar);
+  frac.appendChild(makeGroup(dVal, dSlotColors));
+  return frac;
+}
+
+function renderHistory() {
+  const hist = document.getElementById('history'); hist.innerHTML = '';
+  st.history.forEach(row => {
+    const div = document.createElement('div'); div.className = 'hist-row';
+    if (row.invalid) {
+      const makeInvFrac = (nv, dv) => {
+        const frac = document.createElement('div'); frac.className = 'frac';
+        const makeG = (v) => {
+          const g = document.createElement('div'); g.className = 'num-group';
+          String(v).split('').forEach(ch => {
+            const b = document.createElement('div'); b.className = 'dbox inv'; b.textContent = ch; g.appendChild(b);
+          }); return g;
+        };
+        frac.appendChild(makeG(nv));
+        const bar = document.createElement('div'); bar.className = 'fbar'; frac.appendChild(bar);
+        frac.appendChild(makeG(dv)); return frac;
+      };
+      div.appendChild(makeInvFrac(row.n1, row.d1));
+      const eq = document.createElement('div'); eq.className = 'eq'; eq.textContent = '='; div.appendChild(eq);
+      div.appendChild(makeInvFrac(row.n2, row.d2));
+    } else {
+      let si = 0;
+      const partColors = partDigits.map(nd => { const c = row.slotColors.slice(si, si + nd); si += nd; return c; });
+      div.appendChild(makeHistFrac(row.n1, row.d1, partColors[0], partColors[1], false));
+      const eq = document.createElement('div'); eq.className = 'eq'; eq.textContent = '='; div.appendChild(eq);
+      div.appendChild(makeHistFrac(row.n2, row.d2, partColors[2], partColors[3], false));
+    }
+    hist.appendChild(div);
+  });
+}
+
+function renderEnduranceBar() {
+  if (!st.endurance) return;
+  document.getElementById('endurance-bar').style.display = 'block';
+  document.getElementById('guesses-pill').style.display = 'inline-flex';
+  document.getElementById('s-gleft').textContent = st.guessesLeft;
+  document.getElementById('s-gleft2').textContent = st.guessesLeft;
+  document.getElementById('guesses-pill').classList.toggle('danger', st.guessesLeft <= 10);
+  const track = document.getElementById('guess-track'); track.innerHTML = '';
+  st.guessLog.forEach(e => { const d = document.createElement('div'); d.className = 'gt-dot ' + e; track.appendChild(d); });
+  for (let i = st.guessLog.length; i < 50; i++) { const d = document.createElement('div'); d.className = 'gt-dot'; track.appendChild(d); }
+}
+
+let st = { round:1, puzzle:null, history:[], guesses:0, solved:0, streak:0, gameOver:false, devLevel:-1, hintUsed:false, endurance:false, guessesLeft:50, guessLog:[] };
+function currentLevel() { return st.devLevel > 0 ? st.devLevel : getRoundLevel(st.round); }
+
+function showGameOver(title, body) {
+  ['input-wrap','history','dots'].forEach(id => document.getElementById(id).innerHTML = '');
+  document.getElementById('keyboard').style.display = 'none';
+  document.getElementById('action-row').style.display = 'none';
+  document.getElementById('hint-text').textContent = '';
+  document.getElementById('msg').textContent = '';
+  document.getElementById('endurance-bar').style.display = 'none';
+  document.getElementById('gameover').style.display = 'block';
+  document.getElementById('go-title').textContent = title;
+  document.getElementById('go-body').textContent = body;
+}
+
+function fullReset() {
+  st = { round:1, puzzle:null, history:[], guesses:0, solved:0, streak:0, gameOver:false, devLevel:st.devLevel, hintUsed:false, endurance:false, guessesLeft:50, guessLog:[] };
+  document.getElementById('gameover').style.display = 'none';
+  document.getElementById('keyboard').style.display = 'flex';
+  document.getElementById('action-row').style.display = 'flex';
+  document.getElementById('endurance-bar').style.display = 'none';
+  document.getElementById('guesses-pill').style.display = 'none';
+  init();
+}
+
+function init() {
+  st.puzzle = generatePuzzle(currentLevel());
+  st.history = []; st.guesses = 0; st.gameOver = false; st.hintUsed = false;
+  buildSlots(st.puzzle.ans);
+  renderInputSlots(); renderHistory(); renderDots();
+  setMsg('');
+  document.getElementById('next-btn').style.display = 'none';
+  document.getElementById('hint-btn').style.display = 'none';
+  document.getElementById('hint-text').textContent = '';
+  document.getElementById('ans-display').textContent = '';
+  document.getElementById('level-badge').textContent = LEVELS[currentLevel()].name + (st.devLevel > 0 ? ' ✎' : '');
+  document.getElementById('s-round').textContent = st.round;
+  document.getElementById('s-solved').textContent = st.solved;
+  document.getElementById('s-streak').textContent = st.streak;
+  if (st.endurance) renderEnduranceBar();
+  updateKbColors();
+}
+
+function setMsg(txt, type = '') { const el = document.getElementById('msg'); el.textContent = txt; el.className = type; }
+
+function renderDots() {
+  const el = document.getElementById('dots'); el.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < st.guesses ? (i === 5 ? ' danger' : ' used') : '');
+    el.appendChild(d);
+  }
+}
+
+function shakeInput() {
+  const w = document.getElementById('input-wrap');
+  w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake');
+}
+
+function submit() {
+  if (st.gameOver) return;
+  const ns = [0,1,2,3].map(getPartValue);
+  if (ns.some(v => v === null || v < 1)) { setMsg('Fill in all the boxes first!', 'error'); shakeInput(); return; }
+  const [n1, d1, n2, d2] = ns;
+
+  if (st.history.some(r => !r.invalid && ((r.n1===n1&&r.d1===d1&&r.n2===n2&&r.d2===d2)||(r.n1===n2&&r.d1===d2&&r.n2===n1&&r.d2===d1)))) {
+    setMsg("You've already tried that!", 'error'); shakeInput(); return;
+  }
+  if (n1 * d2 !== n2 * d1) {
+    setMsg(`${n1}/${d1} ≠ ${n2}/${d2} — not a true equation!`, 'error');
+    st.history.push({ n1, d1, n2, d2, invalid: true });
+    renderHistory(); shakeInput();
+    setTimeout(() => { st.history.pop(); renderHistory(); setMsg(''); }, 1100);
+    return;
+  }
+
+  const { ans } = st.puzzle;
+  const exactWin = (n1===ans.n1 && d1===ans.d1 && n2===ans.n2 && d2===ans.d2);
+  const flippedWin = (n1===ans.n2 && d1===ans.d2 && n2===ans.n1 && d2===ans.d1);
+  const won = exactWin || flippedWin;
+
+  const targetDigits = answerToDigits(ans);
+  const guessDigits = guessToDigits(n1, d1, n2, d2);
+  const slotColors = won ? targetDigits.map(() => 'correct') : colorDigits(guessDigits, targetDigits);
+
+  if (st.endurance) { st.guessesLeft--; st.guessLog.push('used'); }
+
+  st.history.push({ n1, d1, n2, d2, slotColors, digits: guessDigits });
+  st.guesses++;
+  renderHistory(); renderDots(); updateKbColors();
+  clearSlots();
+
+  if (won) {
+    if (st.endurance) st.guessLog[st.guessLog.length - 1] = 'won';
+    st.solved++; st.streak++;
+    setMsg(`Case closed in ${st.guesses} ${st.guesses === 1 ? 'guess' : 'guesses'}! 🔍`, 'success');
+    document.getElementById('s-solved').textContent = st.solved;
+    document.getElementById('s-streak').textContent = st.streak;
+    document.getElementById('hint-btn').style.display = 'none';
+    st.gameOver = true;
+    if (st.devLevel < 0) st.round++;
+    if (st.endurance) {
+      renderEnduranceBar();
+      if (st.guessesLeft <= 0) { setTimeout(() => showGameOver('Out of guesses!', `You solved ${st.solved} puzzles. Impressive endurance!`), 800); return; }
+    }
+    document.getElementById('next-btn').style.display = 'block';
+
+  } else if (st.guesses >= 6) {
+    if (st.endurance) st.guessLog[st.guessLog.length - 1] = 'lost';
+    st.streak = 0;
+    setMsg(`The answer was ${ans.n1}/${ans.d1} = ${ans.n2}/${ans.d2}`, 'error');
+    document.getElementById('s-streak').textContent = 0;
+    document.getElementById('hint-btn').style.display = 'none';
+    st.gameOver = true;
+    if (st.devLevel < 0) st.round = Math.max(1, st.round - 1);
+    if (st.endurance) {
+      renderEnduranceBar();
+      if (st.guessesLeft <= 0) { setTimeout(() => showGameOver('Out of guesses!', `You solved ${st.solved} puzzles before running out of guesses.`), 1200); return; }
+    }
+    document.getElementById('next-btn').style.display = 'block';
+
+  } else {
+    if (st.guesses >= 2 && !st.hintUsed) document.getElementById('hint-btn').style.display = 'block';
+    const left = 6 - st.guesses;
+    let msg = `Valid equation — but not the one! ${left} ${left === 1 ? 'guess' : 'guesses'} left.`;
+    if (st.endurance && st.guessesLeft <= 5) msg += ` (${st.guessesLeft} total left!)`;
+    setMsg(msg);
+    if (st.endurance) {
+      renderEnduranceBar();
+      if (st.guessesLeft <= 0) { setTimeout(() => showGameOver('Out of guesses!', `You solved ${st.solved} puzzles before running out of guesses.`), 600); return; }
+    }
+  }
+}
+
+function handleKey(k) {
+  if (st.gameOver) return;
+  if (k === 'ENTER') { submit(); return; }
+  if (k === 'DEL') { slotDel(); return; }
+  if (!/^\d$/.test(k)) return;
+  slotInput(k);
+}
+
+document.getElementById('keyboard').addEventListener('click', e => {
+  const btn = e.target.closest('.kb-key'); if (btn) handleKey(btn.dataset.k);
+});
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Backspace') { e.preventDefault(); handleKey('DEL'); }
+  else if (e.key === 'Enter') { e.preventDefault(); handleKey('ENTER'); }
+  else if (e.key === 'ArrowRight' || e.key === 'Tab') { e.preventDefault(); focusSlot = Math.min(slots.length - 1, focusSlot + 1); renderInputSlots(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); focusSlot = Math.max(0, focusSlot - 1); renderInputSlots(); }
+  else if (/^\d$/.test(e.key)) { e.preventDefault(); handleKey(e.key); }
+});
+
+document.getElementById('next-btn').addEventListener('click', () => {
+  if (!st.endurance && st.round >= 10) { st.endurance = true; st.guessesLeft = 50; st.guessLog = []; }
+  init();
+});
+document.getElementById('hint-btn').addEventListener('click', () => {
+  st.hintUsed = true; document.getElementById('hint-btn').style.display = 'none';
+  document.getElementById('hint-text').textContent = `Hint: the simplified form is ${st.puzzle.bN}/${st.puzzle.bD}`;
+});
+document.getElementById('dev-toggle').addEventListener('click', () => {
+  const p = document.getElementById('dev-panel');
+  p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
+});
+document.getElementById('level-sel').addEventListener('change', e => { st.devLevel = parseInt(e.target.value); });
+document.getElementById('regen-btn').addEventListener('click', () => init());
+document.getElementById('reveal-btn').addEventListener('click', () => {
+  const a = st.puzzle.ans;
+  document.getElementById('ans-display').textContent = `${a.n1}/${a.d1} = ${a.n2}/${a.d2}`;
+});
+document.getElementById('skip-2digit').addEventListener('click', () => {
+  st.devLevel = 3; document.getElementById('level-sel').value = '3';
+  init(); setMsg('Playtesting L3 — 2-digit fractions', 'warning');
+});
+document.getElementById('skip-r10').addEventListener('click', () => {
+  st.round = 10; st.solved = 9; st.devLevel = -1;
+  document.getElementById('level-sel').value = '-1';
+  document.getElementById('s-round').textContent = st.round;
+  document.getElementById('s-solved').textContent = st.solved;
+  init(); setMsg('Skipped to round 10 — next round triggers endurance mode', 'warning');
+});
+document.getElementById('go-restart').addEventListener('click', () => fullReset());
+
+init();
+</script>
+</body>
+</html>

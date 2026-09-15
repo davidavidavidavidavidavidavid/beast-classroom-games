@@ -3,23 +3,71 @@
  * Actually clicks through the UI (roll, split digits into two numbers,
  * product-check, sum-check, reveal) and asserts the numbers shown on
  * screen match what the page itself computed.
+ *
+ * Runs a full 3-round match for all 4 formats x all 3 difficulties (12
+ * combinations) — see CLAUDE.md "File structure & the point of it"
+ * (shared-game.js): different formats feed different-shaped arrays
+ * (st.slotsN1/st.slotsN2, humanProducts/botProducts) through the same
+ * shared updateScorecard()/showScreen(), so a refactor bug specific to one
+ * shape (e.g. d1===d2 vs d1!==d2, or a single-digit d2) wouldn't
+ * necessarily show up testing only one combination.
  */
 
 'use strict';
 
 const assert = require('assert');
-const { loadGame, runInPage, sleep } = require('./jsdom-helpers');
+const { loadGame, runInPage, sleep, snapshotAvatarState } = require('./jsdom-helpers');
 
-async function main() {
+const FORMATS = ['2x1', '3x1', '4x1', '2x2'];
+const DIFFICULTIES = ['easy', 'medium', 'hard'];
+
+// Plays one full 3-round match for a given format/difficulty and returns
+// the final result. `checkAvatarsAndScorecard` is only true for the very
+// first combination — that behavior is independent of format/difficulty,
+// so checking it 12 times would be redundant, not more thorough.
+async function playFullMatch(format, difficulty, checkAvatarsAndScorecard) {
   const dom = loadGame('scuttle-product.html');
 
-  // 2x2 format (richer split: two 2-digit numbers from 4 dice, so the
-  // leading-zero guard gets exercised on *both* frames) + hard bot.
-  runInPage(dom, () => {
-    document.querySelector('#format-row [data-format="2x2"]').click();
-    document.querySelector('#diff-row [data-diff="hard"]').click();
+  if (checkAvatarsAndScorecard) {
+    // showScreen(screens, name) now takes `screens` as a parameter (see
+    // CLAUDE.md "File structure & the point of it" — shared-game.js)
+    // instead of closing over a game-specific global; confirm the
+    // persistent scorecard still hides on the settings screen exactly as
+    // before.
+    const scHiddenBeforeStart = runInPage(dom, () => document.getElementById('scorecard').classList.contains('hidden'));
+    assert.strictEqual(scHiddenBeforeStart, true, 'the scorecard should be hidden while still on the settings screen');
+
+    // Avatars (see CLAUDE.md "Avatars"): before touching anything, the
+    // picker and every badge should already agree with the default state.
+    const defaults = snapshotAvatarState(dom);
+    assert.strictEqual(defaults.pickerSelected, defaults.avatar, 'the avatar picker should mark st.avatar\'s slot as .selected by default');
+    assert.strictEqual(defaults.youBadge, `avatars/${defaults.avatar}.png`, 'top-bar "you" badge should point at st.avatar\'s image');
+    assert.strictEqual(defaults.scYouBadge, defaults.youBadge, 'scoreboard-header "you" badge should match the top-bar one');
+    assert.strictEqual(defaults.botBadge, `avatars/bot-${defaults.difficulty}.png`, 'top-bar bot badge should point at the difficulty-mapped bot avatar');
+    assert.strictEqual(defaults.scBotBadge, defaults.botBadge, 'scoreboard-header bot badge should match the top-bar one');
+  }
+
+  runInPage(dom, (fmt, diff) => {
+    document.querySelector('#avatar-row [data-avatar="cammy"]').click();
+    document.querySelector(`#format-row [data-format="${fmt}"]`).click();
+    document.querySelector(`#diff-row [data-diff="${diff}"]`).click();
     el('start-btn').click();
-  });
+  }, format, difficulty);
+
+  if (checkAvatarsAndScorecard) {
+    const scHiddenAfterStart = runInPage(dom, () => document.getElementById('scorecard').classList.contains('hidden'));
+    assert.strictEqual(scHiddenAfterStart, false, 'the scorecard should become visible once a match starts (round screen)');
+
+    const afterPick = snapshotAvatarState(dom);
+    assert.strictEqual(afterPick.avatar, 'cammy', 'clicking an avatar slot should update st.avatar');
+    assert.strictEqual(afterPick.pickerSelected, 'cammy', 'the clicked slot should become the (only) .selected one');
+    assert.strictEqual(afterPick.youBadge, 'avatars/cammy.png', 'top-bar "you" badge should update to the newly picked avatar');
+    assert.strictEqual(afterPick.scYouBadge, afterPick.youBadge, 'scoreboard-header "you" badge should update too');
+    assert.strictEqual(afterPick.botBadge, `avatars/bot-${difficulty}.png`, 'bot badges should swap to the chosen tier\'s avatar, independent of the avatar pick');
+    assert.strictEqual(afterPick.scBotBadge, afterPick.botBadge, 'scoreboard-header bot badge should match the top-bar one');
+  }
+
+  const cfg = runInPage(dom, () => ({ d1: st.slotsN1.length, d2: st.slotsN2.length, target: st.target }));
 
   for (let round = 1; round <= 3; round++) {
     runInPage(dom, () => { el('roll-btn').click(); });
@@ -27,7 +75,9 @@ async function main() {
 
     // Fill n1's slots then n2's slots (mirrors nextEmptySlot()'s own
     // order), never placing a 0 in a frame's leading slot unless forced —
-    // mirrors placeDigit()'s constraint so no click is ever rejected.
+    // mirrors placeDigit()'s constraint so no click is ever rejected. This
+    // generalizes across every format's own d1/d2 shape since it reads
+    // st.slotsN1/st.slotsN2's actual lengths, not a hardcoded 2x1 shape.
     runInPage(dom, () => {
       function unusedIndices() {
         return st.roll.map((_, i) => i).filter(i => !st.slotsN1.includes(i) && !st.slotsN2.includes(i));
@@ -70,11 +120,13 @@ async function main() {
       msg: el('product-msg').textContent,
       humanProducts: st.humanProducts.slice(),
       botProducts: st.botProducts.slice(),
+      scorecardShown: !document.getElementById('sc-you-' + st.humanProducts.length).classList.contains('empty'),
     }));
-    assert.strictEqual(afterCheck.msg, 'That checks out!', `round ${round}: the correct product should be accepted`);
-    assert.strictEqual(afterCheck.humanProducts.length, round, `round ${round}: humanProducts should have ${round} entries`);
-    assert.strictEqual(afterCheck.humanProducts[round - 1], correctProduct, `round ${round}: locked-in product should match the digits actually placed (${split.num1} × ${split.num2})`);
-    assert.strictEqual(afterCheck.botProducts.length, round, `round ${round}: botProducts should have ${round} entries`);
+    assert.strictEqual(afterCheck.msg, 'That checks out!', `[${format}/${difficulty}] round ${round}: the correct product should be accepted`);
+    assert.strictEqual(afterCheck.humanProducts.length, round, `[${format}/${difficulty}] round ${round}: humanProducts should have ${round} entries`);
+    assert.strictEqual(afterCheck.humanProducts[round - 1], correctProduct, `[${format}/${difficulty}] round ${round}: locked-in product should match the digits actually placed (${split.num1} × ${split.num2})`);
+    assert.strictEqual(afterCheck.botProducts.length, round, `[${format}/${difficulty}] round ${round}: botProducts should have ${round} entries`);
+    assert.strictEqual(afterCheck.scorecardShown, true, `[${format}/${difficulty}] round ${round}: updateScorecard(humanValues, botValues, formatFn) should have filled in the scorecard row`);
 
     if (round < 3) {
       runInPage(dom, () => { el('next-round-btn').click(); });
@@ -91,9 +143,29 @@ async function main() {
   }, correctSum);
 
   const sumMsg = runInPage(dom, () => el('sum-msg').textContent);
-  assert.strictEqual(sumMsg, 'That checks out!', 'the correct sum should be accepted');
+  assert.strictEqual(sumMsg, 'That checks out!', `[${format}/${difficulty}] the correct sum should be accepted`);
+
+  const preReveal = runInPage(dom, () => ({
+    humanTotalText: el('human-total').textContent,
+    bannerText: el('winner-banner').textContent,
+  }));
 
   runInPage(dom, () => { el('sum-reveal-btn').click(); });
+
+  // The win-visual reveal (typewriter banner + count-up totals, see CLAUDE.md
+  // "Celebration animations") is asynchronous — right after the click, it
+  // should still be mid-flight, not already showing final values. Proves
+  // this is really animated, not silently short-circuited to instant.
+  const midFlight = runInPage(dom, () => ({
+    humanTotalText: el('human-total').textContent,
+    bannerText: el('winner-banner').textContent,
+  }));
+  assert.strictEqual(midFlight.humanTotalText, preReveal.humanTotalText, `[${format}/${difficulty}] human total should not have jumped to its final value in the same tick as the reveal click`);
+  assert.strictEqual(midFlight.bannerText, '', `[${format}/${difficulty}] winner banner should be cleared (typewriter not yet started ticking) immediately after the reveal click`);
+
+  // Typewriter is 45ms/char + a 400ms flash buffer, count-up is a fixed
+  // 650ms — 2s comfortably clears both for every possible banner string.
+  await sleep(2000);
 
   const result = runInPage(dom, () => ({
     target: st.target,
@@ -110,23 +182,40 @@ async function main() {
     computedWinner: decideWinner(st.finalHumanSum, st.finalBotSum, st.target),
   }));
 
-  assert.strictEqual(result.shownHumanTotal, result.finalHumanSum, 'displayed human total should match st.finalHumanSum');
-  assert.strictEqual(result.shownBotTotal, result.finalBotSum, 'displayed bot total should match st.finalBotSum');
+  assert.strictEqual(result.shownHumanTotal, result.finalHumanSum, `[${format}/${difficulty}] displayed human total should match st.finalHumanSum`);
+  assert.strictEqual(result.shownBotTotal, result.finalBotSum, `[${format}/${difficulty}] displayed bot total should match st.finalBotSum`);
 
   const humanOver = result.finalHumanSum > result.target;
   const botOver = result.finalBotSum > result.target;
-  assert.strictEqual(result.humanStatusText, humanOver ? 'Over the minimum' : 'Under the minimum', 'human over/under label should match finalHumanSum vs target');
-  assert.strictEqual(result.humanStatusClass, 'result-status ' + (humanOver ? 'over' : 'under'), 'human status class should match finalHumanSum vs target');
-  assert.strictEqual(result.botStatusText, botOver ? 'Over the minimum' : 'Under the minimum', 'bot over/under label should match finalBotSum vs target');
-  assert.strictEqual(result.botStatusClass, 'result-status ' + (botOver ? 'over' : 'under'), 'bot status class should match finalBotSum vs target');
+  assert.strictEqual(result.humanStatusText, humanOver ? 'Over the minimum' : 'Under the minimum', `[${format}/${difficulty}] human over/under label should match finalHumanSum vs target`);
+  assert.strictEqual(result.humanStatusClass, 'result-status ' + (humanOver ? 'over' : 'under'), `[${format}/${difficulty}] human status class should match finalHumanSum vs target`);
+  assert.strictEqual(result.botStatusText, botOver ? 'Over the minimum' : 'Under the minimum', `[${format}/${difficulty}] bot over/under label should match finalBotSum vs target`);
+  assert.strictEqual(result.botStatusClass, 'result-status ' + (botOver ? 'over' : 'under'), `[${format}/${difficulty}] bot status class should match finalBotSum vs target`);
 
   const bannerWinner = result.banner.includes('tie') ? 'tie'
     : result.banner.startsWith('You win') ? 'human'
     : 'bot';
-  assert.strictEqual(bannerWinner, result.computedWinner, "the banner shown should agree with decideWinner's verdict on the same sums");
+  assert.strictEqual(bannerWinner, result.computedWinner, `[${format}/${difficulty}] the banner shown should agree with decideWinner's verdict on the same sums`);
 
-  console.log('  ✅ scuttle-product.html: full playthrough smoke test passed');
-  console.log(`     target=${result.target} | human ${result.finalHumanSum} (${humanOver ? 'over' : 'under'}) | bot ${result.finalBotSum} (${botOver ? 'over' : 'under'}) | winner=${result.computedWinner}`);
+  if (checkAvatarsAndScorecard) {
+    runInPage(dom, () => { el('change-settings-btn').click(); });
+    const scHiddenAfterReturnToSettings = runInPage(dom, () => document.getElementById('scorecard').classList.contains('hidden'));
+    assert.strictEqual(scHiddenAfterReturnToSettings, true, 'the scorecard should hide again after returning to settings from the reveal screen');
+  }
+
+  return { ...result, format, difficulty, d1: cfg.d1, d2: cfg.d2, humanOver, botOver };
+}
+
+async function main() {
+  let first = true;
+  for (const format of FORMATS) {
+    for (const difficulty of DIFFICULTIES) {
+      const r = await playFullMatch(format, difficulty, first);
+      first = false;
+      console.log(`  ✅ scuttle-product.html [${format}(${r.d1}x${r.d2})/${difficulty}]: full playthrough passed | target=${r.target} | human ${r.finalHumanSum} (${r.humanOver ? 'over' : 'under'}) | bot ${r.finalBotSum} (${r.botOver ? 'over' : 'under'}) | winner=${r.computedWinner}`);
+    }
+  }
+  console.log('  ✅ scuttle-product.html: all 4 formats × 3 difficulties (12 combinations) passed');
 }
 
 main().catch(e => {
