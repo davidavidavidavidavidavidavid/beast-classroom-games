@@ -22,6 +22,19 @@
      claim-grid.css) grow to use whatever extra room this makes available. */
   #app { max-width: 1100px; }
   #rules-box { max-width: 640px; margin-left: auto; margin-right: auto; }
+
+  /* Number-line visual for the answer-explanation modal (EXPERIMENTAL —
+     see CLAUDE.md "Answer-explanation modal & stats-demo experiment").
+     Bespoke to this file — only the modal SHELL (design-system.css) is
+     shared with the other 2 pilot games. */
+  .numline-wrap { padding: 18px 10px 8px; }
+  .numline-track { position: relative; height: 4px; background: var(--color-ink); border-radius: 2px; margin: 0 6px; }
+  .numline-tick { position: absolute; top: -8px; width: 4px; height: 20px; background: var(--color-ink); transform: translateX(-2px); }
+  .numline-tick-label { position: absolute; top: 14px; transform: translateX(-50%); font-family: var(--font-sans); font-weight: 700; font-size: 14px; }
+  .numline-tick-label.numline-answer { color: var(--color-correct); }
+  .numline-dot { position: absolute; top: -6px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-beast-blue); border: 2px solid var(--color-ink); transform: translateX(-8px); }
+  .numline-dot-label { position: absolute; top: -32px; transform: translateX(-50%); font-family: var(--font-sans); font-weight: 800; font-size: 15px; }
+  .numline-explain { font-family: var(--font-sans); font-size: 14px; text-align: center; margin-top: 34px; }
 </style>
 </head>
 <body>
@@ -476,6 +489,56 @@ function enterAwaitingAnswer(){
 el('check-btn').addEventListener('click', checkAnswer);
 el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
 
+/* ---------------- answer-explanation: number line (EXPERIMENTAL) ----------
+   See CLAUDE.md "Answer-explanation modal & stats-demo experiment". Uses
+   the SAME rounding rule the game itself already uses (valueFn's
+   Math.round(ab/10)*10, passed in as `correct` — never a second,
+   independently-reasoned rounding rule that could quietly disagree with
+   it), and calls out the exact-halfway case (rounds up, not "closer")
+   explicitly rather than saying "closer" when the two ticks are actually
+   equidistant. --------------------------------------------------------- */
+function renderNumberLine(num, correct){
+  const floor10 = Math.floor(num / 10) * 10;
+  const ceil10 = floor10 + 10;
+  const percent = ((num - floor10) / 10) * 100;
+  const onesDigit = num - floor10;
+  let explain;
+  if (onesDigit === 0){
+    explain = `${num} is already a multiple of ten, so it rounds to itself: <b>${correct}</b>.`;
+  } else if (onesDigit === 5){
+    explain = `${num} is exactly halfway between ${floor10} and ${ceil10} — exactly halfway always rounds up, so it rounds to <b>${correct}</b>.`;
+  } else {
+    const other = correct === floor10 ? ceil10 : floor10;
+    explain = `${num} is closer to <b>${correct}</b> than to ${other}, so it rounds to <b>${correct}</b>.`;
+  }
+  return `<div class="numline-wrap"><div class="numline-track">
+    <div class="numline-tick" style="left:0%"></div>
+    <div class="numline-tick-label${correct===floor10?' numline-answer':''}" style="left:0%">${floor10}</div>
+    <div class="numline-tick" style="left:100%"></div>
+    <div class="numline-tick-label${correct===ceil10?' numline-answer':''}" style="left:100%">${ceil10}</div>
+    <div class="numline-dot" style="left:${percent}%"></div>
+    <div class="numline-dot-label" style="left:${percent}%">${num}</div>
+  </div><div class="numline-explain">${explain}</div></div>`;
+}
+
+// Extracted from checkAnswer's correct-guess branch so the answer-
+// explanation modal's "Got it — continue" (EXPERIMENTAL, see CLAUDE.md
+// "Answer-explanation modal & stats-demo experiment") can complete the
+// move the same way a correct typed answer always has, without
+// duplicating the completion logic.
+function commitPendingRoundedValue(){
+  flashComputeMsg('That checks out!', false);
+  const winner = commitMove(st.pendingMove, 'human');
+  st.pendingMove = null;
+  el('answer-area').classList.add('hidden');
+  if (winner){ endGame(winner); return; }
+  st.turn = 'bot';
+  st.selectedTokenIdx = 0;
+  st.phase = 'idle';
+  render();
+  setTimeout(botTurn, 550);
+}
+
 function checkAnswer(){
   const guess = parseInt(el('answer-input').value, 10);
   const correct = computePendingValue();
@@ -487,20 +550,22 @@ function checkAnswer(){
     st.wrongAttempts++;
     flashComputeMsg("That's not quite right — check your work.", true);
     if (st.wrongAttempts >= 2){
-      el('hint-line').textContent = `Hint: ${pendingEquationText()} = ${correct}`;
+      // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
+      // experiment"): replaces the old plain-text hint-line — the modal
+      // shows the correct rounded value plus a number-line breakdown, and
+      // "Continue" completes the move with the correct value rather than
+      // making the player keep retyping it.
+      const num = computePendingTokens()[0] * 10 + computePendingTokens()[1];
+      showExplanationModal({
+        title: 'Let’s work it out together',
+        answerHtml: `${pendingEquationText()} = <b>${correct}</b>.`,
+        visualHtml: renderNumberLine(num, correct),
+        onContinue: commitPendingRoundedValue,
+      });
     }
     return;
   }
-  flashComputeMsg('That checks out!', false);
-  const winner = commitMove(st.pendingMove, 'human');
-  st.pendingMove = null;
-  el('answer-area').classList.add('hidden');
-  if (winner){ endGame(winner); return; }
-  st.turn = 'bot';
-  st.selectedTokenIdx = 0;
-  st.phase = 'idle';
-  render();
-  setTimeout(botTurn, 550);
+  commitPendingRoundedValue();
 }
 
 function flashComputeMsg(text, isError){

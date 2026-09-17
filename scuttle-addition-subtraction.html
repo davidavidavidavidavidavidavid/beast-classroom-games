@@ -10,6 +10,25 @@
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="design-system.css">
 <link rel="stylesheet" href="components/dice-slot.css">
+<style>
+  /* Column-method visual for the answer-explanation modal (EXPERIMENTAL —
+     see CLAUDE.md "Answer-explanation modal & stats-demo experiment").
+     Bespoke to this file — Scuttle Product's area model and Beeline
+     Rounding's number line are structurally different grids, so nothing
+     of this specific layout is shared; only the modal SHELL itself
+     (design-system.css) is. */
+  .colm-step { margin-bottom: 14px; text-align: center; }
+  .colm-step-label { font-family: var(--font-sans); font-weight: 700; font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .colm-grid { display: inline-grid; gap: 2px 4px; font-family: var(--font-sans); }
+  .colm-digit { font-size: 20px; font-weight: 700; text-align: center; line-height: 1.1; }
+  .colm-carry { font-size: 12px; font-weight: 700; color: var(--color-warn); text-align: center; height: 14px; }
+  .colm-op { font-size: 20px; font-weight: 700; text-align: center; }
+  .colm-strike { text-decoration: line-through; color: var(--color-text-tertiary); font-size: 13px; display: block; }
+  .colm-new { color: var(--color-beast-red); font-size: 18px; display: block; }
+  .colm-hr { grid-column: 1 / -1; border-top: 2px solid var(--color-ink); margin: 2px 0; }
+  .colm-borrow-mark { font-size: 11px; color: var(--color-warn); vertical-align: super; margin-right: 1px; }
+  .colm-fallback { font-family: var(--font-sans); font-size: 15px; text-align: center; }
+</style>
 </head>
 <body>
 <div id="app">
@@ -644,6 +663,124 @@ function currentHumanCorrectTotal(){
   return a + st.ops[0]*b + st.ops[1]*c;
 }
 
+/* ---------------- answer-explanation: column method (EXPERIMENTAL) --------
+   See CLAUDE.md "Answer-explanation modal & stats-demo experiment". Real,
+   verified digit-by-digit arithmetic (checked against many hand-computed
+   cases — including cascading borrows across zeros, e.g. 300-7 — in a
+   throwaway Node script before this was ever wired into HTML), not a
+   shortcut using JS's own +/- on the whole number: the point is to SHOW the
+   work, so the work has to be genuinely computed column by column, the same
+   way a student would do it by hand.
+   Only handles NON-NEGATIVE operands/results with the full visual grid —
+   this game's chained a±b±c can produce a negative intermediate or final
+   result (subtracting a bigger number from a smaller one), and a real
+   column-borrow visual doesn't have a standard meaning for that case at
+   this grade level. Falls back to a plain worked-out equation (still the
+   real, correct arithmetic, just not the grid) whenever a step would go
+   negative — a deliberate, flagged scope limit for this pilot, not an
+   oversight. ---------------------------------------------------------- */
+function numDigits(n){ return String(Math.abs(Math.trunc(n))).split('').map(Number); }
+
+function columnAdd(a, b){
+  const ad = numDigits(a), bd0 = numDigits(b);
+  const width = Math.max(ad.length, bd0.length) + 1;
+  const aPad = Array(width - ad.length).fill(null).concat(ad);
+  const bPad = Array(width - bd0.length).fill(null).concat(bd0);
+  const carries = new Array(width).fill(0);
+  const result = new Array(width).fill(0);
+  let carry = 0;
+  for (let i = width - 1; i >= 0; i--){
+    const da = aPad[i] === null ? 0 : aPad[i];
+    const db = bPad[i] === null ? 0 : bPad[i];
+    const sum = da + db + carry;
+    result[i] = sum % 10;
+    carry = Math.floor(sum / 10);
+    if (i > 0) carries[i-1] = carry;
+  }
+  return { aPad, bPad, result, carries, width };
+}
+
+function columnSubtract(a, b){
+  // requires a >= b, both non-negative — callers must check this first
+  const ad = numDigits(a);
+  const bdRaw = numDigits(b);
+  const width = ad.length;
+  const bd = Array(width - bdRaw.length).fill(0).concat(bdRaw);
+  const bIsPad = Array(width - bdRaw.length).fill(true).concat(bdRaw.map(() => false));
+  const result = new Array(width).fill(0);
+  const lentToLeft = new Array(width).fill(false);
+  const owesRightward = new Array(width).fill(0);
+  for (let i = width - 1; i >= 0; i--){
+    const owed = i < width - 1 ? (lentToLeft[i+1] ? 1 : 0) : 0;
+    owesRightward[i] = owed;
+    let avail = ad[i] - owed;
+    if (avail < bd[i]){
+      avail += 10;
+      lentToLeft[i] = true;
+    }
+    result[i] = avail - bd[i];
+  }
+  return { ad, bd, bIsPad, result, lentToLeft, owesRightward, width };
+}
+
+function renderColumnStep(a, isAdd, b, label){
+  let width, gridHtml = '';
+  if (isAdd){
+    const { aPad, bPad, result, carries, width: w } = columnAdd(a, b);
+    width = w;
+    gridHtml += '<div></div>' + carries.map(c => `<div class="colm-carry">${c || ''}</div>`).join('');
+    gridHtml += '<div></div>' + aPad.map(d => `<div class="colm-digit">${d === null ? '' : d}</div>`).join('');
+    gridHtml += '<div class="colm-op">+</div>' + bPad.map(d => `<div class="colm-digit">${d === null ? '' : d}</div>`).join('');
+    gridHtml += '<div class="colm-hr"></div>';
+    gridHtml += '<div></div>' + result.map(d => `<div class="colm-digit colm-new">${d}</div>`).join('');
+  } else {
+    const { ad, bd, bIsPad, result, lentToLeft, owesRightward, width: w } = columnSubtract(a, b);
+    width = w;
+    gridHtml += '<div></div>' + ad.map((orig, i) => {
+      if (owesRightward[i]){
+        const reduced = orig - owesRightward[i] + (lentToLeft[i] ? 10 : 0);
+        return `<div class="colm-digit"><span class="colm-strike">${orig}</span><span class="colm-new">${reduced}</span></div>`;
+      }
+      if (lentToLeft[i]) return `<div class="colm-digit"><span class="colm-borrow-mark">1</span>${orig}</div>`;
+      return `<div class="colm-digit">${orig}</div>`;
+    }).join('');
+    gridHtml += '<div class="colm-op">−</div>' + bd.map((d, i) => `<div class="colm-digit">${bIsPad[i] ? '' : d}</div>`).join('');
+    gridHtml += '<div class="colm-hr"></div>';
+    gridHtml += '<div></div>' + result.map(d => `<div class="colm-digit colm-new">${d}</div>`).join('');
+  }
+  return `<div class="colm-step"><div class="colm-step-label">${label}</div>` +
+    `<div class="colm-grid" style="grid-template-columns: 18px repeat(${width}, 22px);">${gridHtml}</div></div>`;
+}
+
+function renderColumnMethodExplanation(a, op1, b, op2, c){
+  const step1 = a + op1*b;
+  const step1Html = (step1 >= 0 && (op1 === 1 || a >= b))
+    ? renderColumnStep(op1 === 1 ? a : a, op1 === 1, op1 === 1 ? b : b, `Step 1: ${a} ${op1===1?'+':'−'} ${b} = ${step1}`)
+    : `<div class="colm-fallback">Step 1: ${a} ${op1===1?'+':'−'} ${b} = ${step1}` +
+      (step1 < 0 ? ` (${b} is bigger than ${a}, so this is negative)` : '') + `</div>`;
+  const final = step1 + op2*c;
+  const step2Html = (step1 >= 0 && final >= 0 && (op2 === 1 || step1 >= c))
+    ? renderColumnStep(step1, op2 === 1, c, `Step 2: ${step1} ${op2===1?'+':'−'} ${c} = ${final}`)
+    : `<div class="colm-fallback">Step 2: ${step1} ${op2===1?'+':'−'} ${c} = ${final}` +
+      (final < 0 ? ` (${c} is bigger than ${step1}, so this is negative)` : '') + `</div>`;
+  return step1Html + step2Html;
+}
+
+// Extracted from checkAnswer's correct-guess branch so the answer-
+// explanation modal's "Got it — continue" (EXPERIMENTAL, see CLAUDE.md
+// "Answer-explanation modal & stats-demo experiment") can complete the
+// round the same way a correct typed answer always has, without
+// duplicating the completion logic.
+function commitCorrectTotal(correct){
+  flashComputeMsg('That checks out!', false);
+  el('reveal-wrap').classList.remove('phase-hidden');
+  document.querySelectorAll('.op-btn').forEach(b => b.disabled = true);
+  document.querySelectorAll('.eq-num.draggable').forEach(t => t.classList.add('locked'));
+  el('answer-input').disabled = true;
+  el('check-btn').disabled = true;
+  st.finalHumanTotal = correct;
+}
+
 function checkAnswer(){
   const guess = parseInt(el('answer-input').value, 10);
   if (isNaN(guess)){
@@ -652,19 +789,23 @@ function checkAnswer(){
   }
   const correct = currentHumanCorrectTotal();
   if (guess === correct){
-    flashComputeMsg('That checks out!', false);
-    el('reveal-wrap').classList.remove('phase-hidden');
-    document.querySelectorAll('.op-btn').forEach(b => b.disabled = true);
-    document.querySelectorAll('.eq-num.draggable').forEach(t => t.classList.add('locked'));
-    el('answer-input').disabled = true;
-    el('check-btn').disabled = true;
-    st.finalHumanTotal = correct;
+    commitCorrectTotal(correct);
   } else {
     st.wrongAttempts++;
     flashComputeMsg("That's not quite right — check your work.", true);
     if (st.wrongAttempts >= 2){
-      const [a,b] = st.order.map(i => st.humanNums[i]);
-      el('hint-line').textContent = `Hint: ${a} ${st.ops[0]===1?'+':'\u2212'} ${b} = ${a+st.ops[0]*b}, then ${st.ops[1]===1?'add':'subtract'} the last number.`;
+      // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
+      // experiment"): replaces the old plain-text hint-line — the modal
+      // shows the correct total plus a column-method breakdown, and
+      // "Continue" completes the round with the correct total rather than
+      // making the player keep retyping it.
+      const [a,b,c] = st.order.map(i => st.humanNums[i]);
+      showExplanationModal({
+        title: 'Let\u2019s work it out together',
+        answerHtml: `The total is <b>${correct}</b>.`,
+        visualHtml: renderColumnMethodExplanation(a, st.ops[0], b, st.ops[1], c),
+        onContinue: () => commitCorrectTotal(correct),
+      });
     }
   }
 }

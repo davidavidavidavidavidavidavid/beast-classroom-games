@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stats Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<script src="shared-game.js"></script>
+<style>
+  /* This page is a throwaway demo, not a real built game — see CLAUDE.md
+     "Answer-explanation experiment & stats demo" for why it's deliberately
+     unlinked from GLOBAL_GAMES/index.html and uses fixed sample data
+     instead of anything wired to real gameplay. */
+  .demo-banner {
+    background: var(--color-warn); color: #fff; font-family: var(--font-sans);
+    font-weight: 800; font-size: 13px; text-align: center; letter-spacing: 0.4px;
+    padding: 6px 10px; border-radius: 4px; margin-bottom: 1rem;
+  }
+  .stat-table { width: 100%; border-collapse: collapse; }
+  .stat-table th {
+    font-family: var(--font-sans); font-size: 12.5px; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--color-text-tertiary); text-align: left;
+    padding: 6px 8px; border-bottom: 2px solid var(--color-ink);
+  }
+  .stat-table td { padding: 10px 8px; border-bottom: 1px solid var(--color-border-tertiary); vertical-align: middle; }
+  .stat-table tr:last-child td { border-bottom: none; }
+  .skill-name { font-family: var(--font-sans); font-weight: 700; font-size: 15px; color: var(--color-text-primary); }
+  .stat-num { font-family: var(--font-sans); font-weight: 700; font-size: 15px; }
+  .pct-cell { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+  .pct-bar-track { flex: 1 1 auto; height: 10px; background: var(--color-background-secondary); border: 1px solid var(--color-ink); border-radius: 3px; overflow: hidden; }
+  .pct-bar-fill { height: 100%; background: var(--color-beast-blue); }
+  .pct-label { font-family: var(--font-sans); font-weight: 700; font-size: 14px; width: 42px; text-align: right; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <h1>STATS</h1>
+  <div class="kicker-wrap"><span class="kicker">Temporary demo</span></div>
+  <div id="tagline" class="tagline">
+    A sample of what a per-skill accuracy tracker could look like.
+    <b>The numbers below are fixed sample data</b> — this page isn't wired
+    to any real game yet.
+  </div>
+
+  <div class="card">
+    <div class="demo-banner">DEMO ONLY — sample data, not live tracking</div>
+    <table class="stat-table">
+      <thead>
+        <tr>
+          <th>Skill</th>
+          <th>Correct</th>
+          <th>Accuracy</th>
+        </tr>
+      </thead>
+      <tbody id="stat-rows"></tbody>
+    </table>
+  </div>
+
+  <button id="how-link">Where would this data actually come from?</button>
+  <div id="rules-box" class="hidden card" style="margin-top:8px;">
+    Nothing yet — this page renders the fixed sample rows below, hardcoded in its
+    own script, so the layout/visual design can be reviewed before any real
+    per-game tracking is built. A real version would need every game to report
+    a (skill, correct/incorrect) event somewhere this page could read — not
+    built here, since this is explicitly a "just demo how this looks" pass,
+    not a tracking system.
+  </div>
+
+</div>
+
+<script>
+renderGlobalNav(); // no current-game key — this page isn't in GLOBAL_GAMES
+
+// Fixed sample data only — see the banner above. Each row: a skill name and
+// a made-up (correct, attempts) pair, picked to show a spread of accuracy
+// levels (very high, middling, struggling) rather than all-similar numbers.
+const SAMPLE_STATS = [
+  { skill: 'Addition & Subtraction (Scuttle)', correct: 42, attempts: 50 },
+  { skill: 'Multiplication (Scuttle Product)', correct: 27, attempts: 40 },
+  { skill: 'Multiplication Facts (Beeline)', correct: 33, attempts: 35 },
+  { skill: 'Rounding (Beeline Rounding)', correct: 14, attempts: 28 },
+  { skill: 'Fraction Equivalence (Detective)', correct: 19, attempts: 45 },
+];
+
+function renderStatRows() {
+  const el = document.getElementById('stat-rows');
+  el.innerHTML = SAMPLE_STATS.map(row => {
+    const pct = Math.round((row.correct / row.attempts) * 100);
+    return `<tr>
+      <td class="skill-name">${row.skill}</td>
+      <td class="stat-num">${row.correct} / ${row.attempts}</td>
+      <td>
+        <div class="pct-cell">
+          <div class="pct-bar-track"><div class="pct-bar-fill" style="width:${pct}%"></div></div>
+          <div class="pct-label">${pct}%</div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+renderStatRows();
+
+document.getElementById('how-link').addEventListener('click', () => {
+  document.getElementById('rules-box').classList.toggle('hidden');
+});
+</script>
+</body>
+</html>

@@ -22,6 +22,17 @@
   .slot { width: 46px; height: 54px; font-size: 24px; cursor: default; }
   .slot.filled { cursor: pointer; }
   .answer-input { width: 150px; }
+
+  /* Area-model visual for the answer-explanation modal (EXPERIMENTAL —
+     see CLAUDE.md "Answer-explanation modal & stats-demo experiment").
+     Bespoke to this file — only the modal SHELL (design-system.css) is
+     shared with the other 2 pilot games. */
+  .area-model-grid { border-collapse: collapse; margin: 0 auto; font-family: var(--font-sans); }
+  .area-model-grid td { border: 2px solid var(--color-ink); padding: 8px 12px; text-align: center; }
+  .am-corner { color: var(--color-text-tertiary); font-weight: 700; }
+  .am-head { font-weight: 800; background: var(--color-background-secondary); }
+  .am-cell { font-weight: 700; }
+  .am-sum { font-family: var(--font-sans); font-size: 14px; text-align: center; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -538,6 +549,40 @@ function renderFrames(){
   }
 }
 
+/* ---------------- answer-explanation: area model (EXPERIMENTAL) -----------
+   See CLAUDE.md "Answer-explanation modal & stats-demo experiment". Real
+   place-value decomposition + a real per-cell partial-product sum (checked
+   against many hand-computed cases across all 4 formats — 2x1/3x1/4x1/2x2 —
+   in a throwaway Node script before this was wired into any HTML), not a
+   shortcut that just prints num1*num2 next to a picture; the grid's own
+   partial products actually sum to the true product. Works uniformly for
+   every format: a 1-digit num2 (2x1/3x1/4x1) is just a 1-column grid, a
+   2-digit num2 (2x2) is a real 2-column grid. ------------------------- */
+function placeValueParts(n){
+  const s = String(n);
+  const parts = s.split('').map((ch, i) => Number(ch) * Math.pow(10, s.length - 1 - i)).filter(v => v !== 0);
+  return parts.length ? parts : [0];
+}
+function renderAreaModel(num1, num2){
+  const rowParts = placeValueParts(num1);
+  const colParts = placeValueParts(num2);
+  let html = '<table class="area-model-grid"><tr><td class="am-corner">×</td>' +
+    colParts.map(cp => `<td class="am-head">${cp.toLocaleString()}</td>`).join('') + '</tr>';
+  const partials = [];
+  rowParts.forEach(rp => {
+    html += `<tr><td class="am-head">${rp.toLocaleString()}</td>`;
+    html += colParts.map(cp => {
+      const partial = rp * cp;
+      partials.push(partial);
+      return `<td class="am-cell">${partial.toLocaleString()}</td>`;
+    }).join('');
+    html += '</tr>';
+  });
+  html += '</table>';
+  html += `<div class="am-sum">${partials.map(v => v.toLocaleString()).join(' + ')} = <b>${(num1*num2).toLocaleString()}</b></div>`;
+  return html;
+}
+
 el('product-check-btn').addEventListener('click', checkProduct);
 el('product-answer-input').addEventListener('keydown', e=>{ if (e.key==='Enter') checkProduct(); });
 function checkProduct(){
@@ -553,7 +598,17 @@ function checkProduct(){
     st.wrongAttempts++;
     flashProductMsg("That's not quite right — check your work.", true);
     if (st.wrongAttempts>=2){
-      el('product-hint-line').textContent = `Hint: ${num1} × ${num2} = ${correct}`;
+      // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
+      // experiment"): replaces the old plain-text hint-line — the modal
+      // shows the correct product plus an area-model breakdown, and
+      // "Continue" completes the round with the correct product rather
+      // than making the player keep retyping it.
+      showExplanationModal({
+        title: 'Let’s work it out together',
+        answerHtml: `${num1.toLocaleString()} × ${num2.toLocaleString()} = <b>${correct.toLocaleString()}</b>.`,
+        visualHtml: renderAreaModel(num1, num2),
+        onContinue: () => { flashProductMsg('That checks out!', false); lockInRound(num1, num2, correct); },
+      });
     }
   }
 }

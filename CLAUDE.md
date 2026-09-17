@@ -1898,6 +1898,157 @@ from 49 to 8 (6 playable + 2 locked) — every assertion that already read
 off this one constant (dropdown length, hub card count) updated for free;
 nothing hardcoded the old number in more than one place.
 
+## Answer-explanation modal & stats-demo experiment
+
+Real request (2026-09-17), explicitly framed as an experiment: **"What to
+do when someone gets the answer wrong — show a representation that shows
+how to work out the answer,"** with a representation named per skill
+category (ten-strips for basic addition facts, arrays for basic
+multiplication facts, area model for long multiplication, column method
+for long addition/subtraction, the long-division algorithm for division,
+number lines for rounding and for fractions), **plus a separate, explicitly
+"temporary... just demo how this looks" stats page** tracking
+skill/correct-count/accuracy-%. The user asked to "keep track of the
+changes so we can reverse easily."
+
+**Everything here lives on a dedicated branch,
+`experiment/answer-explanations-and-stats-demo`, not on `main`** — the
+single biggest lever for "reverse easily" a request like this could ask
+for, and a call made unprompted rather than asked about, since branching
+is safe/non-destructive on its own (nothing is lost either way) and directly
+serves the user's own stated goal. Nothing here has been merged to `main`;
+reversing this experiment entirely is deleting the branch, not hunting down
+individual diffs.
+
+**Scope was explicitly negotiated before writing any code, not assumed**,
+since a literal full build-out (6 representations × every applicable built
+game, ~15 files) is a dramatically bigger effort than what "an experiment"
+usually implies. Asked and answered: a **3-game pilot** (Scuttle Add/Sub →
+column method, Scuttle Product → area model, Beeline Rounding → number
+line) to react to the actual look/feel before deciding whether to expand —
+NOT the 1-per-representation or full-rollout options also offered. Ten-
+strips, arrays, and the long-division algorithm are therefore **not
+built anywhere yet** — flagged here so a future pass doesn't assume they
+exist because this section does.
+
+**Trigger timing was also explicitly clarified, and it's a real behavior
+change, not just a visual add-on**: the user's own follow-up was *"replace
+the existing hint, but students should no longer have to actually answer —
+this should be a modal that tells them the answer and then we move on."*
+This is a genuine reversal of this project's own standing retry-until-
+correct convention (see Code conventions / Testing methodology point 7,
+which describes "wrong guess → try again, hint unlocks after 2 misses" as
+the shape *every* game already uses) — for these 3 pilot games specifically,
+at the SAME 2-wrong-attempts trigger point that used to just reveal a
+text hint, the round/move now completes automatically (using the real
+correct value) once the player dismisses the explanation, rather than
+requiring them to keep retyping it. Every other game's own retry-until-
+correct hint mechanic is completely untouched.
+
+### Shared modal shell, bespoke visuals
+
+`showExplanationModal({ title, answerHtml, visualHtml, onContinue })`
+(`shared-game.js`) owns only the generic modal shell — lazily built into
+the DOM on first call, shown/hidden via `.hidden`, "Got it — continue"
+firing `onContinue` exactly once (the button is cloned/replaced on each
+call specifically to prevent a stale closure from an earlier call also
+firing — plain `addEventListener` would stack listeners on the same
+persistent node across calls). CSS lives in `design-system.css`
+(`.explain-modal-backdrop`/`.explain-modal`/etc.), `z-index:200` —
+deliberately above both `#global-nav` (40) and the boot screen (100),
+since this can appear well after either. Extracted to shared code
+immediately, given 3 simultaneous real consumers at once — this project's
+own established bar (see the Beeline two-row engine, extracted at 5
+consumers; Avatars' own note that even 3 was "a stronger case... than the
+usual 'wait for a second consumer' bar").
+
+The actual visual INSIDE the modal is bespoke per game, matching this
+project's standing "shared scaffolding, bespoke rendering on top" split
+(same shape as Detective's `renderInputSlots()`):
+- **Scuttle Add/Sub — column method** (`renderColumnMethodExplanation()`,
+  scuttle-addition-subtraction.html): real digit-by-digit addition-with-
+  carry and subtraction-with-borrow (including cascading borrows across
+  zeros, e.g. 300−7 — verified against many hand-computed cases in a
+  throwaway Node script before any HTML was touched, the same "verify
+  before shipping" discipline Bot AI philosophy already applies to bot
+  logic), rendered as two chained steps (`a op1 b`, then `result op2 c`),
+  matching the existing hint text's own two-step framing. **Known,
+  flagged scope limit**: only handles non-negative intermediate/final
+  results with the full grid — this game's chained `a±b±c` can genuinely
+  go negative (subtracting a bigger number from a smaller one), and a
+  standard column-borrow visual has no standard meaning at this grade
+  level for that case. Falls back to a plain worked-out equation (still
+  the real, correct arithmetic, just not the grid) whenever a step would
+  go negative, rather than inventing a non-standard negative-number
+  column visual.
+- **Scuttle Product — area model** (`renderAreaModel()`,
+  scuttle-product.html): real place-value decomposition of both factors
+  (`placeValueParts()`, e.g. 342 → [300,40,2]) into a genuine `d1 × d2`
+  grid of partial products that actually sum to the true product —
+  verified across all 4 formats (2x1/3x1/4x1/2x2) in the same kind of
+  throwaway verification script. A 1-digit second factor (2x1/3x1/4x1)
+  is naturally just a 1-column grid; 2x2 is a real 2×2 grid — one function
+  handles every format, no format-specific branching needed.
+- **Beeline Rounding — number line** (`renderNumberLine()`,
+  beeline-rounding.html): a CSS-positioned dot between the floor-ten and
+  ceiling-ten ticks, highlighting whichever tick the SAME `valueFn`
+  formula the game itself already uses (`Math.round(ab/10)*10`, passed in
+  as `correct`, never re-derived independently) says is the answer —
+  same "never duplicate the real computation with a second, possibly-
+  drifting version" discipline as Numbo's EPS/HUMAN_TOLERANCE split.
+  Explicitly special-cases the exactly-halfway case (ones digit = 5): says
+  "exactly halfway always rounds up" rather than the misleading "closer
+  to," since the two ticks are genuinely equidistant there, not actually
+  closer to one side.
+
+### What changed in each pilot game's answer-check
+
+All 3 follow the identical shape: the correct-guess branch's completion
+logic was extracted into its own named function (`commitCorrectTotal()` /
+`lockInRound()` already existed for Product / `commitPendingRoundedValue()`)
+so both a correct typed guess AND the modal's "Continue" reach the exact
+same completion path — no second, parallel copy of "what happens when this
+round/move is done." The `wrongAttempts >= 2` branch that used to write
+plain text into a `hint-line` element now calls `showExplanationModal()`
+instead; the `hint-line`/`product-hint-line` DOM elements themselves were
+deliberately left in the markup, just no longer written to — minimal-
+footprint changes, on the theory that a reviewer deciding to revert this
+specific piece should be able to just restore the 2-3 lines that used to
+set that text, not also reconstruct removed markup.
+
+### Test coverage
+
+Each pilot game's existing smoke test gained a real wrong-answer→modal→
+continue probe (2 deliberately wrong submissions, assert the modal appears
+and states the REAL correct value — not a hardcoded expected string, read
+off the same computation the game itself trusts — assert nothing commits
+before Continue, click Continue, assert the round/move completes with the
+correct value). For Scuttle Product (12 format×difficulty combinations)
+and the shared two-row Beeline variants file, the probe runs only ONCE
+(first combination for Product; only for `beeline-rounding.html` among the
+4 variants in that shared file) — the mechanism itself is format/variant-
+independent, so re-probing it in every combination would be redundant, not
+more thorough, the same reasoning `checkAvatarsAndScorecard` already uses
+in `smoke-product.test.js`.
+
+### Stats-demo page
+
+`stats-demo.html` — a standalone page, deliberately **not** added to
+`GLOBAL_GAMES`/`index.html`/any nav, per its own explicit "temporary...
+just demo how this looks" framing: reversing this later is deleting one
+file, no site-structure cleanup needed anywhere else. Renders a per-skill
+table (skill name / correct-out-of-attempts / an accuracy-% bar) from a
+hardcoded `SAMPLE_STATS` array — genuinely fake data, not wired to any real
+game's actual play, exactly as asked ("no need to track over sessions, just
+demo how this looks"). Still links `design-system.css`/`shared-game.js` and
+calls `renderGlobalNav()` (with no key, so no page is marked "current") for
+a consistent look and an easy way back to the hub, and carries a visible
+"DEMO ONLY — sample data, not live tracking" banner so it can never be
+mistaken for a real feature if stumbled onto directly. **Not built**: any
+real per-game event pipeline that would feed this from actual play — that
+would be a substantially bigger, separate task, out of scope for "just
+demo how this looks."
+
 ## Bot AI philosophy — read this before writing any bot logic
 
 - Bots must **always compute arithmetic correctly** regardless of difficulty.

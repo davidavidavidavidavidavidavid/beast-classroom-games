@@ -220,6 +220,49 @@ function prefersReducedMotion(){
   return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
 
+/* ---------------- answer-explanation modal (EXPERIMENTAL) ----------------
+   See CLAUDE.md "Answer-explanation modal & stats-demo experiment" for the
+   full story. Shared shell only, built once here since 3 simultaneous pilot
+   consumers (Scuttle Add/Sub, Scuttle Product, Beeline Rounding) already
+   meets this project's usual "wait for a second consumer" extraction bar at
+   3+ real consumers (same threshold the Beeline two-row engine used). The
+   bespoke visual HTML inside `visualHtml` — column method, area model,
+   number line — is entirely each calling game's own concern; this function
+   only owns showing/hiding the modal shell itself and firing `onContinue`
+   exactly once. Built lazily into the DOM on first call, not on page load,
+   since not every page linking shared-game.js needs this. */
+function showExplanationModal({ title, answerHtml, visualHtml, onContinue }){
+  let backdrop = document.getElementById('explain-modal-backdrop');
+  if (!backdrop){
+    backdrop = document.createElement('div');
+    backdrop.id = 'explain-modal-backdrop';
+    backdrop.className = 'explain-modal-backdrop hidden';
+    backdrop.innerHTML =
+      '<div class="explain-modal">' +
+        '<div class="explain-modal-title" id="explain-modal-title"></div>' +
+        '<div class="explain-modal-answer" id="explain-modal-answer"></div>' +
+        '<div class="explain-modal-visual" id="explain-modal-visual"></div>' +
+        '<button class="primary explain-modal-continue-btn" id="explain-modal-continue-btn">Got it — continue</button>' +
+      '</div>';
+    document.body.appendChild(backdrop);
+  }
+  document.getElementById('explain-modal-title').textContent = title;
+  document.getElementById('explain-modal-answer').innerHTML = answerHtml;
+  document.getElementById('explain-modal-visual').innerHTML = visualHtml;
+  backdrop.classList.remove('hidden');
+  // Replace (not just re-listen on) the continue button so a stale
+  // onContinue closure from an earlier call can never also fire — plain
+  // addEventListener would stack a second listener on the same persistent
+  // node every time this function runs.
+  const oldBtn = document.getElementById('explain-modal-continue-btn');
+  const btn = oldBtn.cloneNode(true);
+  oldBtn.parentNode.replaceChild(btn, oldBtn);
+  btn.addEventListener('click', () => {
+    backdrop.classList.add('hidden');
+    onContinue();
+  }, { once: true });
+}
+
 // Low-level pointer-drag primitive. `el` is the element a drag starts on
 // (pointerdown). `onMove(dx, dy, e)` fires on every pointermove with the
 // delta from the drag's start position — nothing is snapped or resolved

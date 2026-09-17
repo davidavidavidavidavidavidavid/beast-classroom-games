@@ -171,6 +171,45 @@ VARIANTS.forEach(v => {
     return { tokensUnchanged: JSON.stringify(st.tokens) === JSON.stringify(before), pendingStillNull: st.pendingMove === null, turnStatus: el('turn-status').textContent };
   }, moveRow === 0 ? '#operand-row-a' : '#operand-row-b', idxFor(moveRow === 0 ? a1 : b1, moveRow === 0 ? v.rowA : v.rowB));
   check(`${v.file}: anti-stalemate rule rejects reversing back to [${a1},${b1}]`, reversalAttempt.tokensUnchanged && reversalAttempt.pendingStillNull && /repeat/i.test(reversalAttempt.turnStatus), JSON.stringify(reversalAttempt));
+
+  // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
+  // experiment") — probed only for beeline-rounding.html, the one two-row
+  // variant in this pilot; the modal SHELL is already proven generic by
+  // Scuttle Add/Sub's and Scuttle Product's own smoke tests, so this only
+  // needs to prove Rounding's own number-line visual and wiring.
+  if (v.file === 'beeline-rounding.html') {
+    runInPage(dom, () => { st.turn = 'human'; st.phase = 'idle'; st.selectedTokenIdx = 0; render(); });
+    const thirdMovePos = 5; // row A (idx 0) to 5 — distinct from every prior position used above
+    const tokensAfterThird = [thirdMovePos, tokensAfterMove[1]];
+    const correctThird = v.claimedValue(tokensAfterThird);
+    runInPage(dom, (idx) => { document.querySelectorAll('#operand-row-a .op-num')[idx].click(); }, idxFor(thirdMovePos, v.rowA));
+
+    runInPage(dom, (correct) => {
+      el('answer-input').value = String(correct + 1000);
+      el('check-btn').click();
+      el('answer-input').value = String(correct + 2000);
+      el('check-btn').click();
+    }, correctThird);
+
+    const modalState = runInPage(dom, () => {
+      const backdrop = document.getElementById('explain-modal-backdrop');
+      return {
+        visible: !!backdrop && !backdrop.classList.contains('hidden'),
+        answerHtml: backdrop ? document.getElementById('explain-modal-answer').innerHTML : null,
+        hasTrack: document.querySelectorAll('.numline-track').length,
+        tokensBeforeContinue: st.tokens.slice(),
+      };
+    });
+    check(`${v.file}: after 2 wrong attempts, the answer-explanation modal appears`, modalState.visible === true, JSON.stringify(modalState));
+    check(`${v.file}: the modal states the real correct rounded value`, !!modalState.answerHtml && modalState.answerHtml.includes(String(correctThird)), JSON.stringify(modalState));
+    check(`${v.file}: the modal shows a number-line visual`, modalState.hasTrack === 1, JSON.stringify(modalState));
+    check(`${v.file}: the move is not committed just from the modal appearing`, JSON.stringify(modalState.tokensBeforeContinue) === JSON.stringify(tokensAfterMove), JSON.stringify(modalState));
+
+    runInPage(dom, () => { document.getElementById('explain-modal-continue-btn').click(); });
+    const afterContinue = runInPage(dom, () => ({ tokens: st.tokens.slice(), modalHidden: document.getElementById('explain-modal-backdrop').classList.contains('hidden') }));
+    check(`${v.file}: "Continue" commits the move using the real correct value`, JSON.stringify(afterContinue.tokens) === JSON.stringify(tokensAfterThird), JSON.stringify(afterContinue));
+    check(`${v.file}: the modal hides again after Continue`, afterContinue.modalHidden === true);
+  }
 });
 
 if (failures > 0) {

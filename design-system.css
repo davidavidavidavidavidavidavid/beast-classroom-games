@@ -507,3 +507,41 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .center { text-align: center; }
 .btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+
+/* ---------- answer-explanation modal (EXPERIMENTAL — see CLAUDE.md
+   "Answer-explanation modal & stats-demo experiment") ----------
+   Shared shell only — built once here since 3 simultaneous pilot consumers
+   (Scuttle Add/Sub, Scuttle Product, Beeline Rounding) is the same "wait
+   for a second consumer" threshold this project already treats as met at
+   3+ (see Beeline's two-row engine). The actual visual INSIDE
+   .explain-modal-visual (column method / area model / number line) is
+   bespoke per game, injected as HTML by that game's own render function —
+   same "shared scaffolding, bespoke rendering on top" split as everywhere
+   else in this project. Injected/shown via shared-game.js's
+   showExplanationModal(), not per-file markup — same "one real
+   implementation" reasoning as #global-nav. */
+.explain-modal-backdrop {
+  position: fixed; inset: 0; z-index: 200; /* above #global-nav (40) and the boot screen (100) — this can appear mid-game, well after either */
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.explain-modal {
+  background: var(--color-background-primary);
+  border: var(--border-w) solid var(--color-ink);
+  border-radius: 6px;
+  box-shadow: var(--shadow-card);
+  padding: 1.4rem 1.2rem;
+  max-width: 480px; width: 100%;
+  max-height: calc(100vh - 32px); overflow-y: auto;
+}
+.explain-modal-title {
+  font-family: var(--font-sans); font-weight: 800; font-size: 17px;
+  text-align: center; margin-bottom: 8px;
+}
+.explain-modal-answer {
+  font-family: var(--font-sans); font-weight: 700; font-size: 15px;
+  text-align: center; color: var(--color-correct); margin-bottom: 14px;
+}
+.explain-modal-visual { margin-bottom: 16px; }
+.explain-modal-continue-btn { display: block; width: 100%; }

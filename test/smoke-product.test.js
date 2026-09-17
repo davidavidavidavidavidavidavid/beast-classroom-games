@@ -111,10 +111,44 @@ async function playFullMatch(format, difficulty, checkAvatarsAndScorecard) {
     }));
     const correctProduct = split.num1 * split.num2;
 
-    runInPage(dom, (product) => {
-      el('product-answer-input').value = String(product);
-      el('product-check-btn').click();
-    }, correctProduct);
+    if (checkAvatarsAndScorecard && round === 1) {
+      // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
+      // experiment"): 2 wrong attempts now trigger a modal (area-model
+      // visual + the real answer) instead of a plain-text hint, and its
+      // "Continue" completes the round with the correct product. Only
+      // probed once (first format/difficulty, round 1) — the mechanism
+      // itself is format/difficulty-independent, so re-proving it in all
+      // 12 combinations would be redundant, not more thorough (same
+      // reasoning `checkAvatarsAndScorecard` above already uses).
+      runInPage(dom, (product) => {
+        el('product-answer-input').value = String(product + 100000);
+        el('product-check-btn').click();
+        el('product-answer-input').value = String(product + 200000);
+        el('product-check-btn').click();
+      }, correctProduct);
+
+      const modalState = runInPage(dom, () => {
+        const backdrop = document.getElementById('explain-modal-backdrop');
+        return {
+          visible: !!backdrop && !backdrop.classList.contains('hidden'),
+          answerHtml: backdrop ? document.getElementById('explain-modal-answer').innerHTML : null,
+          gridRows: document.querySelectorAll('.area-model-grid tr').length,
+        };
+      });
+      assert.strictEqual(modalState.visible, true, 'after 2 wrong attempts, the answer-explanation modal should appear');
+      assert.ok(modalState.answerHtml && modalState.answerHtml.includes(correctProduct.toLocaleString()), 'the modal should state the real correct product');
+      assert.ok(modalState.gridRows >= 2, 'the area-model grid should have a header row plus at least one place-value row');
+
+      const beforeContinue = runInPage(dom, () => st.humanProducts.length);
+      assert.strictEqual(beforeContinue, 0, 'the round should not auto-complete just from the modal appearing — only "Continue" should do that');
+
+      runInPage(dom, () => { document.getElementById('explain-modal-continue-btn').click(); });
+    } else {
+      runInPage(dom, (product) => {
+        el('product-answer-input').value = String(product);
+        el('product-check-btn').click();
+      }, correctProduct);
+    }
 
     const afterCheck = runInPage(dom, () => ({
       msg: el('product-msg').textContent,

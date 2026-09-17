@@ -158,19 +158,58 @@ async function main() {
   // operator toggle still works normally alongside the new drag handling).
   runInPage(dom, () => { document.querySelectorAll('.op-btn')[0].click(); });
 
-  // Compute screen: answer with the actual correct total for the NEW
-  // (post-drag, post-operator-toggle) equation. If swapOrder() had left
-  // st.order or currentHumanCorrectTotal() out of sync with what's
-  // actually displayed, this submission — using the same function the
-  // reveal handler itself trusts — would be rejected below.
+  // Compute screen, using the actual correct total for the NEW (post-drag,
+  // post-operator-toggle) equation as the reference value throughout — if
+  // swapOrder() had left st.order or currentHumanCorrectTotal() out of sync
+  // with what's actually displayed, the modal's stated answer below
+  // (computed via the same function the reveal handler itself trusts)
+  // would disagree with it.
   const correctTotal = runInPage(dom, () => currentHumanCorrectTotal());
+
+  // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
+  // experiment"): 2 wrong attempts now trigger a modal (column-method
+  // visual + the real answer) instead of a plain-text hint, and its
+  // "Continue" button completes the round with the correct total rather
+  // than making the player keep retyping it. Submit 2 deliberately wrong
+  // guesses first to drive this path.
   runInPage(dom, (total) => {
-    el('answer-input').value = String(total);
+    el('answer-input').value = String(total + 1000);
+    el('check-btn').click();
+    el('answer-input').value = String(total + 2000);
     el('check-btn').click();
   }, correctTotal);
 
-  const computeMsg = runInPage(dom, () => el('compute-msg').textContent);
-  assert.strictEqual(computeMsg, 'That checks out!', 'the correct total should be accepted');
+  const modalState = runInPage(dom, () => {
+    const backdrop = document.getElementById('explain-modal-backdrop');
+    return {
+      visible: !!backdrop && !backdrop.classList.contains('hidden'),
+      answerHtml: backdrop ? document.getElementById('explain-modal-answer').innerHTML : null,
+      stepCount: document.querySelectorAll('.colm-step, .colm-fallback').length,
+    };
+  });
+  assert.strictEqual(modalState.visible, true, 'after 2 wrong attempts, the answer-explanation modal should appear');
+  assert.ok(modalState.answerHtml && modalState.answerHtml.includes(String(correctTotal)), 'the modal should state the real correct total, not a stale/wrong one');
+  assert.strictEqual(modalState.stepCount, 2, 'the modal should show both worked-out steps (a op1 b, then that result op2 c)');
+
+  const beforeContinue = runInPage(dom, () => ({
+    finalHumanTotal: st.finalHumanTotal,
+    revealHidden: el('reveal-wrap').classList.contains('phase-hidden'),
+  }));
+  assert.strictEqual(beforeContinue.finalHumanTotal, null, 'the round should not auto-complete just from the modal appearing — only "Continue" should do that');
+  assert.strictEqual(beforeContinue.revealHidden, true, 'reveal-wrap should still be hidden until Continue is clicked');
+
+  runInPage(dom, () => { document.getElementById('explain-modal-continue-btn').click(); });
+
+  const afterContinue = runInPage(dom, () => ({
+    finalHumanTotal: st.finalHumanTotal,
+    modalHidden: document.getElementById('explain-modal-backdrop').classList.contains('hidden'),
+    revealHidden: el('reveal-wrap').classList.contains('phase-hidden'),
+    inputsDisabled: el('answer-input').disabled && el('check-btn').disabled,
+  }));
+  assert.strictEqual(afterContinue.finalHumanTotal, correctTotal, 'clicking Continue should complete the round using the real correct total');
+  assert.strictEqual(afterContinue.modalHidden, true, 'the modal should hide again once Continue is clicked');
+  assert.strictEqual(afterContinue.revealHidden, false, 'reveal-wrap should become visible after Continue, same as a correct typed answer');
+  assert.strictEqual(afterContinue.inputsDisabled, true, 'answer-input/check-btn should be disabled after Continue, same as a correct typed answer');
 
   const preReveal = runInPage(dom, () => ({
     humanTotalText: el('human-total').textContent,
