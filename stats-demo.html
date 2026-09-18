@@ -21,7 +21,12 @@
     font-weight: 800; font-size: 13px; text-align: center; letter-spacing: 0.4px;
     padding: 6px 10px; border-radius: 4px; margin-bottom: 1rem;
   }
-  .stat-table { width: 100%; border-collapse: collapse; }
+  /* Five columns don't fit a phone. Let the TABLE scroll inside its own
+     box rather than letting it push the whole page sideways — a table is
+     the one thing allowed to be wider than the layout, as long as it
+     carries its own horizontal scroll. */
+  .stat-scroll { overflow-x: auto; }
+  .stat-table { width: 100%; border-collapse: collapse; min-width: 520px; }
   .stat-table th {
     font-family: var(--font-sans); font-size: 12.5px; text-transform: uppercase;
     letter-spacing: 0.4px; color: var(--color-text-tertiary); text-align: left;
@@ -51,6 +56,7 @@
 
   <div class="card">
     <div class="demo-banner">DEMO ONLY — sample data, not live tracking</div>
+    <div class="stat-scroll">
     <table class="stat-table">
       <thead>
         <tr>
@@ -63,6 +69,7 @@
       </thead>
       <tbody id="stat-rows"></tbody>
     </table>
+    </div>
   </div>
 
   <button id="how-link">Where would this data actually come from?</button>

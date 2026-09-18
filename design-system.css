@@ -21,6 +21,9 @@
 
   --color-correct: #2f8f4e;
   --color-warn: #b8860b;
+  /* Tinted wash for warn-flagged surfaces, same 7-9% recipe as the
+     beast-red/blue backgrounds above. */
+  --color-warn-bg: rgba(184,134,11,0.09);
   --color-error: var(--color-beast-red);
 
   /* ink = the universal NES-style border/shadow color */
@@ -53,6 +56,11 @@
     --color-text-secondary: #a7b3bf;
     --color-text-tertiary: #78838e;
     --color-border-tertiary: rgba(238,243,248,0.12);
+    /* Dark goldenrod is near-invisible on the dark ground — lift it the
+       same way beast-red/blue get lifted above, so target pills, Nim's
+       selected-move ring and the demo markers stay legible in dark mode. */
+    --color-warn: #e3ab33;
+    --color-warn-bg: rgba(227,171,51,0.14);
   }
 }
 
@@ -269,7 +277,11 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
    same `.variant-card`s out in a 2-column grid instead — see that file's
    own small `<style>` block for the grid rule itself, since nothing else
    needs a 2-column layout. */
-.variant-list { display: flex; flex-direction: column; gap: 14px; }
+/* Gap/padding both have to clear a card's own 6px pixel shadow (and, on a
+   demo-framed card, its outline at an offset) — otherwise the shadow of
+   one card lands on the next, and the last card's shadow runs past the
+   list's own edge. */
+.variant-list { display: flex; flex-direction: column; gap: 18px; padding: 0 10px 10px 0; }
 
 .variant-card {
   display: block; text-decoration: none; color: inherit;
@@ -284,9 +296,25 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
 .variant-card.active { cursor: pointer; }
 .variant-card.active:active { transform: translate(6px,6px); box-shadow: 0 0 0 var(--color-ink); }
 .variant-card.active:focus-visible { outline: 3px solid var(--color-beast-blue); outline-offset: 2px; }
-.variant-card.locked { opacity: 0.55; }
+/* A not-yet-built game is a LOWER TIER, not just a faded copy of a
+   playable one. It used to carry the identical 4px border + full pixel
+   shadow and lean entirely on opacity:0.55 to recede — which both left it
+   structurally as loud as a real game (on the Beeline menu, 9 locked cards
+   visually outweighed the 6 playable ones) and pushed its text below
+   comfortable contrast. Recede it structurally instead — thinner border,
+   no shadow, recessed background — and give the text back some legibility. */
+.variant-card.locked {
+  opacity: 0.75;
+  border-width: 2px;
+  border-color: var(--color-text-tertiary);
+  box-shadow: none;
+  background: var(--color-background-secondary);
+}
 
 .variant-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+/* Keeps the name and any status chip (e.g. DEMO) together as one unit, so
+   space-between still pushes only the Play badge to the far edge. */
+.variant-name-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .variant-name { font-size: 19px; font-weight: 800; }
 .variant-desc { font-size: 14.5px; color: var(--color-text-secondary); line-height: 1.4; }
 .variant-std { font-size: 12.5px; color: var(--color-text-tertiary); margin-top: 6px; font-weight: 600; }
@@ -297,6 +325,10 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
 }
 .badge.play { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); text-decoration: none; }
 .badge.soon { background: var(--color-background-secondary); color: var(--color-text-tertiary); }
+/* TEMPORARY — see CLAUDE.md "Answer-explanation modal & stats-demo
+   experiment". Says in words what the dotted frame means, since a frame
+   alone can't: remove with the experiment. */
+.badge.demo { background: var(--color-warn); color: #fff; border-color: var(--color-warn); font-size: 11px; padding: 3px 7px; }
 
 /* A multi-variant game's own card on index.html — the card itself is no
    longer one big link (see shared-game.js's renderGameGrid): the "Play"
@@ -314,11 +346,33 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
 }
 .variant-expand-toggle:active { transform: none; }
 .variant-expand-toggle:hover { text-decoration: underline; }
-.variant-sublist { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 2px dashed var(--color-ink); }
+/* Divider is solid, not dashed: dotted/dashed now carries a specific
+   meaning on these pages (the demo marker), and a dashed rule inside the
+   same card competed with it. One line style, one meaning. */
+.variant-sublist { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 2px solid var(--color-border-tertiary); }
 .variant-sublink { font-size: 13.5px; font-weight: 600; color: var(--color-text-primary); text-decoration: none; padding: 5px 4px; border-radius: 3px; }
 .variant-sublink:hover { background: var(--color-background-secondary); text-decoration: underline; }
 
 .menu-footer { text-align: center; font-size: 13px; color: var(--color-text-tertiary); margin-top: 1.8rem; }
+
+/* Menu section headings ("Playable now" / "Coming soon"). Playable and
+   not-yet-built games used to run together in one undifferentiated list,
+   with a footnote at the very bottom as the only signal — so the reader
+   had to infer the grouping from each card's own badge. Reuses the same
+   uppercase label treatment as the settings screens' .section-label so
+   nothing new enters the visual language. */
+.menu-section-head {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-sans); font-weight: 800; font-size: 13px;
+  letter-spacing: 0.8px; text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin: 0.6rem 0 0.1rem;
+}
+.menu-section-head::after {
+  content: ''; flex: 1 1 auto; height: 2px;
+  background: var(--color-border-tertiary);
+}
+.menu-section-head:first-child { margin-top: 0; }
 
 /* ---------- settings screen scaffolding ---------- */
 .section-label { font-family: var(--font-sans); font-weight: 700; font-size: 17px; letter-spacing: 0.6px; color: var(--color-text-secondary); margin-bottom: 6px; text-transform: uppercase; }
@@ -551,11 +605,41 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
    from shared-game.js's DEMO_READY_HREFS. Outline rather than border so it
    can't change any card's size or shift the grid; remove with the
    experiment. */
-.demo-framed { outline: 3px dotted var(--color-warn); outline-offset: 3px; }
-/* A sublink is a full-width block inside a flex column, so outlining it as
-   -is draws a band across the whole card rather than a frame around the
-   variant's name. Shrink just the framed ones to their own text. */
-.variant-sublist .demo-framed { align-self: flex-start; padding-right: 8px; }
+/* A 3px dotted outline alone read as noise rather than a deliberate mark —
+   thin, low-contrast against white, and competing with the card's own
+   heavy black border. Three reinforcing signals instead of one: a heavier
+   outline, a warn-tinted surface so the whole card reads as flagged, and
+   (added in markup) a DEMO chip that says what it means in words. */
+.demo-framed {
+  outline: 4px dotted var(--color-warn);
+  outline-offset: 4px;
+}
+/* Deliberately NO background tint on a whole card: over the card's large
+   white area the wash read as aged paper rather than "highlighted", and
+   it dulled the text sitting on it. The outline plus the DEMO chip are
+   the signal at card scale; the tint is kept only for the small chip-
+   sized marks below, where it's read as a fill rather than a stain. */
+.variant-sublist .demo-framed, .demo-legend-swatch { background: var(--color-warn-bg); }
+/* A sublink is a full-width block inside a flex column, so outlining it
+   as-is draws a band across the whole card rather than a frame around the
+   variant's name. Shrink just the framed ones to their own text — and
+   keep the SAME horizontal padding as an unframed sublink, so framed and
+   unframed variant names still start on the same left edge. */
+.variant-sublist .demo-framed { align-self: flex-start; padding-right: 10px; }
+
+/* TEMPORARY legend — a frame can't explain itself, so say what it marks.
+   Remove with the experiment. */
+.demo-legend {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--font-sans); font-size: 12.5px; font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: 0 0 1rem;
+}
+.demo-legend .demo-legend-swatch {
+  width: 22px; height: 14px; border-radius: 3px;
+  outline: 3px dotted var(--color-warn); outline-offset: -1px;
+  background: var(--color-warn-bg);
+}
 
 /* TEMPORARY demo trigger (see CLAUDE.md "Answer-explanation modal &
    stats-demo experiment") — lets someone show the explanation on demand

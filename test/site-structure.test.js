@@ -194,12 +194,16 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   const hub = runInPage(dom, () => {
     const cards = Array.from(document.querySelectorAll('#game-grid .variant-card'));
     const byName = name => cards.find(c => c.querySelector('.variant-name').textContent === name);
+    // A card can now carry more than one badge — the play/coming-soon
+    // status badge, plus a TEMPORARY "Demo" chip on the games that have
+    // the answer-explanation built. Select the status one explicitly
+    // rather than "whichever .badge comes first in the DOM".
     const summarize = c => c && {
       tag: c.tagName,
       href: c.getAttribute('href'),
-      badge: c.querySelector('.badge').textContent,
-      badgeTag: c.querySelector('.badge').tagName,
-      badgeHref: c.querySelector('.badge').getAttribute('href'),
+      badge: c.querySelector('.badge.play, .badge.soon').textContent,
+      badgeTag: c.querySelector('.badge.play, .badge.soon').tagName,
+      badgeHref: c.querySelector('.badge.play, .badge.soon').getAttribute('href'),
       ariaDisabled: c.getAttribute('aria-disabled'),
       toggleText: c.querySelector('.variant-expand-toggle') ? c.querySelector('.variant-expand-toggle').textContent : null,
       sublistHiddenInitially: c.querySelector('.variant-sublist') ? c.querySelector('.variant-sublist').classList.contains('hidden') : null,
@@ -339,6 +343,48 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   const n = runInPage(dom, () => document.querySelectorAll('.variant-card').length);
   check('beeline-menu.html: 15 variant cards (6 built + 9 catalogued-unbuilt)', n === 15, `got ${n}`);
 }
+
+/* ---------------- menu organization: playable vs. coming soon ----------
+   Every listing page splits its cards into two labelled sections rather
+   than running both tiers together — see CLAUDE.md's design-sweep note. */
+['index.html', 'scuttle-menu.html', 'pop-menu.html', 'nim-menu.html', 'beeline-menu.html'].forEach(file => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => {
+    const heads = Array.from(document.querySelectorAll('.menu-section-head')).map(h => h.textContent);
+    // Every card must sit after one of the two headings — i.e. no card is
+    // left ungrouped above the first heading.
+    const nodes = Array.from(document.querySelectorAll('.menu-section-head, .variant-card'));
+    const firstCardIdx = nodes.findIndex(n => n.classList.contains('variant-card'));
+    const firstHeadIdx = nodes.findIndex(n => n.classList.contains('menu-section-head'));
+    return { heads, headComesFirst: firstHeadIdx !== -1 && firstHeadIdx < firstCardIdx };
+  });
+  check(`${file}: cards are grouped under "Playable now" / "Coming soon" headings`, r.heads.length === 2 && r.heads[0] === 'Playable now' && r.heads[1] === 'Coming soon', JSON.stringify(r.heads));
+  check(`${file}: no card sits above the first section heading`, r.headComesFirst === true, JSON.stringify(r));
+});
+
+/* ---------------- TEMPORARY: demo markers on listing pages -------------
+   EXPERIMENTAL — delete with the experiment. The dotted frame is only
+   half the signal; the DEMO chip and the legend are what make it mean
+   something, so all three are checked together. */
+[['index.html', 2], ['scuttle-menu.html', 2], ['beeline-menu.html', 2]].forEach(([file, expectedBadges]) => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => ({
+    framed: document.querySelectorAll('.demo-framed').length,
+    badges: document.querySelectorAll('.badge.demo').length,
+    legends: document.querySelectorAll('.demo-legend').length,
+  }));
+  check(`${file}: demo-ready items are framed, chipped and explained by a legend`, r.framed > 0 && r.badges === expectedBadges && r.legends === 1, JSON.stringify(r));
+});
+// Pages with nothing demo-ready must stay completely clean of demo furniture.
+['pop-menu.html', 'nim-menu.html'].forEach(file => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => ({
+    framed: document.querySelectorAll('.demo-framed').length,
+    badges: document.querySelectorAll('.badge.demo').length,
+    legends: document.querySelectorAll('.demo-legend').length,
+  }));
+  check(`${file}: no demo frame/chip/legend, since none of its variants has one`, r.framed === 0 && r.badges === 0 && r.legends === 0, JSON.stringify(r));
+});
 
 /* ---------------- TEMPORARY: answer-explanation demo buttons ------------
    EXPERIMENTAL — see CLAUDE.md "Answer-explanation modal & stats-demo

@@ -9,7 +9,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="design-system.css">
 <style>
-  * { overflow-x: hidden; }
+  /* Scoped to the page itself, NOT `*`. As a universal rule this made
+     every ancestor a clipping box, which cut off the cards' own pixel
+     drop shadows (and the demo frames) wherever a card sat flush against
+     #app/#game-grid's edge — visible as shadows that stop dead at the
+     column edge. Only the document needs horizontal overflow suppressed
+     (the boot byline is sized in vw and can exceed it on a narrow phone). */
+  html, body { overflow-x: hidden; }
 
   /* ============ BOOT SCREEN ============
      See CLAUDE.md "Boot sequence" — lives here now (the project's true
@@ -68,8 +74,16 @@
      2-up. `.variant-card` etc. are the same shared cards every game
      family's own sub-menu uses (design-system.css) — only the CONTAINER
      differs (a grid here, vs. a single flex column on a sub-menu page). */
-  .game-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  /* Gap has to clear a card's own 6px pixel shadow plus (on a demo-framed
+     card) its 4px outline at a 4px offset, or a card's shadow/frame lands
+     on top of its neighbour. Right/bottom padding does the same job at the
+     grid's own outer edges. */
+  .game-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; padding: 0 10px 10px 0; }
   @media (max-width: 480px) { .game-grid { grid-template-columns: 1fr; } }
+  /* Full-width section headings inside the grid — keeps every card a
+     direct child of #game-grid (so `#game-grid .variant-card` still
+     selects them all) while splitting playable from coming-soon. */
+  .game-grid .menu-section-head { grid-column: 1 / -1; }
 </style>
 </head>
 <body>
@@ -111,8 +125,21 @@
 function renderGameGrid(){
   const grid = document.getElementById('game-grid');
   grid.innerHTML = '';
+  // Playable and coming-soon games used to run together in one
+  // undifferentiated grid, leaving each card's own badge as the only
+  // signal. Headings are full-width grid items, so every card stays a
+  // direct child of #game-grid.
+  let sectionsEmitted = { playable: false, locked: false };
+  const emitHead = (text) => {
+    const h = document.createElement('div');
+    h.className = 'menu-section-head';
+    h.textContent = text;
+    grid.appendChild(h);
+  };
   GLOBAL_GAMES.forEach(g => {
     const isLocked = g.status === 'locked';
+    if (!isLocked && !sectionsEmitted.playable){ emitHead('Playable now'); sectionsEmitted.playable = true; }
+    if (isLocked && !sectionsEmitted.locked){ emitHead('Coming soon'); sectionsEmitted.locked = true; }
     const hasVariants = !isLocked && Array.isArray(g.variants) && g.variants.length > 1;
     const playHref = isLocked ? null : (hasVariants ? g.variants[0].href : g.href);
 
@@ -127,10 +154,16 @@ function renderGameGrid(){
 
     const top = document.createElement('div');
     top.className = 'variant-top';
+    const nameWrap = document.createElement('span');
+    nameWrap.className = 'variant-name-wrap';
     const name = document.createElement('span');
     name.className = 'variant-name';
     name.textContent = g.name;
-    top.appendChild(name);
+    nameWrap.appendChild(name);
+    // TEMPORARY DEMO chip — the dotted frame can't say what it means on
+    // its own. Remove with the experiment.
+    if (!isLocked && gameHasDemo(g)) nameWrap.appendChild(demoBadgeEl());
+    top.appendChild(nameWrap);
 
     let badge;
     if (isLocked){
@@ -189,6 +222,13 @@ function renderGameGrid(){
 
     grid.appendChild(card);
   });
+
+  // TEMPORARY legend explaining the dotted frames — remove with the
+  // experiment (see CLAUDE.md "Answer-explanation modal & stats-demo
+  // experiment").
+  if (!document.querySelector('.demo-legend')){
+    grid.parentNode.insertBefore(demoLegendEl(), grid);
+  }
 }
 renderGameGrid();
 renderGlobalNav(); // no current game — this IS the hub. See CLAUDE.md "Global navigation".

@@ -2230,7 +2230,66 @@ faked into something arithmetically wrong.
    or slow enough to stall. **Any test that waits out an explanation needs
    ~10s**, not the old 7s.
 
-**A real test-timing trap from the previous pass, worth remembering:**
+### Design sweep (menus)
+
+A review pass over the listing pages — "drop shadows cut off, organization
+messy, dotted demo lines too subtle" — plus a full-site audit. The
+aesthetic is unchanged; this is hierarchy and hygiene.
+
+1. **`* { overflow-x: hidden }` was clipping the pixel shadows.** On
+   `index.html` that universal rule made EVERY element a clipping box, so
+   any card sitting flush against `#app`/`#game-grid`'s edge had its own
+   `6px 6px 0` shadow (and its demo frame) sliced off — at 380px wide the
+   card's right edge and `#app`'s right edge were both at 404, so the
+   shadow had nowhere to paint. Now `html, body { overflow-x: hidden }`,
+   which still prevents the page-level horizontal scroll the rule was
+   there for (the boot byline is sized in `vw`). **Never scope
+   `overflow` with `*` in a design system built on outset shadows.**
+   Separately, `.variant-list`/`.game-grid` now carry right/bottom padding
+   and a wider gap, so a shadow never has to paint outside its container
+   or onto the next card.
+2. **Playable and coming-soon games were one undifferentiated list**, with
+   a footnote at the very bottom as the only signal — on `beeline-menu.html`
+   that meant 9 locked cards visually outweighing the 6 real ones. Now both
+   tiers sit under `.menu-section-head` headings ("Playable now" / "Coming
+   soon"), injected by `renderMenuSections()` for the static sub-menus and
+   emitted as full-width grid items by `renderGameGrid()` (so every card
+   stays a direct child of `#game-grid` and existing selectors still work).
+3. **Locked cards were structurally as loud as playable ones** — identical
+   4px border and full shadow, receding only via `opacity: 0.55`, which
+   also pushed their text below comfortable contrast. They now recede
+   structurally (2px border, no shadow, recessed background) at a higher
+   opacity, so they read as a lower tier AND are easier to read.
+4. **The demo marker is three signals now, not one.** A thin dotted
+   outline alone read as noise against the card's own heavy black border.
+   It's now a heavier dotted outline + a `DEMO` chip next to the name
+   (`.badge.demo`, injected for both the rendered hub cards and the static
+   sub-menu ones) + a one-line legend above each list. Deliberately NO
+   background tint at card scale — tried it, and over that much white it
+   read as aged paper rather than highlighted; the tint survives only on
+   the chip-sized marks (framed sublinks, legend swatch). Relatedly,
+   `.variant-sublist`'s divider went from dashed to solid: dotted/dashed
+   now means one specific thing on these pages, and a dashed rule inside
+   the same card competed with it.
+5. **`--color-warn` was near-invisible in dark mode.** Dark goldenrod
+   (#b8860b) on the #1b2530 ground had failed to get the same lift
+   beast-red/blue already get in the dark block. Added an override (plus
+   `--color-warn-bg`), which also helps the target pills and Nim's
+   selected-move ring, not just the demo markers.
+
+**Audit method, worth reusing:** rather than eyeballing pages, a throwaway
+Playwright script walked all 24 pages at 1100px and 380px and reported (a)
+any shadowed element clipped by an `overflow` ancestor, (b) anything
+sticking out past the viewport, (c) page-level horizontal scroll, and (d)
+uncaught page errors. That's what caught a regression this very sweep
+introduced — the stats table's new 5th column pushed `stats-demo.html`
+into horizontal scroll on a phone (fixed by giving the table its own
+`overflow-x: auto` box, since a table is the one thing allowed to be wider
+than the layout). Worth re-running after any layout change; the check for
+"legitimately wider, but inside its own scroll container" is the one
+refinement it needs to avoid false positives.
+
+**A real test-timing trap from an earlier pass, worth remembering:**
 `setTimeout(botTurn, 550)` captures the function VALUE at scheduling
 time, so stubbing `botTurn` afterwards does NOT stop an already-queued bot
 move. The two-row variants test only started failing once a probe waited

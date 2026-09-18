@@ -240,13 +240,68 @@ function gameHasDemo(g){
   if (Array.isArray(g.variants)) return g.variants.some(v => isDemoReady(v.href));
   return isDemoReady(g.href);
 }
+// The frame alone can't say what it means, so every marked thing also gets
+// a DEMO chip, and each listing page gets one legend line.
+function demoBadgeEl(){
+  const b = document.createElement('span');
+  b.className = 'badge demo';
+  b.textContent = 'Demo';
+  return b;
+}
+function demoLegendEl(){
+  const wrap = document.createElement('div');
+  wrap.className = 'demo-legend';
+  const sw = document.createElement('span');
+  sw.className = 'demo-legend-swatch';
+  wrap.appendChild(sw);
+  wrap.appendChild(document.createTextNode('Marked games have the new answer-explanation demo built in'));
+  return wrap;
+}
+
 // For the sub-menu pages, whose variant cards are hand-written markup
 // rather than rendered from GLOBAL_GAMES — marks them from the same one
 // list instead of hardcoding the frame into each page's HTML.
 function markDemoReadyCards(){
+  let marked = 0;
   document.querySelectorAll('a.variant-card[href]').forEach(card => {
-    if (isDemoReady(card.getAttribute('href'))) card.classList.add('demo-framed');
+    if (!isDemoReady(card.getAttribute('href'))) return;
+    card.classList.add('demo-framed');
+    const top = card.querySelector('.variant-top');
+    const name = top && top.querySelector('.variant-name');
+    if (name && !top.querySelector('.badge.demo')){
+      const wrap = document.createElement('span');
+      wrap.className = 'variant-name-wrap';
+      name.parentNode.insertBefore(wrap, name);
+      wrap.appendChild(name);
+      wrap.appendChild(demoBadgeEl());
+    }
+    marked++;
   });
+  const list = document.querySelector('.variant-list');
+  if (marked && list && !document.querySelector('.demo-legend')){
+    list.parentNode.insertBefore(demoLegendEl(), list);
+  }
+}
+
+/* ---------------- menu sections ----------------------------------------
+   Splits any .variant-list into "Playable now" / "Coming soon" instead of
+   running both tiers together and leaving a footnote at the bottom as the
+   only signal. Injected rather than written into each menu's markup for
+   the same reason renderGlobalNav() is: one implementation, and the
+   grouping can't drift out of sync with the cards themselves. */
+function renderMenuSections(playableLabel, lockedLabel){
+  const list = document.querySelector('.variant-list');
+  if (!list || list.querySelector('.menu-section-head')) return;
+  const head = (text) => {
+    const h = document.createElement('div');
+    h.className = 'menu-section-head';
+    h.textContent = text;
+    return h;
+  };
+  const firstLocked = list.querySelector('.variant-card.locked');
+  const firstCard = list.querySelector('.variant-card');
+  if (firstCard && firstCard !== firstLocked) list.insertBefore(head(playableLabel || 'Playable now'), firstCard);
+  if (firstLocked) list.insertBefore(head(lockedLabel || 'Coming soon'), firstLocked);
 }
 
 /* ---------------- staged step-reveal (EXPERIMENTAL) ----------------------
