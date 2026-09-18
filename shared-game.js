@@ -220,18 +220,63 @@ function prefersReducedMotion(){
   return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
 
+/* ---------------- staged step-reveal (EXPERIMENTAL) ----------------------
+   See CLAUDE.md "Answer-explanation modal & stats-demo experiment". Same
+   governing rule as every other animation in this project (see
+   "Celebration animations"): plays a short, FIXED sequence once, then
+   rests on the final frame — never loops — and skips straight to the
+   final frame under prefers-reduced-motion. Deliberately fast: these
+   explanation visuals sit inside a fluency-practice loop, where speed
+   matters, not a leisurely tutorial, so callers pass a short msPerFrame
+   (a few hundred ms), not the ~650ms+ used for e.g. Celebration
+   animations' own count-up. `frames` is an array of HTML strings — the
+   LAST one is what stays showing once the sequence finishes, and is also
+   what a caller can jump straight to early (see the returned stop()).
+   Returns a `stop()` function: jumps immediately to the final frame and
+   clears the timer — callers use this when the player dismisses the
+   explanation before the animation finishes on its own, so speed-focused
+   players are never forced to sit through it, and so the interval never
+   leaks past the modal being dismissed. */
+function revealSteps(containerEl, frames, msPerFrame, onDone){
+  if (!frames || !frames.length){ if (onDone) onDone(); return () => {}; }
+  if (prefersReducedMotion() || frames.length === 1){
+    containerEl.innerHTML = frames[frames.length - 1];
+    if (onDone) onDone();
+    return () => {};
+  }
+  let i = 0;
+  containerEl.innerHTML = frames[0];
+  const timer = setInterval(() => {
+    i++;
+    containerEl.innerHTML = frames[i];
+    if (i >= frames.length - 1){
+      clearInterval(timer);
+      if (onDone) onDone();
+    }
+  }, msPerFrame);
+  return () => {
+    clearInterval(timer);
+    containerEl.innerHTML = frames[frames.length - 1];
+  };
+}
+
 /* ---------------- answer-explanation modal (EXPERIMENTAL) ----------------
    See CLAUDE.md "Answer-explanation modal & stats-demo experiment" for the
    full story. Shared shell only, built once here since 3 simultaneous pilot
    consumers (Scuttle Add/Sub, Scuttle Product, Beeline Rounding) already
    meets this project's usual "wait for a second consumer" extraction bar at
    3+ real consumers (same threshold the Beeline two-row engine used). The
-   bespoke visual HTML inside `visualHtml` — column method, area model,
-   number line — is entirely each calling game's own concern; this function
-   only owns showing/hiding the modal shell itself and firing `onContinue`
-   exactly once. Built lazily into the DOM on first call, not on page load,
-   since not every page linking shared-game.js needs this. */
-function showExplanationModal({ title, answerHtml, visualHtml, onContinue }){
+   bespoke visual FRAMES — column method, area model, number line — are
+   entirely each calling game's own concern; this function only owns
+   showing/hiding the modal shell, driving the shared revealSteps()
+   animation into `.explain-modal-visual`, and firing `onContinue` exactly
+   once. `answerHtml` is shown immediately, in full, the instant the modal
+   opens — never staged behind the animation — so the real answer is never
+   ambiguous or hint-like regardless of how the visual animates in.
+   `visualFrames`/`msPerFrame` are passed straight through to revealSteps().
+   Built lazily into the DOM on first call, not on page load, since not
+   every page linking shared-game.js needs this. */
+function showExplanationModal({ title, answerHtml, visualFrames, msPerFrame = 350, onContinue }){
   let backdrop = document.getElementById('explain-modal-backdrop');
   if (!backdrop){
     backdrop = document.createElement('div');
@@ -248,8 +293,8 @@ function showExplanationModal({ title, answerHtml, visualHtml, onContinue }){
   }
   document.getElementById('explain-modal-title').textContent = title;
   document.getElementById('explain-modal-answer').innerHTML = answerHtml;
-  document.getElementById('explain-modal-visual').innerHTML = visualHtml;
   backdrop.classList.remove('hidden');
+  const stopReveal = revealSteps(document.getElementById('explain-modal-visual'), visualFrames, msPerFrame);
   // Replace (not just re-listen on) the continue button so a stale
   // onContinue closure from an earlier call can never also fire — plain
   // addEventListener would stack a second listener on the same persistent
@@ -258,6 +303,7 @@ function showExplanationModal({ title, answerHtml, visualHtml, onContinue }){
   const btn = oldBtn.cloneNode(true);
   oldBtn.parentNode.replaceChild(btn, oldBtn);
   btn.addEventListener('click', () => {
+    stopReveal(); // jump to the final frame + clear the timer — harmless no-op if the reveal already finished on its own
     backdrop.classList.add('hidden');
     onContinue();
   }, { once: true });

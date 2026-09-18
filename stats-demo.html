@@ -11,7 +11,7 @@
 <script src="shared-game.js"></script>
 <style>
   /* This page is a throwaway demo, not a real built game — see CLAUDE.md
-     "Answer-explanation experiment & stats demo" for why it's deliberately
+     "Answer-explanation modal & stats-demo experiment" for why it's deliberately
      unlinked from GLOBAL_GAMES/index.html and uses fixed sample data
      instead of anything wired to real gameplay. */
   .demo-banner {
@@ -33,6 +33,10 @@
   .pct-bar-track { flex: 1 1 auto; height: 10px; background: var(--color-background-secondary); border: 1px solid var(--color-ink); border-radius: 3px; overflow: hidden; }
   .pct-bar-fill { height: 100%; background: var(--color-beast-blue); }
   .pct-label { font-family: var(--font-sans); font-weight: 700; font-size: 14px; width: 42px; text-align: right; }
+  .last-played { font-family: var(--font-sans); font-size: 13.5px; color: var(--color-text-tertiary); white-space: nowrap; }
+  .time-on-game-display { font-family: var(--font-sans); font-weight: 800; font-size: 34px; text-align: center; letter-spacing: 1px; }
+  .time-on-game-status { font-family: var(--font-sans); font-weight: 700; font-size: 13px; text-align: center; color: var(--color-correct); margin-top: 2px; }
+  .time-on-game-status.paused { color: var(--color-warn); }
 </style>
 </head>
 <body>
@@ -47,13 +51,20 @@
   </div>
 
   <div class="card">
-    <div class="demo-banner">DEMO ONLY — sample data, not live tracking</div>
+    <div class="section-label" style="text-align:center;">Time on game (this session)</div>
+    <div id="time-on-game-display" class="time-on-game-display">0:00</div>
+    <div id="time-on-game-status" class="time-on-game-status">Counting…</div>
+  </div>
+
+  <div class="card">
+    <div class="demo-banner">DEMO ONLY — Correct/Accuracy/Last played are sample data; Time on game above is real, live tracking</div>
     <table class="stat-table">
       <thead>
         <tr>
           <th>Skill</th>
           <th>Correct</th>
           <th>Accuracy</th>
+          <th>Last played</th>
         </tr>
       </thead>
       <tbody id="stat-rows"></tbody>
@@ -75,15 +86,18 @@
 <script>
 renderGlobalNav(); // no current-game key — this page isn't in GLOBAL_GAMES
 
-// Fixed sample data only — see the banner above. Each row: a skill name and
-// a made-up (correct, attempts) pair, picked to show a spread of accuracy
-// levels (very high, middling, struggling) rather than all-similar numbers.
+// Fixed sample data only — see the banner above. Each row: a skill name, a
+// made-up (correct, attempts) pair (picked to show a spread of accuracy
+// levels, not all-similar numbers), and a made-up "time since last played"
+// string — genuinely fake, same as correct/attempts, NOT derived from any
+// real cross-session history (the original ask was explicit: "no need to
+// track over sessions, just demo how this looks").
 const SAMPLE_STATS = [
-  { skill: 'Addition & Subtraction (Scuttle)', correct: 42, attempts: 50 },
-  { skill: 'Multiplication (Scuttle Product)', correct: 27, attempts: 40 },
-  { skill: 'Multiplication Facts (Beeline)', correct: 33, attempts: 35 },
-  { skill: 'Rounding (Beeline Rounding)', correct: 14, attempts: 28 },
-  { skill: 'Fraction Equivalence (Detective)', correct: 19, attempts: 45 },
+  { skill: 'Addition & Subtraction (Scuttle)', correct: 42, attempts: 50, lastPlayed: 'Just now' },
+  { skill: 'Multiplication (Scuttle Product)', correct: 27, attempts: 40, lastPlayed: '2 hours ago' },
+  { skill: 'Multiplication Facts (Beeline)', correct: 33, attempts: 35, lastPlayed: 'Yesterday' },
+  { skill: 'Rounding (Beeline Rounding)', correct: 14, attempts: 28, lastPlayed: '3 days ago' },
+  { skill: 'Fraction Equivalence (Detective)', correct: 19, attempts: 45, lastPlayed: '1 week ago' },
 ];
 
 function renderStatRows() {
@@ -99,6 +113,7 @@ function renderStatRows() {
           <div class="pct-label">${pct}%</div>
         </div>
       </td>
+      <td class="last-played">${row.lastPlayed}</td>
     </tr>`;
   }).join('');
 }
@@ -107,6 +122,60 @@ renderStatRows();
 document.getElementById('how-link').addEventListener('click', () => {
   document.getElementById('rules-box').classList.toggle('hidden');
 });
+
+/* ---------------- live "time on game" tracker (EXPERIMENTAL) -------------
+   See CLAUDE.md "Answer-explanation modal & stats-demo experiment". This
+   one is REAL, live tracking — unlike Correct/Accuracy/Last played above,
+   which stay fixed sample data, the user specifically asked to demo actual
+   idle- and tab-aware behavior, not just a plausible-looking number.
+   Counts real wall-clock time via performance.now() deltas, added to the
+   running total ONLY while BOTH: (1) the tab is visible (document.hidden
+   is false), and (2) there's been a real click or keystroke within the
+   last 2 minutes. Idle/hidden time is DISCARDED, not paused-then-resumed-
+   across-a-gap: every tick computes its own small delta since the last
+   tick and either adds it or throws it away, so a long idle/hidden period
+   never gets silently counted regardless of how much a background tab's
+   timers get throttled before the next tick actually fires. ------------- */
+const TIME_ON_GAME_IDLE_LIMIT_MS = 2 * 60 * 1000;
+let timeOnGameMs = 0;
+let lastTickAt = performance.now();
+let lastActivityAt = performance.now();
+
+function markTimeOnGameActivity(){ lastActivityAt = performance.now(); }
+document.addEventListener('mousedown', markTimeOnGameActivity);
+document.addEventListener('keydown', markTimeOnGameActivity);
+
+function fmtDuration(ms){
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function tickTimeOnGame(){
+  const now = performance.now();
+  const dt = now - lastTickAt;
+  lastTickAt = now;
+  const isHidden = document.hidden;
+  const isIdle = (now - lastActivityAt) > TIME_ON_GAME_IDLE_LIMIT_MS;
+  if (!isHidden && !isIdle){
+    timeOnGameMs += dt;
+  }
+  document.getElementById('time-on-game-display').textContent = fmtDuration(timeOnGameMs);
+  const statusEl = document.getElementById('time-on-game-status');
+  if (isHidden){
+    statusEl.textContent = 'Paused — tab not visible';
+    statusEl.classList.add('paused');
+  } else if (isIdle){
+    statusEl.textContent = 'Paused — no activity for 2 minutes';
+    statusEl.classList.add('paused');
+  } else {
+    statusEl.textContent = 'Counting…';
+    statusEl.classList.remove('paused');
+  }
+}
+setInterval(tickTimeOnGame, 250);
+tickTimeOnGame();
 </script>
 </body>
 </html>

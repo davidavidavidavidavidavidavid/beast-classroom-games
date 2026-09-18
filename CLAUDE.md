@@ -2049,6 +2049,88 @@ real per-game event pipeline that would feed this from actual play — that
 would be a substantially bigger, separate task, out of scope for "just
 demo how this looks."
 
+### Second iteration — what the first pilot got wrong
+
+The first pilot was reviewed and came back **"not quite right"**, with
+four specific corrections. All four are now implemented; keeping the
+original reasoning above intact, with what changed called out here,
+since several of these REVERSE a judgment call the first pass made.
+
+1. **"It should definitely give the answer... that wasn't the case in
+   rounding beeline where it was more of a hint."** The rounding visual
+   led with `"34 is closer to 30 than to 40, so it rounds to 30"` —
+   reasoning-first phrasing, with the answer only arriving at the end of
+   a sentence and the correct tick marked by nothing louder than a green
+   text color. Now the settled frame leads with a large, unambiguous
+   **"Rounds to 30"** headline (`.numline-headline`), with the
+   closer-to/halfway reasoning demoted to small supporting text beneath
+   it, and the answer tick/dot visibly enlarged and recolored. General
+   rule this established for any future representation added here: **the
+   answer is a statement, not a conclusion the visual leaves the player
+   to draw.** `#explain-modal-answer` (the modal's own answer line) is
+   also now shown in full the INSTANT the modal opens — never staged
+   behind the animation — so the answer is never ambiguous no matter
+   where the animation happens to be.
+2. **"The addition and subtraction is too calculation heavy. It should
+   be... 3rd grade accessible math, using the column addition/subtraction
+   algorithms."** The column method itself was right (that's what was
+   asked for both times) — the DENSITY was wrong: the first version drew
+   every carry, every strikethrough-and-rewrite, and a superscript borrow
+   mark for BOTH chained steps at once, as one static block. Now each
+   cell shows exactly ONE value at a time and the borrow/carry is
+   conveyed by that value visibly CHANGING between two quick frames
+   (a borrowed-from digit dropping by 1, a borrowing digit gaining 10,
+   `.colm-changed`) instead of stacking old+new+marker in one cell.
+   `.colm-strike`/`.colm-borrow-mark` are gone entirely.
+3. **"Ideally the solutions should quickly animate in, show the steps and
+   then the answer. This needs to be quick because speed is an element in
+   fluency and we don't want to slow them down."** New shared
+   `revealSteps(containerEl, frames, msPerFrame, onDone)` in
+   `shared-game.js`, and `showExplanationModal()` now takes
+   `visualFrames` (an array) + `msPerFrame` instead of a single static
+   `visualHtml` string. Same governing rule as "Celebration animations":
+   a short FIXED sequence, once, never looping, skipping straight to the
+   final frame under `prefers-reduced-motion`. Deliberately faster than
+   this project's other animations (350ms/frame default, vs. the ~650ms
+   count-up) because of the fluency argument above. Frame counts adapt to
+   the actual problem — a step with no carrying/borrowing renders 2
+   frames (blank → solved), not 3 — so easy problems resolve faster
+   still. `revealSteps()` returns a `stop()` that jumps straight to the
+   final frame; the modal's Continue button calls it, so a player who
+   already gets it is NEVER forced to sit through the animation, and the
+   interval can't leak past the modal closing.
+4. **Stats: "also track — time on game, and time since playing. For time
+   on game, stop counting after 2 mins without a mouseclick or keystroke.
+   And stop counting if tab out."** "Time on game" is now REAL, live
+   tracking on `stats-demo.html` (not sample data like everything else on
+   that page — the specific mechanical rules asked for are the whole
+   point, so faking it would demo nothing): a `performance.now()`-delta
+   accumulator that only adds time while BOTH the tab is visible
+   (`document.hidden === false`) AND a real `mousedown`/`keydown`
+   happened within the last 2 minutes, with a live status line showing
+   which of the three states it's in ("Counting…" / "Paused — tab not
+   visible" / "Paused — no activity for 2 minutes") so the behavior is
+   actually demonstrable rather than just claimed. Idle/hidden time is
+   DISCARDED per-tick rather than paused-and-resumed across a gap, which
+   is what makes it correct regardless of how aggressively a background
+   tab's timers get throttled before the next tick fires. "Time since
+   playing" is a per-skill **"Last played"** column — deliberately still
+   fake sample data, since real values need cross-session persistence,
+   which the original ask explicitly ruled out ("no need to track over
+   sessions").
+
+**Test coverage followed the animation change**, per Testing methodology
+point 6's existing convention for async effects: each pilot game's probe
+now asserts the MID-FLIGHT state right after the modal opens (only step 1
+showing / grid cells still "?" / no verdict announced yet — which is what
+actually proves the reveal is staged rather than instant), then sleeps
+past the worst-case duration and asserts the SETTLED state (step 2's
+solved frame / real partial products / the direct "Rounds to N"
+headline). `test/smoke-beeline-two-row-variants.test.js` had to become
+async (`for...of` inside an async `main()`, not `VARIANTS.forEach`) to
+support that sleep — `.forEach` with an async callback would not have
+awaited anything.
+
 ## Bot AI philosophy — read this before writing any bot logic
 
 - Bots must **always compute arithmetic correctly** regardless of difficulty.

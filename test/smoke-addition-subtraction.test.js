@@ -179,17 +179,26 @@ async function main() {
     el('check-btn').click();
   }, correctTotal);
 
+  // The answer itself (#explain-modal-answer) is shown in full THE INSTANT
+  // the modal opens — never staged behind the animation, so it's never
+  // ambiguous or hint-like regardless of how the visual animates in (see
+  // CLAUDE.md's note on the rounding-modal feedback this fixed).
   const modalState = runInPage(dom, () => {
     const backdrop = document.getElementById('explain-modal-backdrop');
     return {
       visible: !!backdrop && !backdrop.classList.contains('hidden'),
       answerHtml: backdrop ? document.getElementById('explain-modal-answer').innerHTML : null,
-      stepCount: document.querySelectorAll('.colm-step, .colm-fallback').length,
+      stepCountMidFlight: document.querySelectorAll('.colm-step, .colm-fallback').length,
     };
   });
   assert.strictEqual(modalState.visible, true, 'after 2 wrong attempts, the answer-explanation modal should appear');
   assert.ok(modalState.answerHtml && modalState.answerHtml.includes(String(correctTotal)), 'the modal should state the real correct total, not a stale/wrong one');
-  assert.strictEqual(modalState.stepCount, 2, 'the modal should show both worked-out steps (a op1 b, then that result op2 c)');
+  // Revised per real feedback (see CLAUDE.md "Answer-explanation modal &
+  // stats-demo experiment"): the visual now animates through ONE step at a
+  // time (a quick staged reveal, not both steps dumped statically at once —
+  // "too calculation heavy" was the actual complaint that changed this), so
+  // right after the modal opens only step 1's own frame should be showing.
+  assert.strictEqual(modalState.stepCountMidFlight, 1, 'only step 1 should be showing right after the modal opens — the reveal is staged, not both steps shown at once');
 
   const beforeContinue = runInPage(dom, () => ({
     finalHumanTotal: st.finalHumanTotal,
@@ -197,6 +206,22 @@ async function main() {
   }));
   assert.strictEqual(beforeContinue.finalHumanTotal, null, 'the round should not auto-complete just from the modal appearing — only "Continue" should do that');
   assert.strictEqual(beforeContinue.revealHidden, true, 'reveal-wrap should still be hidden until Continue is clicked');
+
+  // Let the staged reveal actually finish on its own (rather than clicking
+  // Continue mid-animation) so this test also proves the sequence lands
+  // cleanly on step 2's own solved frame, with the FINAL total shown, not
+  // stuck mid-flight or reverted back to step 1. Up to 6 frames (blank/
+  // mechanics/solved x 2 steps) x 350ms/frame = at most ~2.1s; 3s clears
+  // that with room to spare, same "comfortably clears every case" margin
+  // Celebration animations' own waits already use.
+  await sleep(3000);
+  const afterReveal = runInPage(dom, () => ({
+    stepCountSettled: document.querySelectorAll('.colm-step, .colm-fallback').length,
+    visualText: el('explain-modal-visual').textContent,
+  }));
+  assert.strictEqual(afterReveal.stepCountSettled, 1, 'once the reveal finishes, exactly one step (step 2, its own solved frame) should be showing');
+  assert.ok(afterReveal.visualText.includes('Step 2'), 'the reveal should have advanced to step 2 by the time it settles');
+  assert.ok(!afterReveal.visualText.includes('?'), 'step 2\'s settled frame should show a real filled-in result, not a "?" placeholder');
 
   runInPage(dom, () => { document.getElementById('explain-modal-continue-btn').click(); });
 

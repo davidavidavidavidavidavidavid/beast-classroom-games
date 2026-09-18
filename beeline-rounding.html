@@ -31,10 +31,15 @@
   .numline-track { position: relative; height: 4px; background: var(--color-ink); border-radius: 2px; margin: 0 6px; }
   .numline-tick { position: absolute; top: -8px; width: 4px; height: 20px; background: var(--color-ink); transform: translateX(-2px); }
   .numline-tick-label { position: absolute; top: 14px; transform: translateX(-50%); font-family: var(--font-sans); font-weight: 700; font-size: 14px; }
-  .numline-tick-label.numline-answer { color: var(--color-correct); }
+  .numline-tick-label.numline-answer { color: var(--color-correct); font-size: 17px; }
   .numline-dot { position: absolute; top: -6px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-beast-blue); border: 2px solid var(--color-ink); transform: translateX(-8px); }
+  .numline-dot.numline-dot-answer { background: var(--color-correct); width: 20px; height: 20px; top: -8px; transform: translateX(-10px); }
   .numline-dot-label { position: absolute; top: -32px; transform: translateX(-50%); font-family: var(--font-sans); font-weight: 800; font-size: 15px; }
-  .numline-explain { font-family: var(--font-sans); font-size: 14px; text-align: center; margin-top: 34px; }
+  /* Leads every settled frame — a direct "Rounds to X" statement, not a
+     "closer to... so..." reasoning sentence — see CLAUDE.md's note on why
+     the original version read as more of a hint than a stated answer. */
+  .numline-headline { font-family: var(--font-sans); font-weight: 800; font-size: 20px; text-align: center; margin-top: 34px; color: var(--color-correct); }
+  .numline-explain { font-family: var(--font-sans); font-size: 13px; text-align: center; margin-top: 4px; color: var(--color-text-secondary); }
 </style>
 </head>
 <body>
@@ -496,29 +501,43 @@ el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') che
    independently-reasoned rounding rule that could quietly disagree with
    it), and calls out the exact-halfway case (rounds up, not "closer")
    explicitly rather than saying "closer" when the two ticks are actually
-   equidistant. --------------------------------------------------------- */
-function renderNumberLine(num, correct){
+   equidistant.
+   Revised per real feedback after the first pilot: the original single
+   static frame led with "X is closer to Y... so it rounds to Y" —
+   real feedback called this "more of a hint" than a direct answer. Now
+   returns TWO frames for the shared revealSteps()/showExplanationModal():
+   a brief neutral frame (both ticks plain, dot placed, no verdict yet),
+   then the settled frame, which leads with a large, unambiguous
+   "Rounds to <b>${correct}</b>" headline FIRST — the closer-to/halfway
+   reasoning is still there, but demoted to smaller supporting text
+   underneath it, not the primary statement. */
+function renderNumberLineFrames(num, correct){
   const floor10 = Math.floor(num / 10) * 10;
   const ceil10 = floor10 + 10;
   const percent = ((num - floor10) / 10) * 100;
   const onesDigit = num - floor10;
-  let explain;
+  let reasoning;
   if (onesDigit === 0){
-    explain = `${num} is already a multiple of ten, so it rounds to itself: <b>${correct}</b>.`;
+    reasoning = `${num} is already a multiple of ten.`;
   } else if (onesDigit === 5){
-    explain = `${num} is exactly halfway between ${floor10} and ${ceil10} — exactly halfway always rounds up, so it rounds to <b>${correct}</b>.`;
+    reasoning = `${num} is exactly halfway between ${floor10} and ${ceil10} — exactly halfway always rounds up.`;
   } else {
     const other = correct === floor10 ? ceil10 : floor10;
-    explain = `${num} is closer to <b>${correct}</b> than to ${other}, so it rounds to <b>${correct}</b>.`;
+    reasoning = `${num} is closer to ${correct} than to ${other}.`;
   }
-  return `<div class="numline-wrap"><div class="numline-track">
+  const track = (showAnswer) => `<div class="numline-track">
     <div class="numline-tick" style="left:0%"></div>
-    <div class="numline-tick-label${correct===floor10?' numline-answer':''}" style="left:0%">${floor10}</div>
+    <div class="numline-tick-label${showAnswer && correct===floor10?' numline-answer':''}" style="left:0%">${floor10}</div>
     <div class="numline-tick" style="left:100%"></div>
-    <div class="numline-tick-label${correct===ceil10?' numline-answer':''}" style="left:100%">${ceil10}</div>
-    <div class="numline-dot" style="left:${percent}%"></div>
+    <div class="numline-tick-label${showAnswer && correct===ceil10?' numline-answer':''}" style="left:100%">${ceil10}</div>
+    <div class="numline-dot${showAnswer?' numline-dot-answer':''}" style="left:${percent}%"></div>
     <div class="numline-dot-label" style="left:${percent}%">${num}</div>
-  </div><div class="numline-explain">${explain}</div></div>`;
+  </div>`;
+  const neutralFrame = `<div class="numline-wrap">${track(false)}<div class="numline-headline">&nbsp;</div></div>`;
+  const settledFrame = `<div class="numline-wrap">${track(true)}` +
+    `<div class="numline-headline">Rounds to <b>${correct}</b></div>` +
+    `<div class="numline-explain">${reasoning}</div></div>`;
+  return [neutralFrame, settledFrame];
 }
 
 // Extracted from checkAnswer's correct-guess branch so the answer-
@@ -557,9 +576,9 @@ function checkAnswer(){
       // making the player keep retyping it.
       const num = computePendingTokens()[0] * 10 + computePendingTokens()[1];
       showExplanationModal({
-        title: 'Let’s work it out together',
+        title: 'The answer',
         answerHtml: `${pendingEquationText()} = <b>${correct}</b>.`,
-        visualHtml: renderNumberLine(num, correct),
+        visualFrames: renderNumberLineFrames(num, correct),
         onContinue: commitPendingRoundedValue,
       });
     }

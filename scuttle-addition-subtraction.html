@@ -23,10 +23,15 @@
   .colm-digit { font-size: 20px; font-weight: 700; text-align: center; line-height: 1.1; }
   .colm-carry { font-size: 12px; font-weight: 700; color: var(--color-warn); text-align: center; height: 14px; }
   .colm-op { font-size: 20px; font-weight: 700; text-align: center; }
-  .colm-strike { text-decoration: line-through; color: var(--color-text-tertiary); font-size: 13px; display: block; }
-  .colm-new { color: var(--color-beast-red); font-size: 18px; display: block; }
+  /* A digit that just changed value between frames (a borrowed-from digit
+     dropping by 1, a borrowing digit gaining 10) — see CLAUDE.md's note on
+     why this replaced the original strikethrough+superscript notation: a
+     single value that visibly CHANGES between two quick animation frames
+     reads as less "calculation heavy" than two stacked annotations shown
+     at once, while still being real, standard borrow/carry notation. */
+  .colm-changed { color: var(--color-warn); }
+  .colm-new { color: var(--color-beast-red); font-size: 18px; }
   .colm-hr { grid-column: 1 / -1; border-top: 2px solid var(--color-ink); margin: 2px 0; }
-  .colm-borrow-mark { font-size: 11px; color: var(--color-warn); vertical-align: super; margin-right: 1px; }
   .colm-fallback { font-family: var(--font-sans); font-size: 15px; text-align: center; }
 </style>
 </head>
@@ -723,47 +728,67 @@ function columnSubtract(a, b){
   return { ad, bd, bIsPad, result, lentToLeft, owesRightward, width };
 }
 
-function renderColumnStep(a, isAdd, b, label){
-  let width, gridHtml = '';
+// EXPERIMENTAL, revised per real feedback after the first pilot (see
+// CLAUDE.md "Answer-explanation modal & stats-demo experiment"): the
+// original version showed every carry/borrow annotation at once, as one
+// dense static grid — real feedback called this "too calculation heavy"
+// for 3rd-grade fluency practice, and asked for a quick staged reveal
+// instead (speed matters here — this sits inside a fluency-practice loop,
+// not a leisurely tutorial). Now returns an ARRAY of frame strings (fed to
+// the shared revealSteps()/showExplanationModal(), not a single static
+// string): "blank" (the problem, "?" for the result) → "mechanics" (ONLY
+// if a carry/borrow actually occurs — a digit simply changes value between
+// frames, e.g. a borrowed-from digit visibly drops by 1, rather than
+// showing both its old AND new value stacked in the same frame at once)
+// → "solved" (the real result fills in). A problem with no carrying/
+// borrowing skips straight from blank to solved (2 frames, even faster).
+function renderColumnStepFrames(a, isAdd, b, label){
+  const wrap = (grid) => `<div class="colm-step"><div class="colm-step-label">${label}</div>${grid}</div>`;
+  let width, buildGrid, hasMechanics;
   if (isAdd){
     const { aPad, bPad, result, carries, width: w } = columnAdd(a, b);
     width = w;
-    gridHtml += '<div></div>' + carries.map(c => `<div class="colm-carry">${c || ''}</div>`).join('');
-    gridHtml += '<div></div>' + aPad.map(d => `<div class="colm-digit">${d === null ? '' : d}</div>`).join('');
-    gridHtml += '<div class="colm-op">+</div>' + bPad.map(d => `<div class="colm-digit">${d === null ? '' : d}</div>`).join('');
-    gridHtml += '<div class="colm-hr"></div>';
-    gridHtml += '<div></div>' + result.map(d => `<div class="colm-digit colm-new">${d}</div>`).join('');
+    hasMechanics = carries.some(c => c > 0);
+    buildGrid = (showMechanics, showResult) => {
+      const carryRow = '<div></div>' + carries.map(c => `<div class="colm-carry">${showMechanics && c ? c : ''}</div>`).join('');
+      const topRow = '<div></div>' + aPad.map(d => `<div class="colm-digit">${d === null ? '' : d}</div>`).join('');
+      const bottomRow = '<div class="colm-op">+</div>' + bPad.map(d => `<div class="colm-digit">${d === null ? '' : d}</div>`).join('');
+      const resultRow = '<div></div>' + result.map(d => `<div class="colm-digit colm-new">${showResult ? d : '?'}</div>`).join('');
+      return `<div class="colm-grid" style="grid-template-columns: 18px repeat(${width}, 22px);">${carryRow}${topRow}${bottomRow}<div class="colm-hr"></div>${resultRow}</div>`;
+    };
   } else {
     const { ad, bd, bIsPad, result, lentToLeft, owesRightward, width: w } = columnSubtract(a, b);
     width = w;
-    gridHtml += '<div></div>' + ad.map((orig, i) => {
-      if (owesRightward[i]){
-        const reduced = orig - owesRightward[i] + (lentToLeft[i] ? 10 : 0);
-        return `<div class="colm-digit"><span class="colm-strike">${orig}</span><span class="colm-new">${reduced}</span></div>`;
-      }
-      if (lentToLeft[i]) return `<div class="colm-digit"><span class="colm-borrow-mark">1</span>${orig}</div>`;
-      return `<div class="colm-digit">${orig}</div>`;
-    }).join('');
-    gridHtml += '<div class="colm-op">−</div>' + bd.map((d, i) => `<div class="colm-digit">${bIsPad[i] ? '' : d}</div>`).join('');
-    gridHtml += '<div class="colm-hr"></div>';
-    gridHtml += '<div></div>' + result.map(d => `<div class="colm-digit colm-new">${d}</div>`).join('');
+    hasMechanics = lentToLeft.some(Boolean);
+    const topDigitsFor = (showMechanics) => ad.map((orig, i) =>
+      showMechanics ? (orig - owesRightward[i] + (lentToLeft[i] ? 10 : 0)) : orig);
+    buildGrid = (showMechanics, showResult) => {
+      const topVals = topDigitsFor(showMechanics);
+      const topRow = '<div></div>' + topVals.map((d, i) =>
+        `<div class="colm-digit${showMechanics && d !== ad[i] ? ' colm-changed' : ''}">${d}</div>`).join('');
+      const bottomRow = '<div class="colm-op">−</div>' + bd.map((d, i) => `<div class="colm-digit">${bIsPad[i] ? '' : d}</div>`).join('');
+      const resultRow = '<div></div>' + result.map(d => `<div class="colm-digit colm-new">${showResult ? d : '?'}</div>`).join('');
+      return `<div class="colm-grid" style="grid-template-columns: 18px repeat(${width}, 22px);">${topRow}${bottomRow}<div class="colm-hr"></div>${resultRow}</div>`;
+    };
   }
-  return `<div class="colm-step"><div class="colm-step-label">${label}</div>` +
-    `<div class="colm-grid" style="grid-template-columns: 18px repeat(${width}, 22px);">${gridHtml}</div></div>`;
+  const frames = [buildGrid(false, false)];
+  if (hasMechanics) frames.push(buildGrid(true, false));
+  frames.push(buildGrid(true, true));
+  return frames.map(wrap);
 }
 
-function renderColumnMethodExplanation(a, op1, b, op2, c){
+function renderColumnMethodExplanationFrames(a, op1, b, op2, c){
   const step1 = a + op1*b;
-  const step1Html = (step1 >= 0 && (op1 === 1 || a >= b))
-    ? renderColumnStep(op1 === 1 ? a : a, op1 === 1, op1 === 1 ? b : b, `Step 1: ${a} ${op1===1?'+':'−'} ${b} = ${step1}`)
-    : `<div class="colm-fallback">Step 1: ${a} ${op1===1?'+':'−'} ${b} = ${step1}` +
-      (step1 < 0 ? ` (${b} is bigger than ${a}, so this is negative)` : '') + `</div>`;
+  const step1Frames = (step1 >= 0 && (op1 === 1 || a >= b))
+    ? renderColumnStepFrames(a, op1 === 1, b, `Step 1: ${a} ${op1===1?'+':'−'} ${b} = ${step1}`)
+    : [`<div class="colm-fallback">Step 1: ${a} ${op1===1?'+':'−'} ${b} = ${step1}` +
+      (step1 < 0 ? ` (${b} is bigger than ${a}, so this is negative)` : '') + `</div>`];
   const final = step1 + op2*c;
-  const step2Html = (step1 >= 0 && final >= 0 && (op2 === 1 || step1 >= c))
-    ? renderColumnStep(step1, op2 === 1, c, `Step 2: ${step1} ${op2===1?'+':'−'} ${c} = ${final}`)
-    : `<div class="colm-fallback">Step 2: ${step1} ${op2===1?'+':'−'} ${c} = ${final}` +
-      (final < 0 ? ` (${c} is bigger than ${step1}, so this is negative)` : '') + `</div>`;
-  return step1Html + step2Html;
+  const step2Frames = (step1 >= 0 && final >= 0 && (op2 === 1 || step1 >= c))
+    ? renderColumnStepFrames(step1, op2 === 1, c, `Step 2: ${step1} ${op2===1?'+':'−'} ${c} = ${final}`)
+    : [`<div class="colm-fallback">Step 2: ${step1} ${op2===1?'+':'−'} ${c} = ${final}` +
+      (final < 0 ? ` (${c} is bigger than ${step1}, so this is negative)` : '') + `</div>`];
+  return step1Frames.concat(step2Frames);
 }
 
 // Extracted from checkAnswer's correct-guess branch so the answer-
@@ -801,9 +826,9 @@ function checkAnswer(){
       // making the player keep retyping it.
       const [a,b,c] = st.order.map(i => st.humanNums[i]);
       showExplanationModal({
-        title: 'Let\u2019s work it out together',
+        title: 'The answer',
         answerHtml: `The total is <b>${correct}</b>.`,
-        visualHtml: renderColumnMethodExplanation(a, st.ops[0], b, st.ops[1], c),
+        visualFrames: renderColumnMethodExplanationFrames(a, st.ops[0], b, st.ops[1], c),
         onContinue: () => commitCorrectTotal(correct),
       });
     }

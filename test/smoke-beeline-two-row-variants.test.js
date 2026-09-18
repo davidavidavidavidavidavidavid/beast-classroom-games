@@ -24,7 +24,7 @@
 'use strict';
 
 const assert = require('assert');
-const { loadGame, runInPage, snapshotAvatarState } = require('./jsdom-helpers');
+const { loadGame, runInPage, sleep, snapshotAvatarState } = require('./jsdom-helpers');
 
 const VARIANTS = [
   {
@@ -67,7 +67,8 @@ function check(label, pass, detail) {
   console.log(`  ${pass ? '✅' : '❌'} ${label}${pass || !detail ? '' : ` — ${detail}`}`);
 }
 
-VARIANTS.forEach(v => {
+async function main() {
+for (const v of VARIANTS) {
   const dom = loadGame(v.file);
 
   // Avatars (see CLAUDE.md "Avatars"): defaults should already agree with
@@ -191,12 +192,15 @@ VARIANTS.forEach(v => {
       el('check-btn').click();
     }, correctThird);
 
+    // The answer itself (#explain-modal-answer) is shown in full THE
+    // INSTANT the modal opens — never staged behind the animation.
     const modalState = runInPage(dom, () => {
       const backdrop = document.getElementById('explain-modal-backdrop');
       return {
         visible: !!backdrop && !backdrop.classList.contains('hidden'),
         answerHtml: backdrop ? document.getElementById('explain-modal-answer').innerHTML : null,
         hasTrack: document.querySelectorAll('.numline-track').length,
+        visualTextMidFlight: document.getElementById('explain-modal-visual').textContent,
         tokensBeforeContinue: st.tokens.slice(),
       };
     });
@@ -204,17 +208,34 @@ VARIANTS.forEach(v => {
     check(`${v.file}: the modal states the real correct rounded value`, !!modalState.answerHtml && modalState.answerHtml.includes(String(correctThird)), JSON.stringify(modalState));
     check(`${v.file}: the modal shows a number-line visual`, modalState.hasTrack === 1, JSON.stringify(modalState));
     check(`${v.file}: the move is not committed just from the modal appearing`, JSON.stringify(modalState.tokensBeforeContinue) === JSON.stringify(tokensAfterMove), JSON.stringify(modalState));
+    // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
+    // experiment"), revised per real feedback: the number line no longer
+    // leads with "closer to... so it rounds to" reasoning — real feedback
+    // called that "more of a hint." Right after the modal opens, the
+    // visual should still be on its brief neutral frame (no verdict yet);
+    // once it settles, it should lead with a direct "Rounds to N" headline.
+    check(`${v.file}: right after the modal opens, the number line hasn't announced a verdict yet (neutral frame)`, !modalState.visualTextMidFlight.includes('Rounds to'), JSON.stringify(modalState));
+
+    await sleep(1000); // 2 frames x 350ms default = 700ms; 1s clears it with room to spare
+    const settled = runInPage(dom, () => document.getElementById('explain-modal-visual').textContent);
+    check(`${v.file}: once the reveal settles, it leads with a direct "Rounds to ${correctThird}" statement, not just reasoning`, settled.includes(`Rounds to`) && settled.includes(String(correctThird)), settled);
 
     runInPage(dom, () => { document.getElementById('explain-modal-continue-btn').click(); });
     const afterContinue = runInPage(dom, () => ({ tokens: st.tokens.slice(), modalHidden: document.getElementById('explain-modal-backdrop').classList.contains('hidden') }));
     check(`${v.file}: "Continue" commits the move using the real correct value`, JSON.stringify(afterContinue.tokens) === JSON.stringify(tokensAfterThird), JSON.stringify(afterContinue));
     check(`${v.file}: the modal hides again after Continue`, afterContinue.modalHidden === true);
   }
-});
-
-if (failures > 0) {
-  console.error(`\n  ${failures} case(s) FAILED`);
-  process.exitCode = 1;
-} else {
-  console.log('\n  all two-row Beeline variant smoke checks passed (Addition, Decimal, Rounding, Equivalent Fraction)');
 }
+}
+
+main().then(() => {
+  if (failures > 0) {
+    console.error(`\n  ${failures} case(s) FAILED`);
+    process.exitCode = 1;
+  } else {
+    console.log('\n  all two-row Beeline variant smoke checks passed (Addition, Decimal, Rounding, Equivalent Fraction)');
+  }
+}).catch(e => {
+  console.error('  ❌ smoke-beeline-two-row-variants.test.js FAILED:', e.message);
+  process.exitCode = 1;
+});

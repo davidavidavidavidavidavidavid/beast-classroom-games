@@ -563,24 +563,28 @@ function placeValueParts(n){
   const parts = s.split('').map((ch, i) => Number(ch) * Math.pow(10, s.length - 1 - i)).filter(v => v !== 0);
   return parts.length ? parts : [0];
 }
-function renderAreaModel(num1, num2){
+// Returns [blank, solved] frames for the shared revealSteps()/
+// showExplanationModal() — a quick 2-beat reveal (grid structure first,
+// then the real partial products + sum fill in) rather than a single
+// static dump, per CLAUDE.md's note on why speed/pacing matters here.
+function renderAreaModelFrames(num1, num2){
   const rowParts = placeValueParts(num1);
   const colParts = placeValueParts(num2);
-  let html = '<table class="area-model-grid"><tr><td class="am-corner">×</td>' +
-    colParts.map(cp => `<td class="am-head">${cp.toLocaleString()}</td>`).join('') + '</tr>';
   const partials = [];
-  rowParts.forEach(rp => {
-    html += `<tr><td class="am-head">${rp.toLocaleString()}</td>`;
-    html += colParts.map(cp => {
-      const partial = rp * cp;
-      partials.push(partial);
-      return `<td class="am-cell">${partial.toLocaleString()}</td>`;
-    }).join('');
-    html += '</tr>';
-  });
-  html += '</table>';
-  html += `<div class="am-sum">${partials.map(v => v.toLocaleString()).join(' + ')} = <b>${(num1*num2).toLocaleString()}</b></div>`;
-  return html;
+  rowParts.forEach(rp => colParts.forEach(cp => partials.push(rp * cp)));
+  const buildGrid = (showValues) => {
+    let html = '<table class="area-model-grid"><tr><td class="am-corner">×</td>' +
+      colParts.map(cp => `<td class="am-head">${cp.toLocaleString()}</td>`).join('') + '</tr>';
+    rowParts.forEach(rp => {
+      html += `<tr><td class="am-head">${rp.toLocaleString()}</td>`;
+      html += colParts.map(cp => `<td class="am-cell">${showValues ? (rp * cp).toLocaleString() : '?'}</td>`).join('');
+      html += '</tr>';
+    });
+    html += '</table>';
+    html += `<div class="am-sum">${showValues ? partials.map(v => v.toLocaleString()).join(' + ') + ' = <b>' + (num1*num2).toLocaleString() + '</b>' : '&nbsp;'}</div>`;
+    return html;
+  };
+  return [buildGrid(false), buildGrid(true)];
 }
 
 el('product-check-btn').addEventListener('click', checkProduct);
@@ -604,9 +608,9 @@ function checkProduct(){
       // "Continue" completes the round with the correct product rather
       // than making the player keep retyping it.
       showExplanationModal({
-        title: 'Let’s work it out together',
+        title: 'The answer',
         answerHtml: `${num1.toLocaleString()} × ${num2.toLocaleString()} = <b>${correct.toLocaleString()}</b>.`,
-        visualHtml: renderAreaModel(num1, num2),
+        visualFrames: renderAreaModelFrames(num1, num2),
         onContinue: () => { flashProductMsg('That checks out!', false); lockInRound(num1, num2, correct); },
       });
     }
