@@ -220,6 +220,35 @@ function prefersReducedMotion(){
   return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
 
+/* ---------------- TEMPORARY: which variants have the demo built ----------
+   EXPERIMENTAL — see CLAUDE.md "Answer-explanation modal & stats-demo
+   experiment". The variant files that actually have the answer-explanation
+   work in them, marked with a dotted frame wherever games are listed so
+   it's obvious which ones are worth opening in a demo. Kept here as ONE
+   canonical list (same reasoning as GLOBAL_GAMES itself) so index.html's
+   grid and each family's sub-menu can't drift apart — and so there's a
+   single line to delete when the experiment ends. */
+const DEMO_READY_HREFS = [
+  'scuttle-addition-subtraction.html',
+  'scuttle-product.html',
+  'beeline-product.html',
+  'beeline-rounding.html',
+];
+function isDemoReady(href){ return DEMO_READY_HREFS.indexOf(href) !== -1; }
+// A game/family counts as demo-ready if any of its own variants is.
+function gameHasDemo(g){
+  if (Array.isArray(g.variants)) return g.variants.some(v => isDemoReady(v.href));
+  return isDemoReady(g.href);
+}
+// For the sub-menu pages, whose variant cards are hand-written markup
+// rather than rendered from GLOBAL_GAMES — marks them from the same one
+// list instead of hardcoding the frame into each page's HTML.
+function markDemoReadyCards(){
+  document.querySelectorAll('a.variant-card[href]').forEach(card => {
+    if (isDemoReady(card.getAttribute('href'))) card.classList.add('demo-framed');
+  });
+}
+
 /* ---------------- staged step-reveal (EXPERIMENTAL) ----------------------
    See CLAUDE.md "Answer-explanation modal & stats-demo experiment". Same
    governing rule as every other animation in this project (see
@@ -275,14 +304,19 @@ function revealSteps(containerEl, frames, msPerFrame, onDone){
    `visualFrames`/`msPerFrame` are passed straight through to revealSteps().
    Built lazily into the DOM on first call, not on page load, since not
    every page linking shared-game.js needs this. */
-// Whole-sequence target, not a per-frame one: real feedback asked for
-// "around 5 seconds total," and frame COUNT varies a lot between (and
-// within) the four representations — a no-carry column step is 2 frames,
-// a 9-column Beeline array is 10. Pacing off the total keeps every
-// explanation feel the same length regardless, instead of short problems
-// flashing by and long ones dragging. Callers can still pass an explicit
-// msPerFrame to override.
-const EXPLAIN_TOTAL_MS = 5000;
+// Pacing is budgeted for the whole sequence rather than per frame, because
+// frame COUNT varies a lot between (and within) the four representations —
+// a no-carry column step is 2 frames, a 9-column Beeline array is 10 — so
+// a fixed per-frame delay would make some explanations flash by and others
+// drag. Dividing a budget alone isn't enough either: at 10 frames a pure
+// division got fast enough to read as a flicker ("pacing is too fast"), so
+// the result is clamped to a per-frame band. That makes the total
+// approximate rather than exact, which is the right trade — no individual
+// beat should ever be too quick to follow or slow enough to feel stalled.
+// Callers can still pass an explicit msPerFrame to override all of this.
+const EXPLAIN_TOTAL_MS = 7000;
+const EXPLAIN_MIN_FRAME_MS = 700;
+const EXPLAIN_MAX_FRAME_MS = 1800;
 
 function showExplanationModal({ title, answerHtml, visualFrames, msPerFrame, onContinue }){
   let backdrop = document.getElementById('explain-modal-backdrop');
@@ -303,7 +337,9 @@ function showExplanationModal({ title, answerHtml, visualFrames, msPerFrame, onC
   document.getElementById('explain-modal-answer').innerHTML = answerHtml;
   backdrop.classList.remove('hidden');
   const frameCount = (visualFrames && visualFrames.length) || 0;
-  const perFrame = msPerFrame || Math.round(EXPLAIN_TOTAL_MS / Math.max(1, frameCount - 1));
+  const budgeted = Math.round(EXPLAIN_TOTAL_MS / Math.max(1, frameCount - 1));
+  const perFrame = msPerFrame ||
+    Math.min(EXPLAIN_MAX_FRAME_MS, Math.max(EXPLAIN_MIN_FRAME_MS, budgeted));
   const stopReveal = revealSteps(document.getElementById('explain-modal-visual'), visualFrames, perFrame);
   // Replace (not just re-listen on) the continue button so a stale
   // onContinue closure from an earlier call can never also fire — plain

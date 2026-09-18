@@ -117,7 +117,11 @@ function renderGameGrid(){
     const playHref = isLocked ? null : (hasVariants ? g.variants[0].href : g.href);
 
     const card = document.createElement((isLocked || hasVariants) ? 'div' : 'a');
-    card.className = 'variant-card' + (isLocked ? ' locked' : ' active');
+    card.className = 'variant-card' + (isLocked ? ' locked' : ' active')
+      // TEMPORARY dotted frame marking the games that have the
+      // answer-explanation demo built — see CLAUDE.md "Answer-explanation
+      // modal & stats-demo experiment". Remove with the experiment.
+      + (!isLocked && gameHasDemo(g) ? ' demo-framed' : '');
     if (isLocked) card.setAttribute('aria-disabled', 'true');
     if (!isLocked && !hasVariants) card.href = playHref;
 
@@ -165,7 +169,10 @@ function renderGameGrid(){
       list.className = 'variant-sublist hidden';
       g.variants.forEach(v => {
         const link = document.createElement('a');
-        link.className = 'variant-sublink';
+        // TEMPORARY per-variant dotted frame — same experiment as the
+        // card-level one above; the family frame says "something in here
+        // is demo-ready", this says which ones.
+        link.className = 'variant-sublink' + (isDemoReady(v.href) ? ' demo-framed' : '');
         link.href = v.href;
         link.textContent = v.name;
         list.appendChild(link);

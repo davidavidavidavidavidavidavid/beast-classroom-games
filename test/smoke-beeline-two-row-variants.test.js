@@ -227,7 +227,7 @@ for (const v of VARIANTS) {
     // once it settles, it should lead with a direct "Rounds to N" headline.
     check(`${v.file}: right after the modal opens, the number line hasn't announced a verdict yet (neutral frame)`, !modalState.visualTextMidFlight.includes('Rounds to'), JSON.stringify(modalState));
 
-    await sleep(7000); // whole sequence is paced to ~5s (EXPLAIN_TOTAL_MS); 7s clears it
+    await sleep(10000); // paced from EXPLAIN_TOTAL_MS (~7s, clamped per frame); 10s clears it
     const settled = runInPage(dom, () => document.getElementById('explain-modal-visual').textContent);
     check(`${v.file}: once the reveal settles, it leads with a direct "Rounds to ${correctThird}" statement, not just reasoning`, settled.includes(`Rounds to`) && settled.includes(String(correctThird)), settled);
 

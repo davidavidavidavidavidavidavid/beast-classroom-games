@@ -209,10 +209,9 @@ async function main() {
 
   // Let the staged reveal actually finish on its own (rather than clicking
   // Continue mid-animation) so this test also proves where it LANDS. The
-  // whole sequence is paced to ~5s total (EXPLAIN_TOTAL_MS in
-  // shared-game.js, split across however many frames this problem needs);
-  // 7s clears that with room to spare.
-  await sleep(7000);
+  // whole sequence is paced from EXPLAIN_TOTAL_MS in shared-game.js
+  // (~7s, clamped to a per-frame band); 10s clears every case with room.
+  await sleep(10000);
   const afterReveal = runInPage(dom, () => ({
     stepCountSettled: document.querySelectorAll('.colm-step, .colm-fallback').length,
     visualText: el('explain-modal-visual').textContent,

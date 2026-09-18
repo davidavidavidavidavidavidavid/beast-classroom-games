@@ -320,9 +320,6 @@ function cellClassesFor(i){
   if (owner) cls += ' ' + owner;
   if (st.gameOver && st.winRevealDone && st.winningCells && st.winningCells.includes(i)){
     cls += ' win settled';
-  } else if (!st.gameOver && st.phase === 'awaiting-answer'){
-    const pendingValue = computePendingValue();
-    if (pendingValue !== null && VALUES[i] === pendingValue && !owner) cls += ' pending';
   }
   return cls;
 }

@@ -159,9 +159,9 @@ async function playFullMatch(format, difficulty, checkAvatarsAndScorecard) {
       const beforeContinue = runInPage(dom, () => st.humanProducts.length);
       assert.strictEqual(beforeContinue, 0, 'the round should not auto-complete just from the modal appearing — only "Continue" should do that');
 
-      // The whole sequence is paced to ~5s total (EXPLAIN_TOTAL_MS in
-      // shared-game.js); 7s clears that with room to spare.
-      await sleep(7000);
+      // Paced from EXPLAIN_TOTAL_MS in shared-game.js (~7s, clamped to
+      // a per-frame band); 10s clears every case with room to spare.
+      await sleep(10000);
       const settled = runInPage(dom, () => ({
         filled: Array.from(document.querySelectorAll('.am-cell')).filter(c => c.textContent.trim() !== '').length,
         text: document.getElementById('explain-modal-visual').textContent,

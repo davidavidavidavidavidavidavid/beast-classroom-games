@@ -294,8 +294,8 @@ async function main() {
   assert.strictEqual(arrModal.shownColumns, 1, 'only the first column should be revealed right after the modal opens — the columns come in one at a time');
   assert.strictEqual(arrModal.ownerUnchanged, true, 'the move should not commit just from the modal appearing');
 
-  // ~5s paced sequence (EXPLAIN_TOTAL_MS); 7s clears it with room to spare.
-  await sleep(7000);
+  // Paced from EXPLAIN_TOTAL_MS (~7s, clamped per frame); 10s clears it.
+  await sleep(10000);
   const arrSettled = runInPage(dom, () => ({
     shownColumns: document.querySelectorAll('.arr-col:not(.arr-pending)').length,
     counts: Array.from(document.querySelectorAll('.arr-count')).map(c => c.textContent).filter(Boolean),

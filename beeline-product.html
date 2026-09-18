@@ -32,12 +32,16 @@
      skip-count underneath; every column's slot is rendered from the first
      frame (just invisible until its turn) so nothing shifts as they fill
      in — the same reserve-the-space rule as "Layout stability". */
-  .arr-wrap { text-align: center; padding: 4px 0; }
-  .arr-cols { display: inline-flex; gap: 8px; align-items: flex-start; }
-  .arr-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-  .arr-dots { display: flex; flex-direction: column; gap: 3px; }
+  /* --arr-gap keeps the spacing between dots identical in both directions
+     — the column gap and the row gap were 8px and 3px, which made the
+     array read as columns of stacked bars rather than an even grid. One
+     variable so they can't drift apart again. */
+  .arr-wrap { text-align: center; padding: 4px 0; --arr-gap: 7px; }
+  .arr-cols { display: inline-flex; gap: var(--arr-gap); align-items: flex-start; }
+  .arr-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .arr-dots { display: flex; flex-direction: column; gap: var(--arr-gap); }
   .arr-col.arr-pending .arr-dots { visibility: hidden; }
-  .arr-dot { width: 13px; height: 13px; border-radius: 3px; background: var(--color-beast-blue); border: 2px solid var(--color-ink); }
+  .arr-dot { width: 14px; height: 14px; border-radius: 3px; background: var(--color-beast-blue); border: 2px solid var(--color-ink); }
   .arr-count { font-family: var(--font-sans); font-weight: 800; font-size: 13px; color: var(--color-text-secondary); min-height: 16px; }
   .arr-count.arr-final { color: var(--color-correct); font-size: 16px; }
   .arr-total { font-family: var(--font-sans); font-weight: 800; font-size: 18px; margin-top: 12px; color: var(--color-correct); min-height: 24px; }
@@ -550,9 +554,6 @@ function cellClassesFor(i){
   if (owner) cls += ' ' + owner;
   if (st.gameOver && st.winRevealDone && st.winningCells && st.winningCells.includes(i)){
     cls += ' win settled';
-  } else if (!st.gameOver && st.phase === 'awaiting-answer'){
-    const pendingProduct = computePendingProduct();
-    if (pendingProduct !== null && VALUES[i] === pendingProduct && !owner) cls += ' pending';
   }
   return cls;
 }

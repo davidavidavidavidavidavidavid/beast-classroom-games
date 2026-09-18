@@ -545,6 +545,18 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 }
 .explain-modal-visual { margin-bottom: 16px; }
 .explain-modal-continue-btn { display: block; width: 100%; }
+/* TEMPORARY marker for the variants that have the answer-explanation demo
+   built (see CLAUDE.md "Answer-explanation modal & stats-demo
+   experiment"). Applied by index.html's grid and each family's sub-menu
+   from shared-game.js's DEMO_READY_HREFS. Outline rather than border so it
+   can't change any card's size or shift the grid; remove with the
+   experiment. */
+.demo-framed { outline: 3px dotted var(--color-warn); outline-offset: 3px; }
+/* A sublink is a full-width block inside a flex column, so outlining it as
+   -is draws a band across the whole card rather than a frame around the
+   variant's name. Shrink just the framed ones to their own text. */
+.variant-sublist .demo-framed { align-self: flex-start; padding-right: 8px; }
+
 /* TEMPORARY demo trigger (see CLAUDE.md "Answer-explanation modal &
    stats-demo experiment") — lets someone show the explanation on demand
    instead of having to deliberately get an answer wrong twice first.

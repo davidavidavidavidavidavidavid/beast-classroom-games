@@ -2193,7 +2193,44 @@ working value (521 − 168 really does work as 4 | 11 | 11) overflowed its
 single-digit-wide column, now given a smaller font rather than being
 faked into something arithmetically wrong.
 
-**A real test-timing trap this pass surfaced, worth remembering:**
+### Fourth iteration — polish, and one real giveaway bug
+
+1. **Beeline was drawing a box around the correct answer.**
+   `.claim-cell.pending` (components/claim-grid.css) outlined the grid cell
+   whose value matched the pending move, and it applied *only* while
+   `st.phase === 'awaiting-answer'` — i.e. it highlighted the answer at
+   exactly the moment the player was being asked to work it out, in all
+   six Beeline variants. Removed from all six `cellClassesFor()`s and from
+   the shared CSS. This is a **gameplay bug, not a styling preference**,
+   and it long predates this experiment — the dotted frames added for the
+   demo are what made it noticeable. Don't reintroduce any highlight keyed
+   to the pending value.
+2. **Dotted frames marking what's demo-ready.** `DEMO_READY_HREFS` in
+   `shared-game.js` is the one canonical list of the four variant files
+   that have the explanation built; `index.html`'s grid frames both the
+   game card (via `gameHasDemo()`) and the specific variant sublinks, and
+   the Scuttle/Beeline sub-menus call `markDemoReadyCards()` to do the same
+   for their hand-written cards. `.demo-framed` uses `outline` rather than
+   `border` so it can't resize a card or shift the grid. One list to
+   delete when the experiment ends.
+3. **Array dot spacing was uneven** — 8px between columns vs. 3px between
+   rows, which made the array read as columns of stacked bars instead of a
+   grid. Both now come from one `--arr-gap` custom property on
+   `.arr-wrap`, so they can't drift apart again. (For the record, since it
+   came up: the array's design lives in `beeline-product.html`'s own
+   `<style>` block — per-game bespoke, like every other representation's
+   visual. Only the modal SHELL is shared in `design-system.css`.)
+4. **Pacing slowed, and now clamped.** `EXPLAIN_TOTAL_MS` 5000 → 7000, but
+   the bigger fix is that dividing a budget by frame count alone produced
+   very different per-beat speeds (a 10-frame array got 555ms/frame and
+   read as a flicker; a 2-frame visual got the whole budget). The result is
+   now clamped to `EXPLAIN_MIN_FRAME_MS`/`EXPLAIN_MAX_FRAME_MS`
+   (700–1800ms), which makes the total approximate rather than exact —
+   the right trade, since no individual beat should be too quick to follow
+   or slow enough to stall. **Any test that waits out an explanation needs
+   ~10s**, not the old 7s.
+
+**A real test-timing trap from the previous pass, worth remembering:**
 `setTimeout(botTurn, 550)` captures the function VALUE at scheduling
 time, so stubbing `botTurn` afterwards does NOT stop an already-queued bot
 move. The two-row variants test only started failing once a probe waited
@@ -2665,7 +2702,10 @@ For every new game, before considering it done:
   same statement as the `.className =`/`.classList.` call itself. Seen in
   `beeline-product.html`'s `cellClassesFor()`: `.claim-cell`, `.pending`,
   and `.win` all get flagged as "unreferenced" even though they're
-  genuinely applied every render. Eyeball flagged classes against the
+  genuinely applied every render. (`.pending` has since been removed
+  outright — it outlined the cell holding the correct answer while the
+  answer-check was open; see "Answer-explanation modal & stats-demo
+  experiment" — so only `.claim-cell`/`.win` still hit this.) Eyeball flagged classes against the
   actual JS before assuming they're dead, especially in files with this
   build-a-className-in-a-helper pattern. **Same blind spot, new shape:**
   `shared-game.js`'s `makeDraggable()` toggles its drag-state class via a
@@ -2710,8 +2750,9 @@ For every new game, before considering it done:
   of by 5s. Hits the identical `.nim-cell`/`.target` false-positive for the
   identical reason (confirmed by this file's own smoke test and manual
   inspection); expected, not a new bug. **Eighth instance:** every one of
-  the 5 new two-row Beeline variants builds `.claim-cell`/`.pending` (in
-  `cellClassesFor()`) and `.token-0`/`.token-1` (in `renderOneRow()`) the
+  the 5 new two-row Beeline variants builds `.claim-cell` (in
+  `cellClassesFor()`; `.pending` used to be built here too, until it was
+  removed as an answer giveaway) and `.token-0`/`.token-1` (in `renderOneRow()`) the
   same way `beeline-product.html` always has — string concatenation, not a
   literal at the assignment site — so all three get flagged as
   unreferenced in all 5 files, for the same reason as the sixth instance

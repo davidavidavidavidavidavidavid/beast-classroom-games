@@ -79,7 +79,12 @@
 }
 .claim-cell.human { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
 .claim-cell.bot { background: var(--color-beast-red); color: #fff; border-color: var(--color-beast-red); }
-.claim-cell.pending { outline: 3px dashed var(--color-text-tertiary); outline-offset: 2px; }
+/* There is deliberately no "pending cell" highlight. A .claim-cell.pending
+   dashed outline used to mark the cell matching the pending move's value
+   while the answer-check was open — i.e. it drew a box around the correct
+   answer at exactly the moment the player was being asked to work it out.
+   Removed as a real giveaway bug, not a style change; don't reintroduce a
+   highlight that depends on the pending value. */
 /* Winning line reveal: beeline-product.html's revealWinningLine() adds
    .win to each winning cell one at a time (~180ms apart) as the staggered
    "connecting the dots" cue — a ring, since the cell is already colored by
