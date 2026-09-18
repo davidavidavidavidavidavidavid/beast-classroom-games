@@ -214,6 +214,46 @@ body.settings-active #top-bar { justify-content: flex-end; margin-bottom: 0.5rem
 body:not(.settings-active) .stat-pill { font-size: 17px; padding: 5px 12px; }
 body:not(.settings-active) .stat-pill b { font-size: 19px; }
 
+/* ---------- side-by-side play layout ----------
+   Built at runtime by shared-game.js's initPlayLayout() — see its header
+   comment for why, and CLAUDE.md "Side-by-side board/playing-space layout"
+   for the same pattern Beeline and Detective already follow in their own
+   markup. Stacked by default (identical to what these games rendered
+   before this existed); a row only above the breakpoint, so narrow
+   viewports are untouched. */
+.play-layout { display: flex; flex-direction: column; }
+/* 880px = the scorecard column (250px) + gap (20px) + the round card at
+   roughly the 560px it needs before its dice row starts wrapping, plus
+   body's own 1rem gutters. Below that there isn't room for two real
+   columns, so it stays stacked. */
+@media (min-width: 880px) {
+  .play-layout { flex-direction: row; align-items: flex-start; gap: 20px; }
+  /* Fixed rather than proportional: this is a 3-row score table whose
+     content never grows, so extra width would only stretch it. */
+  .play-side { flex: 0 0 250px; }
+  /* min-width:0 so a wide child (the reveal screen's compare grid) can
+     shrink to its share instead of forcing the row wider — the same fix
+     .claim-cell needed, see CLAUDE.md. */
+  .play-main { flex: 1 1 auto; min-width: 0; }
+  /* The scorecard is short and never changes mid-round, so it can ride
+     along rather than scrolling away from a long reveal screen. */
+  .play-side #scorecard { position: sticky; top: calc(var(--nav-height) + 1rem); }
+  .play-side .card, .play-main .card { margin-bottom: 0; }
+}
+/* A two-column game needs real room for both columns; every other game
+   keeps #app's universal 860px. */
+#app.has-play-layout { max-width: 1060px; }
+/* ...but a settings FORM at 1060px is a very wide single column of chips.
+   Cap the settings step back to a readable width, the same way #rules-box
+   already caps itself inside Beeline's widened #app. The top bar is capped
+   with them, but only during settings — there it holds just the
+   Demo/Print group, which at full width drifted off to the right, detached
+   from the cards it sits above. In PLAY it stays full width, where it
+   lines up with the two columns below it. */
+#app.has-play-layout #screen-settings,
+#app.has-play-layout #variant-card,
+body.settings-active #app.has-play-layout #top-bar { max-width: 680px; margin-left: auto; margin-right: auto; }
+
 /* ---------- action stack ----------
    Every "advance the game" control — Roll dice, Lock in number, Next
    round — is functionally the same button at different moments, but they
@@ -351,16 +391,28 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
    own sub-menu — scuttle-menu.html, pop-menu.html) ----------
    Moved here from being scuttle-menu.html-only once a second file
    (pop-menu.html) needed the exact same card look — see CLAUDE.md "File
-   structure & the point of it". `.variant-list` is a single flex column
-   (a game family's own variants); index.html's own `.game-grid` lays the
-   same `.variant-card`s out in a 2-column grid instead — see that file's
-   own small `<style>` block for the grid rule itself, since nothing else
-   needs a 2-column layout. */
+   structure & the point of it". `.variant-list` now uses the SAME 2-column
+   grid index.html's own `.game-grid` does (it was a single flex column,
+   which on a desktop window meant a narrow ribbon of cards running 2000px
+   down the page with empty space either side — Beeline's 15 variants were
+   the worst case at 2116px). One column below the breakpoint, unchanged. */
 /* Gap/padding both have to clear a card's own 6px pixel shadow (and, on a
    demo-framed card, its outline at an offset) — otherwise the shadow of
    one card lands on the next, and the last card's shadow runs past the
    list's own edge. */
-.variant-list { display: flex; flex-direction: column; gap: 18px; padding: 0 10px 10px 0; }
+/* Rows stretch (the grid default) so two cards side by side end at the
+   same baseline — with `start` a shorter description left one card's
+   shadow floating halfway up its neighbour. */
+.variant-list {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+  padding: 0 10px 10px 0;
+}
+/* Section headings are full-width rules, never a grid cell — same as
+   .game-grid's own rule for them in index.html. */
+.variant-list .menu-section-head { grid-column: 1 / -1; }
+/* 620px: two cards plus the gap, below which a 2-up row makes each card
+   too narrow for its own description to read as more than a word per line. */
+@media (max-width: 620px) { .variant-list { grid-template-columns: 1fr; } }
 
 .variant-card {
   display: block; text-decoration: none; color: inherit;
@@ -695,35 +747,20 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
    heavy black border. Three reinforcing signals instead of one: a heavier
    outline, a warn-tinted surface so the whole card reads as flagged, and
    (added in markup) a DEMO chip that says what it means in words. */
-.demo-framed {
-  outline: 4px dotted var(--color-warn);
-  outline-offset: 4px;
-}
-/* Deliberately NO background tint on a whole card: over the card's large
-   white area the wash read as aged paper rather than "highlighted", and
-   it dulled the text sitting on it. The outline plus the DEMO chip are
-   the signal at card scale; the tint is kept only for the small chip-
-   sized marks below, where it's read as a fill rather than a stain. */
-.variant-sublist .demo-framed, .demo-legend-swatch { background: var(--color-warn-bg); }
-/* A sublink is a full-width block inside a flex column, so outlining it
-   as-is draws a band across the whole card rather than a frame around the
-   variant's name. Shrink just the framed ones to their own text — and
-   keep the SAME horizontal padding as an unframed sublink, so framed and
-   unframed variant names still start on the same left edge. */
-.variant-sublist .demo-framed { align-self: flex-start; padding-right: 10px; }
+/* The dotted frame is gone — the DEMO chip carries the meaning on its own,
+   and the frame was competing with the cards' own borders for attention
+   while saying less. The class stays as the hook that marks WHICH items
+   are demo-ready (and gets the chip); it just no longer draws a border. */
+.demo-framed { /* no outline by design — see above */ }
+/* A demo-marked variant in a sublist puts its chip inline after the name. */
+.variant-sublist .demo-framed { display: flex; align-items: center; gap: 8px; }
 
-/* TEMPORARY legend — a frame can't explain itself, so say what it marks.
-   Remove with the experiment. */
+/* TEMPORARY legend. Remove with the experiment. */
 .demo-legend {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   font-family: var(--font-sans); font-size: 12.5px; font-weight: 600;
   color: var(--color-text-secondary);
   margin: 0 0 1rem;
-}
-.demo-legend .demo-legend-swatch {
-  width: 22px; height: 14px; border-radius: 3px;
-  outline: 3px dotted var(--color-warn); outline-offset: -1px;
-  background: var(--color-warn-bg);
 }
 
 /* TEMPORARY demo trigger (see CLAUDE.md "Answer-explanation modal &
@@ -737,3 +774,83 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
   border-style: dashed; border-color: var(--color-warn);
   color: var(--color-warn); box-shadow: none;
 }
+
+/* ---------------- stats launcher + skill panel -------------------------
+   TEMPORARY, part of the same experiment (see CLAUDE.md "Answer-explanation
+   modal & stats-demo experiment") — remove alongside it.
+   Fixed to the bottom-right corner rather than added to #top-bar, because
+   this needs to be reachable from EVERY page including the hub and the
+   sub-menus, none of which have a top bar at all. z-index sits below the
+   boot screen (100) so it can't show through the intro, and the panel's own
+   backdrop (210) matches the avatar modal's layer. */
+#stats-launcher {
+  position: fixed; z-index: 45;
+  right: 16px; bottom: 16px;
+  width: 44px; height: 44px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-background-primary);
+  border: var(--border-w) solid var(--color-ink);
+  border-radius: 6px; box-shadow: var(--shadow-btn);
+  color: var(--color-beast-blue); cursor: pointer;
+}
+#stats-launcher svg { fill: currentColor; display: block; }
+#stats-launcher:active {
+  transform: translate(4px, 4px); box-shadow: 0 0 0 var(--color-ink);
+}
+
+.stats-panel-backdrop {
+  position: fixed; inset: 0; z-index: 210;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.stats-panel {
+  background: var(--color-background-primary);
+  border: var(--border-w) solid var(--color-ink);
+  border-radius: 6px; box-shadow: var(--shadow-card);
+  padding: 1.2rem; max-width: 460px; width: 100%;
+  max-height: calc(100vh - 32px); overflow-y: auto;
+}
+.stats-panel-head {
+  font-family: var(--font-sans); font-weight: 800; font-size: 17px;
+  text-align: center;
+}
+.stats-panel-note {
+  font-family: var(--font-sans); font-size: 12px;
+  color: var(--color-text-secondary); text-align: center;
+  margin: 2px 0 14px;
+}
+
+/* One collapsed row per skill. The whole header is the button, so the hit
+   target is the full row width rather than just the caret. */
+.skill-row { border-top: 2px solid var(--color-border-tertiary); }
+.skill-row:last-of-type { border-bottom: 2px solid var(--color-border-tertiary); margin-bottom: 14px; }
+.skill-toggle {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: none; border: none; box-shadow: none; border-radius: 0;
+  padding: 11px 2px; text-align: left; cursor: pointer;
+  font-family: var(--font-sans); font-size: 14px; font-weight: 700;
+  /* Override the shared button's uppercase/tracking — these are skill
+     names in a reading list, not controls shouting for attention. */
+  text-transform: none; letter-spacing: normal;
+  color: var(--color-ink);
+}
+.skill-toggle:active { transform: none; box-shadow: none; }
+.skill-row.open .skill-toggle { padding-bottom: 6px; }
+.skill-caret { color: var(--color-text-secondary); font-size: 12px; width: 12px; }
+.skill-title { flex: 1 1 auto; min-width: 0; }
+.skill-pct {
+  flex: 0 0 auto; font-variant-numeric: tabular-nums;
+  color: var(--color-beast-blue); font-weight: 800;
+}
+.skill-body { padding: 0 2px 12px 24px; }
+.skill-bar-track {
+  height: 10px; background: var(--color-background-secondary);
+  border: 2px solid var(--color-ink); border-radius: 3px;
+  overflow: hidden; margin-bottom: 8px;
+}
+.skill-bar-fill { height: 100%; background: var(--color-beast-blue); }
+.skill-stats, .skill-games {
+  font-family: var(--font-sans); font-size: 12.5px;
+  color: var(--color-text-secondary); line-height: 1.5;
+}
+.skill-games { margin-top: 3px; }

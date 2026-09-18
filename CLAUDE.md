@@ -1757,6 +1757,15 @@ this pattern applied more broadly regardless (e.g. treating a persistent
 scorecard as a "board"), that's a bigger, different decision than what was
 asked here.
 
+**SUPERSEDED for Scuttle — see "Design sweep (panels left/right, demo
+markers, stats reporting)" below.** The "bigger, different decision" this
+paragraph flagged (treating a persistent scorecard as the "board" half of
+the split) is exactly what a later request asked for, by name: "the
+scoreboard and gameboard in scuttle can be left and right." All three
+Scuttle files now get it, via `initPlayLayout()`. Pop, Nim and Numbo are
+still genuinely unchanged, for the reasons above — none of them has any
+persistent panel to move aside, so there's still nothing to split.
+
 ## Dynamic sizing, Detective's keyboard overflow, and no emoji anywhere
 
 Real feedback, three parts: **"make sizing more dynamic to fill a great
@@ -2382,6 +2391,92 @@ steps earlier to fire and move a token out from under the assertions
 stubbing `botTurn` **before** any commit schedules one. Any future test
 that adds a long `await` to a previously-synchronous Beeline/Nim probe
 will hit this same thing.
+
+### Design sweep (panels left/right, demo markers, stats reporting)
+
+Three parts, one pass. Real feedback: **"Redesign with more separation of
+panels left and right. I want to avoid ever needing to scroll up or down,
+and there is a lot of dead space to the left and right sides of the screen.
+For example the scoreboard and gameboard in scuttle can be left and right.
+Beeline is already good. The demo button is good, we don't need the dotted
+border anymore. But we should also have the identifier on the variants
+we're demoing. Stats/Reporting: I want stats to be clickable from anywhere.
+A small bar chart glyph icon stuck to the corner somewhere. When I click I
+want to see a list of collapsed skills. if I access from a specific game, I
+want that skill expanded. E.g. Product Beeline has the skill
+'multiplication facts'."**
+
+**1. Scuttle's scoreboard and gameboard are now left and right**
+(`initPlayLayout()` in `shared-game.js`, `.play-layout`/`.play-side`/
+`.play-main` in `design-system.css`). Same runtime-restructuring approach
+as `initSettingsChrome()` — it keys off `#scorecard` alone, so all three
+Scuttle files got it with zero markup edits and any future game that grows
+a scorecard gets it for free. DOM order is unchanged (scorecard first,
+play screens after), which is both what the narrow-viewport stacked view
+still renders AND what makes scorecard-left/board-right fall out with no
+`order` override — the same reasoning the Beeline section below already
+records, applied to a persistent scoreboard instead of a claim grid.
+`#app` widens to 1060px only for a game that actually has two columns to
+fill (`#app.has-play-layout`), with the settings step capped back to 680px
+— and the top bar capped with it *during settings only*, since there it
+holds just the Demo/Print group and at full width drifted off to the
+right, detached from the cards below it. **This reverses the earlier
+"Scuttle was deliberately left unchanged" note in the Beeline section
+below** — that call was made on the grounds that a 3-row score table isn't
+a "board," which the feedback here explicitly overrides by name.
+
+**Measured, not assumed.** A throwaway Playwright pass over all 23 pages at
+1280×900 recorded document height on the settings screen AND after starting
+a game. Before: every Scuttle/Pop settings screen and all four sub-menus
+scrolled. After: **every game screen, in every phase, fits without
+scrolling** — verified by driving a complete Scuttle match (roll → place →
+lock → all 3 rounds → compute → reveal) and measuring at each step, not
+just on entry. The sub-menus were the other half of the same "dead space
+left and right" complaint: `.variant-list` was a single flex column, so
+`beeline-menu.html`'s 15 cards ran 2116px down the middle of a 1280px
+window. It's now the same 2-column grid `index.html`'s `.game-grid`
+already used (one column below 620px), which took Beeline 2116→1456px,
+Pop 1682→1220px, Scuttle 1169→905px, Nim 1044→927px. A 15-card list still
+scrolls, and should — you can't fit 15 readable cards on one screen — but
+it's now half the distance.
+
+**2. The demo marker moved from a frame to a per-variant chip.**
+`.demo-framed` no longer draws anything; the class survives purely as the
+hook that marks which items are demo-ready and gets a `Demo` chip. The new
+part is that `index.html`'s variant sublinks carry the chip too, not just
+the family card — a `DEMO` badge on "Beeline" can't say which of its six
+variants it means. `test/site-structure.test.js`'s sublink assertion had to
+stop reading `a.textContent` (now "ProductDemo") and read the link's own
+text nodes, with the chips asserted separately against a mirrored copy of
+`DEMO_READY_HREFS`.
+
+**3. Stats are reachable from every page** — `renderStatsLauncher()`,
+called from `renderGlobalNav()`, so it's on every page by the same
+one-implementation guarantee the nav itself has. A fixed bottom-right
+button with an inline SVG bar chart (no emoji, per this file's own rule),
+opening a modal listing every skill collapsed, with the current game's own
+skill already expanded.
+
+The one real design decision: **stats are keyed by SKILL, not by game.**
+Several games train one skill (Beeline Difference and Scuttle Difference
+are both subtraction) and one family spreads across several, so a
+game-keyed list would say much less than it looks like it does.
+`SKILL_STATS` holds 10 skills, each with the list of game hrefs that feed
+it — the numbers are sample data like the rest of this experiment, but the
+skill→games mapping is real and worth keeping accurate as games get built.
+
+**The subtlety worth remembering: the panel resolves "which page is this"
+at CLICK time, not at render time.** `renderGlobalNav()` runs before a
+game's own `renderVariantSwitcher()`, which is what supplies the exact
+variant href (`location` can't — see this file's note on why every test
+harness loads pages under a fake URL). So the launcher stores nothing;
+`currentPageHref()` reads `CURRENT_PAGE_HREF` when the panel is first
+built. Two sources feed it: `renderVariantSwitcher` sets it for
+multi-variant games, and `renderGlobalNav` sets it from the nav key for
+**single-variant** games only — a single-variant key identifies one file,
+a multi-variant key names a family and would guess the wrong default. A
+page with neither (the hub, a sub-menu) opens with nothing expanded, which
+is the right outcome rather than an error.
 
 ## Bot AI philosophy — read this before writing any bot logic
 

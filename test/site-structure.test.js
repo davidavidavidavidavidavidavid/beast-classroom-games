@@ -12,6 +12,18 @@
 const assert = require('assert');
 const { loadGame, runInPage } = require('./jsdom-helpers');
 
+/* TEMPORARY (answer-explanation experiment) — mirrors shared-game.js's own
+   DEMO_READY_HREFS. Mirrored rather than imported for the reason CLAUDE.md's
+   Known Traps already documents for nim.html's TARGET: a top-level `const`
+   in a classic script isn't readable off a loaded page. Delete with the
+   experiment, alongside the list it mirrors. */
+const DEMO_READY_HREFS = [
+  'scuttle-addition-subtraction.html',
+  'scuttle-product.html',
+  'beeline-product.html',
+  'beeline-rounding.html',
+];
+
 let failures = 0;
 function check(label, pass, detail) {
   if (!pass) failures++;
@@ -207,7 +219,17 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
       ariaDisabled: c.getAttribute('aria-disabled'),
       toggleText: c.querySelector('.variant-expand-toggle') ? c.querySelector('.variant-expand-toggle').textContent : null,
       sublistHiddenInitially: c.querySelector('.variant-sublist') ? c.querySelector('.variant-sublist').classList.contains('hidden') : null,
-      sublinks: Array.from(c.querySelectorAll('.variant-sublink')).map(a => ({ text: a.textContent, href: a.getAttribute('href') })),
+      // A demo-ready sublink carries a .badge.demo chip INSIDE the <a>, so
+      // a.textContent is "ProductDemo", not the variant name. Read the
+      // link's own first text node for the name and check the chip
+      // separately, rather than loosening the name assertion.
+      sublinks: Array.from(c.querySelectorAll('.variant-sublink')).map(a => ({
+        text: Array.from(a.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join(''),
+        href: a.getAttribute('href'),
+      })),
+      demoSublinkHrefs: Array.from(c.querySelectorAll('.variant-sublink'))
+        .filter(a => a.querySelector('.badge.demo'))
+        .map(a => a.getAttribute('href')),
     };
     return {
       totalCards: cards.length,
@@ -254,6 +276,11 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
     check(`index.html: ${key} card's "Play →" badge is its own <a> straight to the default variant (${defaultHref})`, !!c && c.badgeTag === 'A' && c.badgeHref === defaultHref && c.badge === 'Play →', JSON.stringify(c));
     check(`index.html: ${key} card's expand toggle starts collapsed and labeled "▾ ${count} variants"`, !!c && c.toggleText === `▾ ${count} variants` && c.sublistHiddenInitially === true, JSON.stringify(c));
     check(`index.html: ${key} card's sublist links every variant by name+href, in family order`, !!c && JSON.stringify(c.sublinks) === JSON.stringify(expectedSublinks.map(([text, href]) => ({ text, href }))), JSON.stringify(c && c.sublinks));
+    // TEMPORARY (answer-explanation experiment): the DEMO chip has to land
+    // on the specific VARIANTS being demoed, not just the family card — the
+    // card-level badge alone can't say which of Beeline's six it means.
+    const expectedDemo = expectedSublinks.map(([, href]) => href).filter(h => DEMO_READY_HREFS.indexOf(h) !== -1);
+    check(`index.html: ${key} card marks exactly the demo-ready variants with a DEMO chip`, !!c && JSON.stringify(c.demoSublinkHrefs) === JSON.stringify(expectedDemo), JSON.stringify(c && c.demoSublinkHrefs) + ' expected ' + JSON.stringify(expectedDemo));
   });
 
   [
@@ -455,17 +482,31 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
 });
 
 /* ---------------- TEMPORARY: demo markers on listing pages -------------
-   EXPERIMENTAL — delete with the experiment. The dotted frame is only
-   half the signal; the DEMO chip and the legend are what make it mean
-   something, so all three are checked together. */
-[['index.html', 2], ['scuttle-menu.html', 2], ['beeline-menu.html', 2]].forEach(([file, expectedBadges]) => {
+   EXPERIMENTAL — delete with the experiment. The frame is now border-less
+   (the chip carries the meaning), so what's checked is that every marked
+   item CARRIES a chip and the legend explains it. Counted as
+   cards + variant sublinks + the legend's own sample chip, rather than a
+   magic total, so this stays readable if the demo list changes. */
+[
+  // [file, demo-marked cards, demo-marked variant sublinks]
+  ['index.html', 2, 4],
+  ['scuttle-menu.html', 2, 0],
+  ['beeline-menu.html', 2, 0],
+].forEach(([file, expectedCards, expectedSublinks]) => {
   const dom = loadGame(file);
   const r = runInPage(dom, () => ({
     framed: document.querySelectorAll('.demo-framed').length,
+    framedSublinks: document.querySelectorAll('.variant-sublink.demo-framed').length,
+    // Every marked item must carry its own chip — the mark is invisible
+    // without it now that the frame draws nothing.
+    allFramedChipped: Array.from(document.querySelectorAll('.demo-framed')).every(x => !!x.querySelector('.badge.demo')),
     badges: document.querySelectorAll('.badge.demo').length,
     legends: document.querySelectorAll('.demo-legend').length,
   }));
-  check(`${file}: demo-ready items are framed, chipped and explained by a legend`, r.framed > 0 && r.badges === expectedBadges && r.legends === 1, JSON.stringify(r));
+  check(`${file}: ${expectedCards} demo-marked cards + ${expectedSublinks} demo-marked variants, each carrying a chip`,
+    r.framed === expectedCards + expectedSublinks && r.framedSublinks === expectedSublinks && r.allFramedChipped === true, JSON.stringify(r));
+  // +1 for the legend's own sample chip.
+  check(`${file}: a legend explains what the chip means`, r.legends === 1 && r.badges === expectedCards + expectedSublinks + 1, JSON.stringify(r));
 });
 // Pages with nothing demo-ready must stay completely clean of demo furniture.
 ['pop-menu.html', 'nim-menu.html'].forEach(file => {
@@ -503,6 +544,107 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   check(`${file}: has the temporary "Demo" button`, r.hasButton === true, JSON.stringify(r));
   check(`${file}: clicking Demo opens a populated explanation modal`, r.modalOpened === true && r.visualRendered === true && r.answerText.length > 0, JSON.stringify(r));
 });
+
+/* ---------------- side-by-side play layout -----------------------------
+   shared-game.js's initPlayLayout() — see CLAUDE.md "Side-by-side
+   board/playing-space layout". jsdom has no layout engine, so the pixel
+   claim (two columns, no scrolling) is a real-browser check; what's
+   assertable here is the STRUCTURE the CSS then acts on, plus the fact
+   that DOM order still puts the scorecard before the play screens, which
+   is what the narrow-viewport stacked view renders. */
+['scuttle-addition-subtraction.html', 'scuttle-product.html', 'scuttle-difference.html'].forEach(file => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => {
+    const layout = document.querySelector('.play-layout');
+    if (!layout) return { built: false };
+    const side = layout.querySelector('.play-side');
+    const main = layout.querySelector('.play-main');
+    return {
+      built: true,
+      sideHoldsScorecard: !!side && side.children.length === 1 && side.children[0].id === 'scorecard',
+      mainScreens: main ? Array.from(main.children).map(n => n.id) : [],
+      // The settings step must stay OUTSIDE the two columns — it's a
+      // full-width step before play starts, not a play screen.
+      settingsOutside: !layout.contains(document.getElementById('screen-settings')),
+      sideBeforeMain: !!side && !!main && side.compareDocumentPosition(main) === 4,
+      appWidened: document.getElementById('app').classList.contains('has-play-layout'),
+    };
+  });
+  check(`${file}: scorecard and play screens are split into .play-side / .play-main`,
+    r.built === true && r.sideHoldsScorecard === true && r.mainScreens.length >= 3 && r.settingsOutside === true, JSON.stringify(r));
+  check(`${file}: scorecard still comes FIRST in DOM order (so narrow viewports stack board-on-top, unchanged)`,
+    r.sideBeforeMain === true && r.appWidened === true, JSON.stringify(r));
+});
+// A game with no persistent scorecard has nothing to put beside anything —
+// it must be left completely alone, not wrapped in an empty layout.
+['beeline-product.html', 'pop-addition.html', 'nim.html', 'numbo-operations.html'].forEach(file => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => ({
+    layouts: document.querySelectorAll('.play-layout').length,
+    widened: document.getElementById('app').classList.contains('has-play-layout'),
+  }));
+  check(`${file}: no scorecard, so no play layout is injected and #app keeps its own width`,
+    r.layouts === 0 && r.widened === false, JSON.stringify(r));
+});
+
+/* ---------------- TEMPORARY: stats launcher + skill panel ---------------
+   EXPERIMENTAL — delete with the experiment. The launcher comes from
+   renderGlobalNav(), so "every page has one" is the same
+   one-implementation guarantee the nav itself gets; what's genuinely worth
+   driving is the CLICK, since the panel is built lazily and has to resolve
+   which page it was opened from at that moment (renderVariantSwitcher runs
+   AFTER renderGlobalNav, so capturing the href at launcher-render time
+   would always come back null on a multi-variant game). */
+[
+  // [file, the skill that must open expanded, or null for a listing page]
+  ['beeline-product.html', 'mult-facts'],
+  ['scuttle-addition-subtraction.html', 'add-sub'],
+  ['nim.html', 'strategy'],
+  ['detective-fraction-equivalence.html', 'fractions'],
+  ['index.html', null],
+  ['pop-menu.html', null],
+].forEach(([file, expectedOpenSkill]) => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => {
+    const btn = document.getElementById('stats-launcher');
+    if (!btn) return { hasLauncher: false };
+    btn.click();
+    const backdrop = document.getElementById('stats-panel-backdrop');
+    const rows = Array.from(document.querySelectorAll('.skill-row'));
+    return {
+      hasLauncher: true,
+      panelOpened: !!backdrop && !backdrop.classList.contains('hidden'),
+      rowCount: rows.length,
+      openSkills: rows.filter(x => x.classList.contains('open')).map(x => x.dataset.skill),
+      // Every non-open row's body must actually be collapsed, not just
+      // missing the class — "a list of collapsed skills" is the ask.
+      collapsedBodiesHidden: rows.filter(x => !x.classList.contains('open'))
+        .every(x => x.querySelector('.skill-body').classList.contains('hidden')),
+    };
+  });
+  check(`${file}: has the corner stats launcher`, r.hasLauncher === true, JSON.stringify(r));
+  check(`${file}: clicking it opens a panel of collapsed skills`, r.panelOpened === true && r.rowCount === 10 && r.collapsedBodiesHidden === true, JSON.stringify(r));
+  check(`${file}: opens with ${expectedOpenSkill ? `"${expectedOpenSkill}" expanded` : 'nothing expanded (no single game in context)'}`,
+    JSON.stringify(r.openSkills) === JSON.stringify(expectedOpenSkill ? [expectedOpenSkill] : []), JSON.stringify(r.openSkills));
+});
+
+// A collapsed row must actually open on click, and the open one close.
+{
+  const dom = loadGame('beeline-product.html');
+  const r = runInPage(dom, () => {
+    document.getElementById('stats-launcher').click();
+    const rowOf = id => document.querySelector(`.skill-row[data-skill="${id}"]`);
+    const state = id => ({ open: rowOf(id).classList.contains('open'), bodyHidden: rowOf(id).querySelector('.skill-body').classList.contains('hidden') });
+    const before = { mult: state('mult-facts'), rounding: state('rounding') };
+    rowOf('rounding').querySelector('.skill-toggle').click();
+    rowOf('mult-facts').querySelector('.skill-toggle').click();
+    return { before, after: { mult: state('mult-facts'), rounding: state('rounding') } };
+  });
+  check('stats panel: a collapsed skill expands on click, and the pre-expanded one collapses',
+    r.before.mult.open === true && r.before.rounding.open === false &&
+    r.after.rounding.open === true && r.after.rounding.bodyHidden === false &&
+    r.after.mult.open === false && r.after.mult.bodyHidden === true, JSON.stringify(r));
+}
 
 if (failures > 0) {
   console.error(`\n  ${failures} case(s) FAILED`);

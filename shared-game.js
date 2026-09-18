@@ -251,10 +251,8 @@ function demoBadgeEl(){
 function demoLegendEl(){
   const wrap = document.createElement('div');
   wrap.className = 'demo-legend';
-  const sw = document.createElement('span');
-  sw.className = 'demo-legend-swatch';
-  wrap.appendChild(sw);
-  wrap.appendChild(document.createTextNode('Marked games have the new answer-explanation demo built in'));
+  wrap.appendChild(demoBadgeEl());
+  wrap.appendChild(document.createTextNode('= has the new answer-explanation demo built in'));
   return wrap;
 }
 
@@ -305,6 +303,178 @@ function stackAdvanceControls(screenId, wrapperIds){
     w.style.marginTop = '';
     w.style.marginBottom = '';
     stack.appendChild(w);
+  });
+}
+
+/* ---------------- stats / reporting ------------------------------------
+   A skill is the thing a player actually practises, which is NOT the same
+   as a game: several games train one skill (Beeline Difference and Scuttle
+   Difference are both subtraction), and one game family spreads across
+   several. So stats are keyed by skill, with the games that feed each one
+   listed alongside — that's what makes "open this from Product Beeline and
+   see Multiplication facts already expanded" possible.
+   Every NUMBER here is sample data, same as stats-demo.html: nothing in
+   this project records real play yet. The skill->games mapping, though, is
+   real and worth keeping accurate as games get built. */
+const SKILL_STATS = [
+  { id: 'mult-facts', name: 'Multiplication facts', games: ['beeline-product.html'],
+    correct: 33, attempts: 35, totalTime: '2h 05m', lastPlayed: 'Yesterday' },
+  { id: 'mult-multi', name: 'Multi-digit multiplication', games: ['scuttle-product.html'],
+    correct: 27, attempts: 40, totalTime: '48m', lastPlayed: '2 hours ago' },
+  { id: 'add-sub', name: 'Addition & subtraction', games: ['scuttle-addition-subtraction.html', 'beeline-addition.html', 'pop-addition.html', 'pop-subtraction.html', 'pop-expression.html'],
+    correct: 42, attempts: 50, totalTime: '1h 12m', lastPlayed: 'Just now' },
+  { id: 'sub-facts', name: 'Subtraction facts', games: ['beeline-difference.html', 'scuttle-difference.html'],
+    correct: 24, attempts: 31, totalTime: '35m', lastPlayed: '4 hours ago' },
+  { id: 'rounding', name: 'Rounding', games: ['beeline-rounding.html'],
+    correct: 14, attempts: 28, totalTime: '22m', lastPlayed: '3 days ago' },
+  { id: 'decimals', name: 'Decimals', games: ['beeline-decimal.html'],
+    correct: 18, attempts: 26, totalTime: '27m', lastPlayed: '2 days ago' },
+  { id: 'fractions', name: 'Equivalent fractions', games: ['beeline-equivalent-fraction.html', 'detective-fraction-equivalence.html'],
+    correct: 19, attempts: 45, totalTime: '36m', lastPlayed: '1 week ago' },
+  { id: 'perimeter', name: 'Perimeter', games: ['pop-perimeter.html'],
+    correct: 11, attempts: 15, totalTime: '14m', lastPlayed: '5 days ago' },
+  { id: 'operations', name: 'Order of operations', games: ['numbo-operations.html'],
+    correct: 22, attempts: 38, totalTime: '41m', lastPlayed: '6 hours ago' },
+  { id: 'strategy', name: 'Counting & strategy', games: ['nim.html', 'nim-nickeled-and-dimed.html', 'nim-subtraction.html'],
+    correct: 30, attempts: 34, totalTime: '52m', lastPlayed: 'Yesterday' },
+];
+
+// Which page are we on? Preferred source is the href a game already passes
+// to renderVariantSwitcher (explicit, and reliable in every harness — see
+// CLAUDE.md's note on why location can't identify the running file under
+// test). location is only a fallback for single-variant games, which never
+// call that; if neither works the panel just opens with nothing expanded,
+// which is a fine outcome rather than an error.
+let CURRENT_PAGE_HREF = null;
+function currentPageHref(){
+  if (CURRENT_PAGE_HREF) return CURRENT_PAGE_HREF;
+  try {
+    const base = ((window.location && window.location.pathname) || '').split('/').pop();
+    if (base && base.slice(-5) === '.html') return base;
+  } catch (e) { /* no usable location — fall through */ }
+  return null;
+}
+
+function skillForHref(href){
+  if (!href) return null;
+  return SKILL_STATS.find(s => s.games.indexOf(href) !== -1) || null;
+}
+
+function statsPanelEl(currentHref){
+  const openSkill = skillForHref(currentHref);
+  const backdrop = document.createElement('div');
+  backdrop.id = 'stats-panel-backdrop';
+  backdrop.className = 'stats-panel-backdrop hidden';
+  const panel = document.createElement('div');
+  panel.className = 'stats-panel';
+  const head = document.createElement('div');
+  head.className = 'stats-panel-head';
+  head.textContent = 'Your skills';
+  panel.appendChild(head);
+  const note = document.createElement('div');
+  note.className = 'stats-panel-note';
+  note.textContent = 'Sample data — not yet wired to real play';
+  panel.appendChild(note);
+
+  SKILL_STATS.forEach(skill => {
+    const row = document.createElement('div');
+    row.className = 'skill-row';
+    row.dataset.skill = skill.id;
+
+    const toggle = document.createElement('button');
+    toggle.className = 'skill-toggle';
+    toggle.type = 'button';
+    const pct = Math.round((skill.correct / skill.attempts) * 100);
+    const caret = document.createElement('span');
+    caret.className = 'skill-caret';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'skill-title';
+    nameEl.textContent = skill.name;
+    const pctEl = document.createElement('span');
+    pctEl.className = 'skill-pct';
+    pctEl.textContent = pct + '%';
+    toggle.appendChild(caret);
+    toggle.appendChild(nameEl);
+    toggle.appendChild(pctEl);
+
+    const body = document.createElement('div');
+    body.className = 'skill-body';
+    const bar = document.createElement('div');
+    bar.className = 'skill-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'skill-bar-fill';
+    fill.style.width = pct + '%';
+    bar.appendChild(fill);
+    body.appendChild(bar);
+    const stats = document.createElement('div');
+    stats.className = 'skill-stats';
+    stats.textContent = `${skill.correct} of ${skill.attempts} correct · ${skill.totalTime} played · last ${skill.lastPlayed.toLowerCase()}`;
+    body.appendChild(stats);
+    const games = document.createElement('div');
+    games.className = 'skill-games';
+    games.textContent = 'Games: ' + skill.games.map(h => {
+      const g = GLOBAL_GAMES.find(x => x.href === h || (x.variants || []).some(v => v.href === h));
+      const v = g && (g.variants || []).find(v2 => v2.href === h);
+      return g ? (v ? `${g.name} ${v.name}` : g.name) : h;
+    }).join(', ');
+    body.appendChild(games);
+
+    const isOpen = !!openSkill && openSkill.id === skill.id;
+    row.classList.toggle('open', isOpen);
+    body.classList.toggle('hidden', !isOpen);
+    caret.textContent = isOpen ? '▾' : '▸';
+
+    toggle.addEventListener('click', () => {
+      const nowOpen = body.classList.contains('hidden');
+      body.classList.toggle('hidden', !nowOpen);
+      row.classList.toggle('open', nowOpen);
+      caret.textContent = nowOpen ? '▾' : '▸';
+      if (nowOpen) fadeIn(body);
+    });
+
+    row.appendChild(toggle);
+    row.appendChild(body);
+    panel.appendChild(row);
+  });
+
+  const close = document.createElement('button');
+  close.className = 'primary';
+  close.id = 'stats-panel-close';
+  close.style.width = '100%';
+  close.textContent = 'Close';
+  close.addEventListener('click', () => backdrop.classList.add('hidden'));
+  panel.appendChild(close);
+
+  backdrop.appendChild(panel);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.classList.add('hidden'); });
+  return backdrop;
+}
+
+// Corner glyph, on every page (injected from renderGlobalNav so no page
+// has to remember it). The panel is built lazily on first click, not here,
+// specifically so the current-page href has had a chance to be set by the
+// game's own renderVariantSwitcher call, which runs after renderGlobalNav.
+function renderStatsLauncher(){
+  if (document.getElementById('stats-launcher')) return;
+  const btn = document.createElement('button');
+  btn.id = 'stats-launcher';
+  btn.type = 'button';
+  btn.title = 'Your skills';
+  btn.setAttribute('aria-label', 'Your skills');
+  // Inline SVG rather than a text glyph: this needs to read as a bar
+  // chart at 20px, and the project doesn't use emoji.
+  btn.innerHTML = '<svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">' +
+    '<rect x="3" y="13" width="5" height="8" rx="1"></rect>' +
+    '<rect x="9.5" y="8" width="5" height="13" rx="1"></rect>' +
+    '<rect x="16" y="4" width="5" height="17" rx="1"></rect></svg>';
+  document.body.appendChild(btn);
+  btn.addEventListener('click', () => {
+    let backdrop = document.getElementById('stats-panel-backdrop');
+    if (!backdrop){
+      backdrop = statsPanelEl(currentPageHref());
+      document.body.appendChild(backdrop);
+    }
+    backdrop.classList.remove('hidden');
   });
 }
 
@@ -457,6 +627,58 @@ function initSettingsChrome(){
 
   // 3. Track whether the settings screen is showing, for the top bar.
   addSyncer(() => document.body.classList.toggle('settings-active', !settings.classList.contains('hidden')));
+
+  initPlayLayout();
+}
+
+/* ---------------- side-by-side play layout ------------------------------
+   Real design feedback: "there is a lot of dead space to the left and
+   right sides of the screen... the scoreboard and gameboard in scuttle can
+   be left and right. Beeline is already good."
+
+   Beeline and Detective already split board-from-play in their own markup
+   (see CLAUDE.md "Side-by-side board/playing-space layout"); Scuttle's
+   persistent #scorecard was the remaining case — three cards stacked
+   vertically, so the round card itself sat below a scoreboard that never
+   changes mid-round, pushing the actual playing controls down the page.
+
+   Done at runtime, from here, rather than by restructuring three games'
+   markup, for the same reason initSettingsChrome() is: one real
+   implementation, no chance of the three drifting. It keys off #scorecard
+   alone, so any future game that grows one gets the layout for free and
+   every game without one is untouched.
+
+   DOM ORDER IS UNCHANGED in spirit — scorecard still comes before the play
+   screens, which is what the narrow-viewport stacked view still shows (see
+   the same DOM-order-vs-visual-order reasoning in claim-grid.css). The
+   side-by-side arrangement is purely the CSS row above the breakpoint, so
+   scorecard-first also means scorecard-LEFT with no `order` override. */
+function initPlayLayout(){
+  const side = document.getElementById('scorecard');
+  const app = document.getElementById('app');
+  if (!side || !app || document.querySelector('.play-layout')) return;
+  // Everything after the scorecard is a play screen (settings and the
+  // variant card both sit above it — see each Scuttle file's markup).
+  const main = [];
+  for (let n = side.nextElementSibling; n; n = n.nextElementSibling){
+    if (n.classList && n.classList.contains('card')) main.push(n);
+  }
+  if (!main.length) return;
+
+  const layout = document.createElement('div');
+  layout.className = 'play-layout';
+  const sideCol = document.createElement('div');
+  sideCol.className = 'play-side';
+  const mainCol = document.createElement('div');
+  mainCol.className = 'play-main';
+  side.parentNode.insertBefore(layout, side);
+  sideCol.appendChild(side);
+  main.forEach(n => mainCol.appendChild(n));
+  layout.appendChild(sideCol);
+  layout.appendChild(mainCol);
+  // Widen #app only for games that actually have two columns to fill, and
+  // only via a class, so design-system.css keeps every width in one place.
+  app.classList.add('has-play-layout');
 }
 
 if (typeof document !== 'undefined' && document.addEventListener){
@@ -828,9 +1050,16 @@ function renderGlobalNav(currentKey){
     label.id = 'global-nav-current';
     label.textContent = currentGame.name;
     nav.appendChild(label);
+    // A SINGLE-variant game's key already identifies its one file, so the
+    // nav key is enough to know which page this is (used by the stats
+    // panel to expand that game's skill). A multi-variant key deliberately
+    // isn't — it names a family, not a file — so those pages wait for
+    // renderVariantSwitcher's explicit href instead of guessing a default.
+    if (!currentGame.multiVariant && currentGame.href) CURRENT_PAGE_HREF = currentGame.href;
   }
 
   document.body.insertBefore(nav, document.body.firstChild);
+  renderStatsLauncher(); // corner stats glyph, on every page
 }
 
 // `renderVariantSwitcher(containerId, currentKey, currentHref)` — the
@@ -866,6 +1095,10 @@ function renderGlobalNav(currentKey){
 // difficulty) rather than a link back to itself; every sibling renders as
 // a real `<a>` to that file.
 function renderVariantSwitcher(containerId, currentKey, currentHref){
+  // Remember the page's own filename — the stats panel needs it to know
+  // which skill to open expanded, and this is the one place a game
+  // already tells us, explicitly and reliably.
+  if (currentHref) CURRENT_PAGE_HREF = currentHref;
   const container = document.getElementById(containerId);
   if (!container) return;
   const game = GLOBAL_GAMES.find(g => g.key === currentKey);

@@ -202,12 +202,13 @@ function renderGameGrid(){
       list.className = 'variant-sublist hidden';
       g.variants.forEach(v => {
         const link = document.createElement('a');
-        // TEMPORARY per-variant dotted frame — same experiment as the
-        // card-level one above; the family frame says "something in here
-        // is demo-ready", this says which ones.
-        link.className = 'variant-sublink' + (isDemoReady(v.href) ? ' demo-framed' : '');
+        // TEMPORARY per-variant DEMO chip — the card-level chip says
+        // "something in this family is demo-ready", this says which ones.
+        const isDemo = isDemoReady(v.href);
+        link.className = 'variant-sublink' + (isDemo ? ' demo-framed' : '');
         link.href = v.href;
-        link.textContent = v.name;
+        link.appendChild(document.createTextNode(v.name));
+        if (isDemo) link.appendChild(demoBadgeEl());
         list.appendChild(link);
       });
       card.appendChild(list);
