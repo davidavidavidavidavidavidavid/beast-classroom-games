@@ -2122,14 +2122,87 @@ since several of these REVERSE a judgment call the first pass made.
 **Test coverage followed the animation change**, per Testing methodology
 point 6's existing convention for async effects: each pilot game's probe
 now asserts the MID-FLIGHT state right after the modal opens (only step 1
-showing / grid cells still "?" / no verdict announced yet — which is what
-actually proves the reveal is staged rather than instant), then sleeps
-past the worst-case duration and asserts the SETTLED state (step 2's
-solved frame / real partial products / the direct "Rounds to N"
-headline). `test/smoke-beeline-two-row-variants.test.js` had to become
-async (`for...of` inside an async `main()`, not `VARIANTS.forEach`) to
-support that sleep — `.forEach` with an async callback would not have
-awaited anything.
+showing / grid cells still empty / no verdict announced yet — which is
+what actually proves the reveal is staged rather than instant), then
+sleeps past the worst-case duration and asserts the SETTLED state.
+`test/smoke-beeline-two-row-variants.test.js` had to become async
+(`for...of` inside an async `main()`, not `VARIANTS.forEach`) to support
+that sleep — `.forEach` with an async callback would not have awaited
+anything.
+
+### Third iteration — polish pass
+
+1. **Stats: the live timer was cut.** The second iteration built "time on
+   game" as real idle/tab-aware session tracking; review came back "the
+   time tracking on stats is wrong. Just add a column to the table: Total
+   time. Hard code fake data." So the whole timer (and its status line) is
+   gone, and `stats-demo.html` is back to one uniform thing: a table where
+   **every** column is sample data, now including **Total time** and
+   **Last played**. Worth remembering as a scoping lesson rather than just
+   a revert: the specific mechanical rules in that request ("stop after 2
+   mins idle", "stop if tab out") read as a spec to implement, but they
+   were describing what the eventual real metric should MEAN, not asking
+   for it to be built inside a mock-up.
+2. **Area model: annotations, not headers, and sized by digit count.**
+   The factors were header cells inside the bordered table; they're now
+   annotations OUTSIDE the rectangle (`.am-col-labels`/`.am-row-labels`),
+   and the rectangle holds nothing but partial products. New house rule,
+   applied by `areaUnits()`: **a row/column for an n-digit part is n+1
+   units** — 6 is 2 units, 40 is 3, 300 is 4 — so bigger place values get
+   visibly bigger boxes without a 4-digit case crushing the small parts to
+   slivers (true-to-value proportions would make a 300x6 box 50:1). Unit
+   size is then scaled to keep even the 4-digit-by-1-digit case inside the
+   modal. Per the same feedback, the frame and its outside annotations are
+   **fully drawn in frame 0** — the animation only fills the inner cells,
+   one per frame, then adds the addition line.
+3. **Column method keeps both steps.** "Show both, don't let the first one
+   disappear, we want students to be able to see the full working at the
+   end" — every step-2 frame now carries step 1's solved frame above it,
+   so the modal ends on the complete worked problem.
+4. **~5s total, not a fixed per-frame delay.** `EXPLAIN_TOTAL_MS` (5000)
+   in `shared-game.js` is divided by the frame count, so every explanation
+   takes about the same time to watch regardless of how many frames its
+   particular problem needs (2 for a no-carry step, 10 for a 9-column
+   array). Callers can still pass an explicit `msPerFrame`.
+5. **Beeline Product joined the pilot** (4 games now, not 3) with the
+   **array + skip-counting** representation the original request named for
+   basic multiplication facts — which is exactly what this game is, two
+   single-digit factors. `renderArrayFrames(a, b)` reveals `a` columns of
+   `b` dots one at a time with the running skip-count (b, 2b, 3b…) under
+   each, so the final count under the final column IS the product. All
+   column slots exist from frame 0 (just hidden) so nothing shifts as they
+   fill — the same reserve-the-space rule as "Layout stability".
+6. **A temporary "▶ Demo" button** sits in the top bar of all four pilot
+   games (`#demo-explain-btn`, styled deliberately as obviously-not-
+   shipping-UI: dashed, warn-coloured). It opens the modal on a FIXED
+   sample problem with a no-op Continue, so it works from any screen
+   (including settings, before a round exists) and commits nothing. One
+   consolidated block at the end of `test/site-structure.test.js` checks
+   all four actually open a populated modal — a demo button that throws is
+   the worst possible failure for a button whose whole purpose is being
+   clicked in front of people. **Delete that block along with the
+   buttons** when the experiment ends.
+
+**Two real bugs this pass's own browser check caught** (jsdom can't see
+either — both are pixel/rendering claims, per Testing methodology point
+8): the column method printed a leading zero on any sum that didn't use
+`columnAdd()`'s reserved carry column (342 + 179 rendered as "0 5 2 1"),
+now fixed by `resultCells()` suppressing leading zeros plus dropping the
+unused column entirely; and a borrowed column's genuinely two-digit
+working value (521 − 168 really does work as 4 | 11 | 11) overflowed its
+single-digit-wide column, now given a smaller font rather than being
+faked into something arithmetically wrong.
+
+**A real test-timing trap this pass surfaced, worth remembering:**
+`setTimeout(botTurn, 550)` captures the function VALUE at scheduling
+time, so stubbing `botTurn` afterwards does NOT stop an already-queued bot
+move. The two-row variants test only started failing once a probe waited
+out the ~5s animation — long enough for a bot move scheduled several
+steps earlier to fire and move a token out from under the assertions
+(tokens came back `[5,9]`, then `[5,1]`, instead of `[5,2]`). Fixed by
+stubbing `botTurn` **before** any commit schedules one. Any future test
+that adds a long `await` to a previously-synchronous Beeline/Nim probe
+will hit this same thing.
 
 ## Bot AI philosophy — read this before writing any bot logic
 

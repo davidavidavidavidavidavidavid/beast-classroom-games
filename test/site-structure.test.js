@@ -340,6 +340,32 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   check('beeline-menu.html: 15 variant cards (6 built + 9 catalogued-unbuilt)', n === 15, `got ${n}`);
 }
 
+/* ---------------- TEMPORARY: answer-explanation demo buttons ------------
+   EXPERIMENTAL — see CLAUDE.md "Answer-explanation modal & stats-demo
+   experiment". Delete this whole block along with the experiment. It's
+   here (rather than split across four per-game smoke tests) so there's
+   exactly one place to remove, and because the thing actually worth
+   guarding is cheap and cross-cutting: a "click here for demo" button
+   that throws or opens an empty modal is the single worst failure mode
+   for a button whose entire purpose is being clicked in front of people. */
+['scuttle-addition-subtraction.html', 'scuttle-product.html', 'beeline-product.html', 'beeline-rounding.html'].forEach(file => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => {
+    const btn = document.getElementById('demo-explain-btn');
+    if (!btn) return { hasButton: false };
+    btn.click();
+    const backdrop = document.getElementById('explain-modal-backdrop');
+    return {
+      hasButton: true,
+      modalOpened: !!backdrop && !backdrop.classList.contains('hidden'),
+      answerText: backdrop ? document.getElementById('explain-modal-answer').textContent.trim() : '',
+      visualRendered: backdrop ? document.getElementById('explain-modal-visual').innerHTML.length > 50 : false,
+    };
+  });
+  check(`${file}: has the temporary "Demo" button`, r.hasButton === true, JSON.stringify(r));
+  check(`${file}: clicking Demo opens a populated explanation modal`, r.modalOpened === true && r.visualRendered === true && r.answerText.length > 0, JSON.stringify(r));
+});
+
 if (failures > 0) {
   console.error(`\n  ${failures} case(s) FAILED`);
   process.exitCode = 1;

@@ -260,14 +260,65 @@ async function main() {
   assert.strictEqual(wrongDragAnswer.ownerUnchanged, true, 'a wrong answer after a drag must NOT claim the cell — dragging only sets up the equation, it never commits by itself');
   assert.strictEqual(wrongDragAnswer.stillPending, true, 'the pending move should stay open for another attempt after a wrong guess, same retry-until-correct pattern as everywhere else');
 
+  // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
+  // experiment"): one more wrong answer (this is the 2nd for this move)
+  // now opens the explanation modal — an array of `a` columns of `b` dots
+  // with a running skip-count — and its "Continue" commits the move with
+  // the correct product instead of making the player keep retyping it.
+  // The ordinary correct-answer-commits path stays covered by the full
+  // playthrough loop further down, which types real answers every turn.
   const correctDragProduct = runInPage(dom, () => computePendingProduct());
-  const rightDragAnswer = runInPage(dom, (val) => {
-    el('answer-input').value = String(val);
-    el('check-btn').click();
+  const pendingFactorsForDrag = runInPage(dom, () => pendingFactors());
+  // Hold botTurn while this probe waits out the ~5s animation, then put it
+  // back for the playthrough below — a bot move scheduled earlier (or by
+  // the Continue click itself) would otherwise land mid-assertion. Same
+  // hazard the two-row variants' rounding probe hit for real.
+  runInPage(dom, () => { window.__origBotTurn = botTurn; botTurn = () => {}; });
+  runInPage(dom, () => { el('answer-input').value = '88888'; el('check-btn').click(); });
+
+  const arrModal = runInPage(dom, () => {
+    const backdrop = document.getElementById('explain-modal-backdrop');
+    return {
+      visible: !!backdrop && !backdrop.classList.contains('hidden'),
+      answerHtml: backdrop ? document.getElementById('explain-modal-answer').innerHTML : null,
+      totalColumnSlots: document.querySelectorAll('.arr-col').length,
+      shownColumns: document.querySelectorAll('.arr-col:not(.arr-pending)').length,
+      dotsInFirstColumn: document.querySelectorAll('.arr-col:first-child .arr-dot').length,
+      ownerUnchanged: st.pendingMove !== null,
+    };
+  });
+  assert.strictEqual(arrModal.visible, true, 'a 2nd wrong answer should open the answer-explanation modal');
+  assert.ok(arrModal.answerHtml && arrModal.answerHtml.includes(String(correctDragProduct)), 'the modal should state the real correct product');
+  assert.strictEqual(arrModal.totalColumnSlots, pendingFactorsForDrag[0], 'the array should reserve one column slot per group from the very first frame, so nothing shifts as they fill in');
+  assert.strictEqual(arrModal.dotsInFirstColumn, pendingFactorsForDrag[1], 'each column should hold one dot per item in the group');
+  assert.strictEqual(arrModal.shownColumns, 1, 'only the first column should be revealed right after the modal opens — the columns come in one at a time');
+  assert.strictEqual(arrModal.ownerUnchanged, true, 'the move should not commit just from the modal appearing');
+
+  // ~5s paced sequence (EXPLAIN_TOTAL_MS); 7s clears it with room to spare.
+  await sleep(7000);
+  const arrSettled = runInPage(dom, () => ({
+    shownColumns: document.querySelectorAll('.arr-col:not(.arr-pending)').length,
+    counts: Array.from(document.querySelectorAll('.arr-count')).map(c => c.textContent).filter(Boolean),
+    total: document.querySelector('.arr-total').textContent,
+  }));
+  assert.strictEqual(arrSettled.shownColumns, pendingFactorsForDrag[0], 'every column should be revealed once the sequence settles');
+  assert.deepStrictEqual(
+    arrSettled.counts.map(Number),
+    Array.from({ length: pendingFactorsForDrag[0] }, (_, i) => (i + 1) * pendingFactorsForDrag[1]),
+    'the running counts under the columns should be a real skip-count, landing on the product'
+  );
+  assert.ok(arrSettled.total.includes(String(correctDragProduct)), 'the settled frame should state the product');
+
+  const rightDragAnswer = runInPage(dom, () => {
+    document.getElementById('explain-modal-continue-btn').click();
     return { tokens: st.tokens.slice(), pendingCleared: st.pendingMove === null };
-  }, correctDragProduct);
-  assert.strictEqual(rightDragAnswer.pendingCleared, true, 'a correct answer should clear the pending move');
-  assert.strictEqual(rightDragAnswer.tokens[dragTest.activeIdx], dragTest.target, "the correct answer should actually commit the dragged-to position into st.tokens — this is what 'claiming the cell' means, not the drag itself");
+  });
+  assert.strictEqual(rightDragAnswer.pendingCleared, true, "the modal's Continue should clear the pending move");
+  assert.strictEqual(rightDragAnswer.tokens[dragTest.activeIdx], dragTest.target, "Continue should actually commit the dragged-to position into st.tokens — this is what 'claiming the cell' means, not the drag itself");
+
+  // Restore the real bot and hand control back to it, exactly as the
+  // Continue click would have if it hadn't been stubbed out above.
+  runInPage(dom, () => { botTurn = window.__origBotTurn; if (st.turn === 'bot' && !st.gameOver) setTimeout(botTurn, 50); });
 
   // Let the bot resolve before handing off to the general playthrough loop.
   for (let i = 0; i < 20; i++) {

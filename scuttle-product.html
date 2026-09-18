@@ -26,13 +26,25 @@
   /* Area-model visual for the answer-explanation modal (EXPERIMENTAL —
      see CLAUDE.md "Answer-explanation modal & stats-demo experiment").
      Bespoke to this file — only the modal SHELL (design-system.css) is
-     shared with the other 2 pilot games. */
-  .area-model-grid { border-collapse: collapse; margin: 0 auto; font-family: var(--font-sans); }
-  .area-model-grid td { border: 2px solid var(--color-ink); padding: 8px 12px; text-align: center; }
-  .am-corner { color: var(--color-text-tertiary); font-weight: 700; }
-  .am-head { font-weight: 800; background: var(--color-background-secondary); }
-  .am-cell { font-weight: 700; }
-  .am-sum { font-family: var(--font-sans); font-size: 14px; text-align: center; margin-top: 10px; }
+     shared with the other pilot games. Revised per real feedback: the
+     factors are ANNOTATIONS outside the rectangle now (.am-col-labels /
+     .am-row-labels), not header cells inside a bordered table, and each
+     row/column is sized by its own digit count (see areaUnit()). */
+  .am-outer { text-align: center; }
+  .am-wrap { display: inline-grid; grid-template-columns: auto auto; gap: 4px; }
+  .am-col-labels { display: grid; grid-column: 2; }
+  .am-col-labels > div { text-align: center; font-family: var(--font-sans); font-weight: 800; font-size: 13px; color: var(--color-text-secondary); }
+  .am-row-labels { display: grid; grid-row: 2; }
+  .am-row-labels > div { display: flex; align-items: center; justify-content: flex-end; padding-right: 5px; font-family: var(--font-sans); font-weight: 800; font-size: 13px; color: var(--color-text-secondary); }
+  /* gap + ink background paints the interior grid lines, so cells don't
+     double up borders against the rectangle's own outer edge */
+  .am-grid { display: grid; gap: 2px; background: var(--color-ink); border: 3px solid var(--color-ink); }
+  .am-cell {
+    background: var(--color-background-primary);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-sans); font-weight: 700; font-size: 11.5px;
+  }
+  .am-sum { font-family: var(--font-sans); font-size: 14px; text-align: center; margin-top: 10px; min-height: 20px; }
 </style>
 </head>
 <body>
@@ -50,6 +62,9 @@
       <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
     </div>
     <div class="top-bar-actions">
+      <!-- TEMPORARY — see CLAUDE.md "Answer-explanation modal & stats-demo
+           experiment". Remove with the experiment. -->
+      <button id="demo-explain-btn" title="Temporary: preview the answer-explanation modal">▶ Demo</button>
       <button id="print-btn" disabled>Print</button>
       <button id="settings-btn">Settings</button>
     </div>
@@ -563,29 +578,68 @@ function placeValueParts(n){
   const parts = s.split('').map((ch, i) => Number(ch) * Math.pow(10, s.length - 1 - i)).filter(v => v !== 0);
   return parts.length ? parts : [0];
 }
-// Returns [blank, solved] frames for the shared revealSteps()/
-// showExplanationModal() — a quick 2-beat reveal (grid structure first,
-// then the real partial products + sum fill in) rather than a single
-// static dump, per CLAUDE.md's note on why speed/pacing matters here.
+// Per the project's own style guide for area models (real feedback): a
+// row/column for an n-digit part is n+1 units tall/wide — so 6 (1 digit)
+// is 2 units, 40 is 3, 300 is 4. Not true-to-value proportions (300 isn't
+// drawn 50x a 6), but it reads as "bigger place value, bigger box"
+// without a 4-digit case collapsing the small parts to slivers.
+function areaUnits(part){ return String(part).length + 1; }
+
+// Returns the animation frames for the shared revealSteps()/
+// showExplanationModal(). Per real feedback: "The entire area model frame
+// and outer bits should be visible instantly, the animation populates the
+// inner numbers and then addition" — so frame 0 already has the rectangle,
+// its interior grid lines, and both factors annotated OUTSIDE it, with
+// empty cells; each following frame fills in one more partial product;
+// the last frame adds the addition line underneath.
 function renderAreaModelFrames(num1, num2){
   const rowParts = placeValueParts(num1);
   const colParts = placeValueParts(num2);
-  const partials = [];
-  rowParts.forEach(rp => colParts.forEach(cp => partials.push(rp * cp)));
-  const buildGrid = (showValues) => {
-    let html = '<table class="area-model-grid"><tr><td class="am-corner">×</td>' +
-      colParts.map(cp => `<td class="am-head">${cp.toLocaleString()}</td>`).join('') + '</tr>';
-    rowParts.forEach(rp => {
-      html += `<tr><td class="am-head">${rp.toLocaleString()}</td>`;
-      html += colParts.map(cp => `<td class="am-cell">${showValues ? (rp * cp).toLocaleString() : '?'}</td>`).join('');
-      html += '</tr>';
-    });
-    html += '</table>';
-    html += `<div class="am-sum">${showValues ? partials.map(v => v.toLocaleString()).join(' + ') + ' = <b>' + (num1*num2).toLocaleString() + '</b>' : '&nbsp;'}</div>`;
-    return html;
+  const rowUnits = rowParts.map(areaUnits);
+  const colUnits = colParts.map(areaUnits);
+  const sum = arr => arr.reduce((a, b) => a + b, 0);
+  // Scale so even a 4-digit x 1-digit case (14 units tall) stays inside the
+  // modal, while a small 2x2 still gets comfortably-sized boxes.
+  const unitPx = Math.max(20, Math.min(34, Math.floor(280 / Math.max(sum(rowUnits), sum(colUnits)))));
+  const px = units => units.map(u => `${u * unitPx}px`).join(' ');
+
+  const cells = [];
+  rowParts.forEach(rp => colParts.forEach(cp => cells.push(rp * cp)));
+
+  const buildFrame = (filledCount, showSum) => {
+    const cellHtml = cells.map((v, i) =>
+      `<div class="am-cell">${i < filledCount ? v.toLocaleString() : ''}</div>`).join('');
+    return '<div class="am-outer"><div class="am-wrap">' +
+      `<div class="am-col-labels" style="grid-template-columns:${px(colUnits)};">` +
+        colParts.map(cp => `<div>${cp.toLocaleString()}</div>`).join('') +
+      '</div>' +
+      `<div class="am-row-labels" style="grid-template-rows:${px(rowUnits)};">` +
+        rowParts.map(rp => `<div>${rp.toLocaleString()}</div>`).join('') +
+      '</div>' +
+      `<div class="am-grid" style="grid-template-columns:${px(colUnits)};grid-template-rows:${px(rowUnits)};">${cellHtml}</div>` +
+      '</div>' +
+      `<div class="am-sum">${showSum ? cells.map(v => v.toLocaleString()).join(' + ') + ' = <b>' + (num1*num2).toLocaleString() + '</b>' : '&nbsp;'}</div>` +
+      '</div>';
   };
-  return [buildGrid(false), buildGrid(true)];
+
+  const frames = [];
+  for (let i = 0; i <= cells.length; i++) frames.push(buildFrame(i, false));
+  frames.push(buildFrame(cells.length, true));
+  return frames;
 }
+
+// TEMPORARY demo trigger (see CLAUDE.md "Answer-explanation modal &
+// stats-demo experiment"). Fixed sample (34 x 56, a real 2x2 area model
+// with four partial products) rather than the live round, so it works
+// from any screen and commits nothing on Continue.
+el('demo-explain-btn').addEventListener('click', () => {
+  showExplanationModal({
+    title: 'The answer',
+    answerHtml: '34 × 56 = <b>1,904</b>.',
+    visualFrames: renderAreaModelFrames(34, 56),
+    onContinue: () => {},
+  });
+});
 
 el('product-check-btn').addEventListener('click', checkProduct);
 el('product-answer-input').addEventListener('keydown', e=>{ if (e.key==='Enter') checkProduct(); });

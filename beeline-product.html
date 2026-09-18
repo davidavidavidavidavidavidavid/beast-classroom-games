@@ -23,6 +23,24 @@
      stretching into uncomfortably long lines. */
   #app { max-width: 1100px; }
   #rules-box { max-width: 640px; margin-left: auto; margin-right: auto; }
+
+  /* Rectangular-array visual for the answer-explanation modal
+     (EXPERIMENTAL — see CLAUDE.md "Answer-explanation modal & stats-demo
+     experiment"). This game's factors are both single digits, i.e. actual
+     multiplication FACTS, which is exactly the case the original request
+     named arrays for. Columns are revealed one at a time with a running
+     skip-count underneath; every column's slot is rendered from the first
+     frame (just invisible until its turn) so nothing shifts as they fill
+     in — the same reserve-the-space rule as "Layout stability". */
+  .arr-wrap { text-align: center; padding: 4px 0; }
+  .arr-cols { display: inline-flex; gap: 8px; align-items: flex-start; }
+  .arr-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .arr-dots { display: flex; flex-direction: column; gap: 3px; }
+  .arr-col.arr-pending .arr-dots { visibility: hidden; }
+  .arr-dot { width: 13px; height: 13px; border-radius: 3px; background: var(--color-beast-blue); border: 2px solid var(--color-ink); }
+  .arr-count { font-family: var(--font-sans); font-weight: 800; font-size: 13px; color: var(--color-text-secondary); min-height: 16px; }
+  .arr-count.arr-final { color: var(--color-correct); font-size: 16px; }
+  .arr-total { font-family: var(--font-sans); font-weight: 800; font-size: 18px; margin-top: 12px; color: var(--color-correct); min-height: 24px; }
 </style>
 </head>
 <body>
@@ -38,6 +56,9 @@
       <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
     </div>
     <div class="top-bar-actions">
+      <!-- TEMPORARY — see CLAUDE.md "Answer-explanation modal & stats-demo
+           experiment". Remove with the experiment. -->
+      <button id="demo-explain-btn" title="Temporary: preview the answer-explanation modal">▶ Demo</button>
       <button id="print-btn">Print</button>
       <button id="settings-btn">Settings</button>
     </div>
@@ -766,6 +787,73 @@ function enterAwaitingAnswer(){
 el('check-btn').addEventListener('click', checkAnswer);
 el('answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
 
+/* ---------------- answer-explanation: array + skip counting (EXPERIMENTAL)
+   See CLAUDE.md "Answer-explanation modal & stats-demo experiment".
+   `a` columns of `b` dots — i.e. "a groups of b" — revealed one column at
+   a time, with the running skip-count (b, 2b, 3b, ...) under each column
+   as it lands, so the last count under the last column IS the product.
+   Every column's slot exists from frame 0 (hidden until its turn), so the
+   layout never shifts mid-reveal. --------------------------------------- */
+function renderArrayFrames(a, b){
+  const buildFrame = (shownCols, showTotal) => {
+    const cols = [];
+    for (let i = 0; i < a; i++){
+      const shown = i < shownCols;
+      const dots = new Array(b).fill('<div class="arr-dot"></div>').join('');
+      const runningTotal = (i + 1) * b;
+      const isLast = i === a - 1;
+      cols.push(
+        `<div class="arr-col${shown ? '' : ' arr-pending'}">` +
+          `<div class="arr-dots">${dots}</div>` +
+          `<div class="arr-count${shown && isLast ? ' arr-final' : ''}">${shown ? runningTotal : ''}</div>` +
+        '</div>'
+      );
+    }
+    return '<div class="arr-wrap"><div class="arr-cols">' + cols.join('') + '</div>' +
+      `<div class="arr-total">${showTotal ? `${a} × ${b} = <b>${a*b}</b>` : '&nbsp;'}</div></div>`;
+  };
+  const frames = [];
+  for (let i = 1; i <= a; i++) frames.push(buildFrame(i, false));
+  frames.push(buildFrame(a, true));
+  return frames;
+}
+
+function pendingFactors(){
+  if (!st.pendingMove) return null;
+  if (st.pendingMove.type === 'setup') return [st.pendingMove.a, st.pendingMove.b];
+  const t = st.tokens.slice();
+  t[st.pendingMove.idx] = st.pendingMove.pos;
+  return [t[0], t[1]];
+}
+
+// Extracted from checkAnswer's correct-guess branch so the answer-
+// explanation modal's "Continue" can complete the move the same way a
+// correct typed answer always has, without duplicating the logic.
+function commitPendingProduct(){
+  flashComputeMsg('That checks out!', false);
+  const winner = commitMove(st.pendingMove, 'human');
+  st.pendingMove = null;
+  el('answer-area').classList.add('hidden');
+  if (winner){ endGame(winner); return; }
+  st.turn = 'bot';
+  st.selectedTokenIdx = 0;
+  st.phase = 'idle';
+  render();
+  setTimeout(botTurn, 550);
+}
+
+// TEMPORARY demo trigger (see CLAUDE.md "Answer-explanation modal &
+// stats-demo experiment"). Fixed sample (4 x 7) rather than the live
+// move, so it works from any screen and commits nothing on Continue.
+el('demo-explain-btn').addEventListener('click', () => {
+  showExplanationModal({
+    title: 'The answer',
+    answerHtml: '4 × 7 = <b>28</b>.',
+    visualFrames: renderArrayFrames(4, 7),
+    onContinue: () => {},
+  });
+});
+
 function checkAnswer(){
   const guess = parseInt(el('answer-input').value, 10);
   const correct = computePendingProduct();
@@ -777,20 +865,22 @@ function checkAnswer(){
     st.wrongAttempts++;
     flashComputeMsg("That's not quite right — check your work.", true);
     if (st.wrongAttempts >= 2){
-      el('hint-line').textContent = `Hint: ${pendingEquationText()} = ${correct}`;
+      // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
+      // experiment"): replaces the old plain-text hint-line — the modal
+      // shows the correct product plus an array/skip-counting breakdown,
+      // and "Continue" completes the move with the correct product rather
+      // than making the player keep retyping it.
+      const [fa, fb] = pendingFactors();
+      showExplanationModal({
+        title: 'The answer',
+        answerHtml: `${pendingEquationText()} = <b>${correct}</b>.`,
+        visualFrames: renderArrayFrames(fa, fb),
+        onContinue: commitPendingProduct,
+      });
     }
     return;
   }
-  flashComputeMsg('That checks out!', false);
-  const winner = commitMove(st.pendingMove, 'human');
-  st.pendingMove = null;
-  el('answer-area').classList.add('hidden');
-  if (winner){ endGame(winner); return; }
-  st.turn = 'bot';
-  st.selectedTokenIdx = 0;
-  st.phase = 'idle';
-  render();
-  setTimeout(botTurn, 550);
+  commitPendingProduct();
 }
 
 function flashComputeMsg(text, isError){

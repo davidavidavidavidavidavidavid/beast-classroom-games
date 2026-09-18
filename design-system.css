@@ -545,3 +545,14 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 }
 .explain-modal-visual { margin-bottom: 16px; }
 .explain-modal-continue-btn { display: block; width: 100%; }
+/* TEMPORARY demo trigger (see CLAUDE.md "Answer-explanation modal &
+   stats-demo experiment") — lets someone show the explanation on demand
+   instead of having to deliberately get an answer wrong twice first.
+   Deliberately styled as obviously-not-shipping-UI (dashed, warn-colored)
+   so it can't be mistaken for a real game control, and so it's easy to
+   spot every instance when this gets removed. */
+#demo-explain-btn {
+  font-size: 13px; padding: 6px 10px;
+  border-style: dashed; border-color: var(--color-warn);
+  color: var(--color-warn); box-shadow: none;
+}

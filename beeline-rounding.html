@@ -55,6 +55,9 @@
       <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
     </div>
     <div class="top-bar-actions">
+      <!-- TEMPORARY — see CLAUDE.md "Answer-explanation modal & stats-demo
+           experiment". Remove with the experiment. -->
+      <button id="demo-explain-btn" title="Temporary: preview the answer-explanation modal">▶ Demo</button>
       <button id="print-btn" disabled>Print</button>
       <button id="settings-btn">Settings</button>
     </div>
@@ -557,6 +560,18 @@ function commitPendingRoundedValue(){
   render();
   setTimeout(botTurn, 550);
 }
+
+// TEMPORARY demo trigger (see CLAUDE.md "Answer-explanation modal &
+// stats-demo experiment"). Fixed sample (47 to the nearest ten) rather
+// than the live move, so it works from any screen and commits nothing.
+el('demo-explain-btn').addEventListener('click', () => {
+  showExplanationModal({
+    title: 'The answer',
+    answerHtml: '47 rounded to the nearest ten = <b>50</b>.',
+    visualFrames: renderNumberLineFrames(47, 50),
+    onContinue: () => {},
+  });
+});
 
 function checkAnswer(){
   const guess = parseInt(el('answer-input').value, 10);

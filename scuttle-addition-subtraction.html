@@ -29,7 +29,7 @@
      single value that visibly CHANGES between two quick animation frames
      reads as less "calculation heavy" than two stacked annotations shown
      at once, while still being real, standard borrow/carry notation. */
-  .colm-changed { color: var(--color-warn); }
+  .colm-changed { color: var(--color-warn); font-size: 15px; }
   .colm-new { color: var(--color-beast-red); font-size: 18px; }
   .colm-hr { grid-column: 1 / -1; border-top: 2px solid var(--color-ink); margin: 2px 0; }
   .colm-fallback { font-family: var(--font-sans); font-size: 15px; text-align: center; }
@@ -50,6 +50,11 @@
       <div class="stat-pill"><img class="avatar-badge you" id="you-badge" src="" alt="">You <b id="s-wins">0</b> · <img class="avatar-badge bot" id="bot-badge" src="" alt="">Bot <b id="s-bwins">0</b> · Ties <b id="s-ties">0</b></div>
     </div>
     <div class="top-bar-actions">
+      <!-- TEMPORARY — see CLAUDE.md "Answer-explanation modal & stats-demo
+           experiment". Remove this button (and its handler) along with the
+           experiment; it exists only so the explanation can be shown on
+           demand instead of by deliberately answering wrong twice. -->
+      <button id="demo-explain-btn" title="Temporary: preview the answer-explanation modal">▶ Demo</button>
       <button id="print-btn" disabled>Print</button>
       <button id="settings-btn">Settings</button>
     </div>
@@ -742,24 +747,43 @@ function columnSubtract(a, b){
 // showing both its old AND new value stacked in the same frame at once)
 // → "solved" (the real result fills in). A problem with no carrying/
 // borrowing skips straight from blank to solved (2 frames, even faster).
+// A result row never prints leading zeros: columnAdd() always reserves one
+// extra column for a possible final carry, so a sum that doesn't need it
+// (342 + 179 = 521 in a 4-wide grid) would otherwise render as "0 5 2 1".
+function resultCells(result, showResult){
+  let firstSig = result.findIndex(d => d !== 0);
+  if (firstSig === -1) firstSig = result.length - 1; // all zeros: still show a single 0
+  return result.map((d, i) =>
+    `<div class="colm-digit colm-new">${!showResult ? (i < firstSig ? '' : '?') : (i < firstSig ? '' : d)}</div>`).join('');
+}
+
 function renderColumnStepFrames(a, isAdd, b, label){
   const wrap = (grid) => `<div class="colm-step"><div class="colm-step-label">${label}</div>${grid}</div>`;
   let width, buildGrid, hasMechanics;
   if (isAdd){
-    const { aPad, bPad, result, carries, width: w } = columnAdd(a, b);
+    let { aPad, bPad, result, carries, width: w } = columnAdd(a, b);
+    // Drop the reserved carry column when this particular sum never used
+    // it — keeps the grid the width the problem actually needs.
+    if (aPad[0] === null && bPad[0] === null && result[0] === 0){
+      aPad = aPad.slice(1); bPad = bPad.slice(1); result = result.slice(1); carries = carries.slice(1); w -= 1;
+    }
     width = w;
     hasMechanics = carries.some(c => c > 0);
     buildGrid = (showMechanics, showResult) => {
       const carryRow = '<div></div>' + carries.map(c => `<div class="colm-carry">${showMechanics && c ? c : ''}</div>`).join('');
       const topRow = '<div></div>' + aPad.map(d => `<div class="colm-digit">${d === null ? '' : d}</div>`).join('');
       const bottomRow = '<div class="colm-op">+</div>' + bPad.map(d => `<div class="colm-digit">${d === null ? '' : d}</div>`).join('');
-      const resultRow = '<div></div>' + result.map(d => `<div class="colm-digit colm-new">${showResult ? d : '?'}</div>`).join('');
-      return `<div class="colm-grid" style="grid-template-columns: 18px repeat(${width}, 22px);">${carryRow}${topRow}${bottomRow}<div class="colm-hr"></div>${resultRow}</div>`;
+      const resultRow = '<div></div>' + resultCells(result, showResult);
+      return `<div class="colm-grid" style="grid-template-columns: 18px repeat(${width}, 26px);">${carryRow}${topRow}${bottomRow}<div class="colm-hr"></div>${resultRow}</div>`;
     };
   } else {
     const { ad, bd, bIsPad, result, lentToLeft, owesRightward, width: w } = columnSubtract(a, b);
     width = w;
     hasMechanics = lentToLeft.some(Boolean);
+    // The working value for a column that borrowed really is two digits
+    // (521 - 168 works as 4 | 11 | 11) — that's the actual algorithm, not
+    // a rendering artifact — so those cells just get a smaller font to sit
+    // properly in a single-digit-wide column.
     const topDigitsFor = (showMechanics) => ad.map((orig, i) =>
       showMechanics ? (orig - owesRightward[i] + (lentToLeft[i] ? 10 : 0)) : orig);
     buildGrid = (showMechanics, showResult) => {
@@ -767,8 +791,8 @@ function renderColumnStepFrames(a, isAdd, b, label){
       const topRow = '<div></div>' + topVals.map((d, i) =>
         `<div class="colm-digit${showMechanics && d !== ad[i] ? ' colm-changed' : ''}">${d}</div>`).join('');
       const bottomRow = '<div class="colm-op">−</div>' + bd.map((d, i) => `<div class="colm-digit">${bIsPad[i] ? '' : d}</div>`).join('');
-      const resultRow = '<div></div>' + result.map(d => `<div class="colm-digit colm-new">${showResult ? d : '?'}</div>`).join('');
-      return `<div class="colm-grid" style="grid-template-columns: 18px repeat(${width}, 22px);">${topRow}${bottomRow}<div class="colm-hr"></div>${resultRow}</div>`;
+      const resultRow = '<div></div>' + resultCells(result, showResult);
+      return `<div class="colm-grid" style="grid-template-columns: 18px repeat(${width}, 26px);">${topRow}${bottomRow}<div class="colm-hr"></div>${resultRow}</div>`;
     };
   }
   const frames = [buildGrid(false, false)];
@@ -788,7 +812,13 @@ function renderColumnMethodExplanationFrames(a, op1, b, op2, c){
     ? renderColumnStepFrames(step1, op2 === 1, c, `Step 2: ${step1} ${op2===1?'+':'−'} ${c} = ${final}`)
     : [`<div class="colm-fallback">Step 2: ${step1} ${op2===1?'+':'−'} ${c} = ${final}` +
       (final < 0 ? ` (${c} is bigger than ${step1}, so this is negative)` : '') + `</div>`];
-  return step1Frames.concat(step2Frames);
+  // Step 1 does NOT disappear when step 2 starts — real feedback: "show
+  // both, don't let the first one disappear, we want students to be able
+  // to see the full working at the end." Every step-2 frame therefore
+  // carries step 1's own SOLVED frame above it, so the modal finishes
+  // showing the complete worked problem, not just its last line.
+  const step1Solved = step1Frames[step1Frames.length - 1];
+  return step1Frames.concat(step2Frames.map(f => step1Solved + f));
 }
 
 // Extracted from checkAnswer's correct-guess branch so the answer-
@@ -805,6 +835,20 @@ function commitCorrectTotal(correct){
   el('check-btn').disabled = true;
   st.finalHumanTotal = correct;
 }
+
+// TEMPORARY demo trigger (see CLAUDE.md "Answer-explanation modal &
+// stats-demo experiment"). Uses a FIXED sample problem rather than the
+// live round, so it works from any screen (including settings, before a
+// round exists) and commits nothing on Continue — 342 + 179 = 521, then
+// 521 − 168 = 353, chosen because it exercises both a carry and a borrow.
+el('demo-explain-btn').addEventListener('click', () => {
+  showExplanationModal({
+    title: 'The answer',
+    answerHtml: 'The total is <b>353</b>.',
+    visualFrames: renderColumnMethodExplanationFrames(342, 1, 179, -1, 168),
+    onContinue: () => {},
+  });
+});
 
 function checkAnswer(){
   const guess = parseInt(el('answer-input').value, 10);

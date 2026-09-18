@@ -225,11 +225,10 @@ function prefersReducedMotion(){
    governing rule as every other animation in this project (see
    "Celebration animations"): plays a short, FIXED sequence once, then
    rests on the final frame — never loops — and skips straight to the
-   final frame under prefers-reduced-motion. Deliberately fast: these
-   explanation visuals sit inside a fluency-practice loop, where speed
-   matters, not a leisurely tutorial, so callers pass a short msPerFrame
-   (a few hundred ms), not the ~650ms+ used for e.g. Celebration
-   animations' own count-up. `frames` is an array of HTML strings — the
+   final frame under prefers-reduced-motion. Paced off a whole-sequence
+   budget rather than a fixed per-frame delay — see EXPLAIN_TOTAL_MS on
+   showExplanationModal() below, which is what actually computes the
+   msPerFrame passed in here. `frames` is an array of HTML strings — the
    LAST one is what stays showing once the sequence finishes, and is also
    what a caller can jump straight to early (see the returned stop()).
    Returns a `stop()` function: jumps immediately to the final frame and
@@ -276,7 +275,16 @@ function revealSteps(containerEl, frames, msPerFrame, onDone){
    `visualFrames`/`msPerFrame` are passed straight through to revealSteps().
    Built lazily into the DOM on first call, not on page load, since not
    every page linking shared-game.js needs this. */
-function showExplanationModal({ title, answerHtml, visualFrames, msPerFrame = 350, onContinue }){
+// Whole-sequence target, not a per-frame one: real feedback asked for
+// "around 5 seconds total," and frame COUNT varies a lot between (and
+// within) the four representations — a no-carry column step is 2 frames,
+// a 9-column Beeline array is 10. Pacing off the total keeps every
+// explanation feel the same length regardless, instead of short problems
+// flashing by and long ones dragging. Callers can still pass an explicit
+// msPerFrame to override.
+const EXPLAIN_TOTAL_MS = 5000;
+
+function showExplanationModal({ title, answerHtml, visualFrames, msPerFrame, onContinue }){
   let backdrop = document.getElementById('explain-modal-backdrop');
   if (!backdrop){
     backdrop = document.createElement('div');
@@ -294,7 +302,9 @@ function showExplanationModal({ title, answerHtml, visualFrames, msPerFrame = 35
   document.getElementById('explain-modal-title').textContent = title;
   document.getElementById('explain-modal-answer').innerHTML = answerHtml;
   backdrop.classList.remove('hidden');
-  const stopReveal = revealSteps(document.getElementById('explain-modal-visual'), visualFrames, msPerFrame);
+  const frameCount = (visualFrames && visualFrames.length) || 0;
+  const perFrame = msPerFrame || Math.round(EXPLAIN_TOTAL_MS / Math.max(1, frameCount - 1));
+  const stopReveal = revealSteps(document.getElementById('explain-modal-visual'), visualFrames, perFrame);
   // Replace (not just re-listen on) the continue button so a stale
   // onContinue closure from an earlier call can never also fire — plain
   // addEventListener would stack a second listener on the same persistent

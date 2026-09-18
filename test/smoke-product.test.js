@@ -129,34 +129,45 @@ async function playFullMatch(format, difficulty, checkAvatarsAndScorecard) {
 
       // The answer itself (#explain-modal-answer) is shown in full THE
       // INSTANT the modal opens — never staged behind the animation.
+      const expectedCells = runInPage(dom, (n1, n2) =>
+        placeValueParts(n1).length * placeValueParts(n2).length, split.num1, split.num2);
+
       const modalState = runInPage(dom, () => {
         const backdrop = document.getElementById('explain-modal-backdrop');
         return {
           visible: !!backdrop && !backdrop.classList.contains('hidden'),
           answerHtml: backdrop ? document.getElementById('explain-modal-answer').innerHTML : null,
-          gridRows: document.querySelectorAll('.area-model-grid tr').length,
-          cellsMidFlight: document.getElementById('explain-modal-visual').textContent,
+          cellCount: document.querySelectorAll('.am-cell').length,
+          labelCount: document.querySelectorAll('.am-col-labels > div, .am-row-labels > div').length,
+          filledCellsMidFlight: Array.from(document.querySelectorAll('.am-cell')).filter(c => c.textContent.trim() !== '').length,
         };
       });
       assert.strictEqual(modalState.visible, true, 'after 2 wrong attempts, the answer-explanation modal should appear');
       assert.ok(modalState.answerHtml && modalState.answerHtml.includes(correctProduct.toLocaleString()), 'the modal should state the real correct product');
-      assert.ok(modalState.gridRows >= 2, 'the area-model grid should have a header row plus at least one place-value row');
-      // EXPERIMENTAL (see CLAUDE.md "Answer-explanation modal & stats-demo
-      // experiment"): the grid now animates in (blank cells first, real
-      // partial products a beat later) rather than dumping everything at
-      // once — right after opening, the cells should still read "?".
-      assert.ok(modalState.cellsMidFlight.includes('?'), 'right after the modal opens, the area-model grid should still be blank ("?" cells), not already solved');
+      // Revised per real feedback (see CLAUDE.md "Answer-explanation modal
+      // & stats-demo experiment"): the factors are annotations OUTSIDE the
+      // rectangle now, not header cells inside it — so the grid holds
+      // exactly one cell per (row part x column part) pair, and the labels
+      // live in their own .am-col-labels/.am-row-labels containers.
+      assert.strictEqual(modalState.cellCount, expectedCells, 'the rectangle should hold exactly one cell per place-value pair, with no header row/column inside it');
+      assert.ok(modalState.labelCount >= 2, 'both factors should be annotated outside the rectangle');
+      // "The entire area model frame and outer bits should be visible
+      // instantly, the animation populates the inner numbers" — so the
+      // frame/labels exist immediately but every cell starts empty.
+      assert.strictEqual(modalState.filledCellsMidFlight, 0, 'the rectangle and its outside annotations should be there instantly, with the inner cells still empty');
 
       const beforeContinue = runInPage(dom, () => st.humanProducts.length);
       assert.strictEqual(beforeContinue, 0, 'the round should not auto-complete just from the modal appearing — only "Continue" should do that');
 
-      // Let the reveal actually finish (2 frames x 350ms default = 700ms;
-      // 1.5s clears that with room to spare) before confirming it settles
-      // on the real, filled-in partial products and sum.
-      await sleep(1500);
-      const settled = runInPage(dom, () => document.getElementById('explain-modal-visual').textContent);
-      assert.ok(!settled.includes('?'), 'once the reveal finishes, every cell should show a real partial product, not a "?" placeholder');
-      assert.ok(settled.includes(correctProduct.toLocaleString()), 'the settled grid should show the real total, matching the answer stated above it');
+      // The whole sequence is paced to ~5s total (EXPLAIN_TOTAL_MS in
+      // shared-game.js); 7s clears that with room to spare.
+      await sleep(7000);
+      const settled = runInPage(dom, () => ({
+        filled: Array.from(document.querySelectorAll('.am-cell')).filter(c => c.textContent.trim() !== '').length,
+        text: document.getElementById('explain-modal-visual').textContent,
+      }));
+      assert.strictEqual(settled.filled, expectedCells, 'once the reveal finishes, every cell should hold a real partial product');
+      assert.ok(settled.text.includes(correctProduct.toLocaleString()), 'the settled grid should show the real total, matching the answer stated above it');
 
       runInPage(dom, () => { document.getElementById('explain-modal-continue-btn').click(); });
     } else {

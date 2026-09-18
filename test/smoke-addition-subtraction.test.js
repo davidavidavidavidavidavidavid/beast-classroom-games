@@ -208,20 +208,22 @@ async function main() {
   assert.strictEqual(beforeContinue.revealHidden, true, 'reveal-wrap should still be hidden until Continue is clicked');
 
   // Let the staged reveal actually finish on its own (rather than clicking
-  // Continue mid-animation) so this test also proves the sequence lands
-  // cleanly on step 2's own solved frame, with the FINAL total shown, not
-  // stuck mid-flight or reverted back to step 1. Up to 6 frames (blank/
-  // mechanics/solved x 2 steps) x 350ms/frame = at most ~2.1s; 3s clears
-  // that with room to spare, same "comfortably clears every case" margin
-  // Celebration animations' own waits already use.
-  await sleep(3000);
+  // Continue mid-animation) so this test also proves where it LANDS. The
+  // whole sequence is paced to ~5s total (EXPLAIN_TOTAL_MS in
+  // shared-game.js, split across however many frames this problem needs);
+  // 7s clears that with room to spare.
+  await sleep(7000);
   const afterReveal = runInPage(dom, () => ({
     stepCountSettled: document.querySelectorAll('.colm-step, .colm-fallback').length,
     visualText: el('explain-modal-visual').textContent,
   }));
-  assert.strictEqual(afterReveal.stepCountSettled, 1, 'once the reveal finishes, exactly one step (step 2, its own solved frame) should be showing');
+  // Real feedback: "show both, don't let the first one disappear, we want
+  // students to be able to see the full working at the end" — so the
+  // settled frame carries BOTH steps, not just the last one.
+  assert.strictEqual(afterReveal.stepCountSettled, 2, 'the settled frame should still show step 1 alongside step 2 — the full working, not just the last line');
+  assert.ok(afterReveal.visualText.includes('Step 1'), 'step 1 should still be on screen once the reveal settles');
   assert.ok(afterReveal.visualText.includes('Step 2'), 'the reveal should have advanced to step 2 by the time it settles');
-  assert.ok(!afterReveal.visualText.includes('?'), 'step 2\'s settled frame should show a real filled-in result, not a "?" placeholder');
+  assert.ok(!afterReveal.visualText.includes('?'), 'the settled frames should show real filled-in results, not "?" placeholders');
 
   runInPage(dom, () => { document.getElementById('explain-modal-continue-btn').click(); });
 
