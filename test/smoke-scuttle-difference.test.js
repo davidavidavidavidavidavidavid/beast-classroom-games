@@ -55,11 +55,12 @@ async function playFullMatch(format, difficulty, checkAvatarsAndScorecard) {
   const cfg = runInPage(dom, () => ({ d1: st.slotsN1.length, d2: st.slotsN2.length, target: st.target }));
 
   // Layout-stability probe (CLAUDE.md "Layout stability" / Testing
-  // methodology point 5) — same phase-content ids as Product Scuttle's own
-  // dedicated check in test/layout-stability.test.js (this file reuses that
-  // exact .phase-hidden engine unchanged, just swapping product-check-wrap
-  // for diff-check-wrap) — checked once, on the first combination only,
-  // since the mechanism itself doesn't vary by format/difficulty.
+  // methodology point 5), CORRECTED RULE: a block belonging to a LATER
+  // phase must be out of the layout (.hidden), not reserving space, or the
+  // empty round card becomes a dead box. Only #roll-btn-wrap reserves, and
+  // only because it holds the .action-stack cell open during the dice
+  // spin. Checked once, on the first combination only, since the mechanism
+  // doesn't vary by format/difficulty.
   const PHASE_IDS = ['roll-btn-wrap', 'dice-row', 'frames-wrap', 'diff-check-wrap', 'next-round-wrap'];
   // `ids` is passed in explicitly (not closed over) since runInPage
   // serializes this function's source and re-runs it inside the page's own
@@ -72,19 +73,19 @@ async function playFullMatch(format, difficulty, checkAvatarsAndScorecard) {
     });
     return out;
   }
-  function assertNeverHidden(snap, where) {
-    PHASE_IDS.forEach(id => {
-      assert.strictEqual(snap[id].hidden, false, `[${format}/${difficulty}] ${where}: #${id} should never carry .hidden — layout space must stay reserved`);
+  // `expected` maps id -> true if that block should be IN the layout.
+  function assertInFlow(snap, where, expected) {
+    Object.keys(expected).forEach(id => {
+      assert.strictEqual(snap[id].hidden, !expected[id],
+        `[${format}/${difficulty}] ${where}: #${id} should ${expected[id] ? 'be in the layout' : 'be out of the layout — it belongs to a later phase, and reserving it is what produced the dead box'}`);
     });
   }
 
   for (let round = 1; round <= 3; round++) {
     if (checkAvatarsAndScorecard) {
       const before = runInPage(dom, snapshotPhase, PHASE_IDS);
-      assertNeverHidden(before, `round ${round} before rolling`);
+      assertInFlow(before, `round ${round} before rolling`, { 'roll-btn-wrap': true, 'dice-row': false, 'frames-wrap': false, 'diff-check-wrap': false, 'next-round-wrap': false });
       assert.strictEqual(before['roll-btn-wrap'].phaseHidden, false, `round ${round}: roll button should be visible before rolling`);
-      assert.strictEqual(before['dice-row'].phaseHidden, true, `round ${round}: dice row should be reserved-but-invisible before rolling`);
-      assert.strictEqual(before['frames-wrap'].phaseHidden, true, `round ${round}: number frames should be reserved-but-invisible before rolling`);
     }
 
     runInPage(dom, () => { el('roll-btn').click(); });
@@ -92,11 +93,10 @@ async function playFullMatch(format, difficulty, checkAvatarsAndScorecard) {
 
     if (checkAvatarsAndScorecard) {
       const afterRoll = runInPage(dom, snapshotPhase, PHASE_IDS);
-      assertNeverHidden(afterRoll, `round ${round} after rolling`);
-      assert.strictEqual(afterRoll['roll-btn-wrap'].phaseHidden, true, `round ${round}: roll button should be reserved-but-invisible once rolled`);
-      assert.strictEqual(afterRoll['dice-row'].phaseHidden, false, `round ${round}: dice row should be visible after rolling`);
-      assert.strictEqual(afterRoll['frames-wrap'].phaseHidden, false, `round ${round}: number frames should be visible after rolling`);
-      assert.strictEqual(afterRoll['diff-check-wrap'].phaseHidden, true, `round ${round}: answer-check row should be reserved-but-invisible until both frames are full`);
+      assertInFlow(afterRoll, `round ${round} after rolling`, { 'roll-btn-wrap': true, 'dice-row': true, 'frames-wrap': true, 'diff-check-wrap': false, 'next-round-wrap': false });
+      // The roll button stays RESERVED, not removed: it holds the
+      // .action-stack cell open until the next advance button appears.
+      assert.strictEqual(afterRoll['roll-btn-wrap'].phaseHidden, true, `round ${round}: roll button reserved once rolled, holding the action-stack cell`);
     }
 
     // Fill n1's slots then n2's slots (mirrors nextEmptySlot()'s own
@@ -153,11 +153,7 @@ async function playFullMatch(format, difficulty, checkAvatarsAndScorecard) {
 
     if (checkAvatarsAndScorecard) {
       const afterLock = runInPage(dom, snapshotPhase, PHASE_IDS);
-      assertNeverHidden(afterLock, `round ${round} after locking in`);
-      assert.strictEqual(afterLock['dice-row'].phaseHidden, true, `round ${round}: dice row should be reserved-but-invisible after locking in`);
-      assert.strictEqual(afterLock['frames-wrap'].phaseHidden, true, `round ${round}: number frames should be reserved-but-invisible after locking in`);
-      assert.strictEqual(afterLock['diff-check-wrap'].phaseHidden, true, `round ${round}: answer-check row should be reserved-but-invisible after locking in`);
-      assert.strictEqual(afterLock['next-round-wrap'].phaseHidden, round === 3, `round ${round}: next-round button visibility should match whether the match just ended`);
+      assertInFlow(afterLock, `round ${round} after locking in`, { 'dice-row': false, 'frames-wrap': false, 'diff-check-wrap': false, 'next-round-wrap': round !== 3 });
     }
 
     if (round < 3) {

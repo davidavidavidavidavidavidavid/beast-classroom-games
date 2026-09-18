@@ -108,9 +108,9 @@
       <button class="primary" id="roll-btn">Roll dice</button>
     </div>
 
-    <div id="dice-row" class="phase-hidden"></div>
+    <div id="dice-row" class="hidden"></div>
 
-    <div id="frames-wrap" class="phase-hidden">
+    <div id="frames-wrap" class="hidden">
       <div class="product-frames">
         <div class="num-frame">
           <div class="frame-label">Number 1</div>
@@ -126,7 +126,7 @@
 
     <div id="msg" class="feedback-msg"></div>
 
-    <div id="diff-check-wrap" class="phase-hidden">
+    <div id="diff-check-wrap" class="hidden">
       <div class="equation-line" id="diff-equation"></div>
       <div class="answer-row">
         <label for="diff-answer-input">Difference:</label>
@@ -137,7 +137,7 @@
       <div class="feedback-msg" id="diff-msg"></div>
     </div>
 
-    <div class="center phase-hidden" id="next-round-wrap" style="margin-top:12px;">
+    <div class="center hidden" id="next-round-wrap">
       <button class="primary" id="next-round-btn">Next round →</button>
     </div>
   </div>
@@ -153,7 +153,7 @@
     </div>
     <div class="hint-line" id="sum-hint-line"></div>
     <div class="feedback-msg" id="sum-msg"></div>
-    <div class="center phase-hidden" id="sum-reveal-wrap" style="margin-top:12px;">
+    <div class="center hidden" id="sum-reveal-wrap">
       <button class="primary" id="sum-reveal-btn">Reveal results →</button>
     </div>
   </div>
@@ -464,11 +464,17 @@ function startRound(){
   st.slotsN2 = Array(d2).fill(null);
   st.wrongAttempts = 0;
   el('r-num').textContent = st.round;
+  // roll-btn-wrap stays .phase-hidden (NOT .hidden) on purpose: it shares
+  // one .action-stack grid cell with Next round, and for the ~500ms of dice
+  // spin between it hiding and the later controls appearing it is the only
+  // thing keeping that cell's height. Everything else here belongs to a
+  // LATER phase and uses .hidden, so the pre-roll card is the size of the
+  // roll button.
   el('roll-btn-wrap').classList.remove('phase-hidden');
-  el('dice-row').classList.add('phase-hidden');
-  el('frames-wrap').classList.add('phase-hidden');
-  el('diff-check-wrap').classList.add('phase-hidden');
-  el('next-round-wrap').classList.add('phase-hidden');
+  showPhaseBlock(el('dice-row'), false);
+  showPhaseBlock(el('frames-wrap'), false);
+  showPhaseBlock(el('diff-check-wrap'), false);
+  showPhaseBlock(el('next-round-wrap'), false);
   el('msg').textContent=''; el('msg').className='';
   el('diff-answer-input').value='';
   el('diff-hint-line').textContent='';
@@ -478,7 +484,7 @@ function startRound(){
 el('roll-btn').addEventListener('click', rollDice);
 function rollDice(){
   el('roll-btn-wrap').classList.add('phase-hidden');
-  el('dice-row').classList.remove('phase-hidden');
+  showPhaseBlock(el('dice-row'), true);
   const diceCount = fmt().dice;
 
   let ticks=0;
@@ -491,7 +497,7 @@ function rollDice(){
       clearInterval(spin);
       st.roll = rollN(diceCount);
       renderDice();
-      el('frames-wrap').classList.remove('phase-hidden');
+      showPhaseBlock(el('frames-wrap'), true);
       renderFrames();
     }
   }, 70);
@@ -582,10 +588,10 @@ function renderFrames(){
     // "23 − 87 = ?" reading as if it wants -64 would be confusing for a
     // standard that doesn't expect negative results.
     const big = Math.max(num1,num2), small = Math.min(num1,num2);
-    el('diff-check-wrap').classList.remove('phase-hidden');
+    showPhaseBlock(el('diff-check-wrap'), true);
     el('diff-equation').textContent = `${big} − ${small} = ?`;
   } else {
-    el('diff-check-wrap').classList.add('phase-hidden');
+    showPhaseBlock(el('diff-check-wrap'), false);
   }
 }
 
@@ -628,12 +634,12 @@ function lockInRound(num1, num2, diff){
 
   updateScorecard(st.humanDiffs, st.botDiffs);
 
-  el('frames-wrap').classList.add('phase-hidden');
-  el('dice-row').classList.add('phase-hidden');
-  el('diff-check-wrap').classList.add('phase-hidden');
+  showPhaseBlock(el('frames-wrap'), false);
+  showPhaseBlock(el('dice-row'), false);
+  showPhaseBlock(el('diff-check-wrap'), false);
 
   if (st.round<3){
-    el('next-round-wrap').classList.remove('phase-hidden');
+    showPhaseBlock(el('next-round-wrap'), true);
   } else {
     setTimeout(goToSum, 500);
   }
@@ -654,7 +660,7 @@ function goToSum(){
   el('sum-check-btn').disabled=false;
   el('sum-hint-line').textContent='';
   el('sum-msg').textContent='';
-  el('sum-reveal-wrap').classList.add('phase-hidden');
+  showPhaseBlock(el('sum-reveal-wrap'), false);
   const [p1,p2,p3] = st.humanDiffs;
   el('sum-equation').textContent = `${p1} + ${p2} + ${p3} = ?`;
 }
@@ -669,7 +675,7 @@ function checkSum(){
   if (guess===correct){
     flashSumMsg('That checks out!', false);
     st.finalHumanSum = correct;
-    el('sum-reveal-wrap').classList.remove('phase-hidden');
+    showPhaseBlock(el('sum-reveal-wrap'), true);
     el('sum-answer-input').disabled=true;
     el('sum-check-btn').disabled=true;
   } else {

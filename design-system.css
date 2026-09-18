@@ -30,6 +30,26 @@
   --color-ink: var(--color-text-primary);
   --border-w: 4px;
 
+  /* --- spacing scale ---
+     Every margin, padding and gap should come from this scale rather than
+     a one-off pixel value, so vertical rhythm is consistent across games
+     built months apart and a global density change is one edit here. The
+     steps are a rough 1.5x progression, which is far enough apart that
+     picking between two adjacent ones is an easy call — the failure mode
+     of an ad-hoc approach isn't any single wrong number, it's ending up
+     with 8/10/12/14px all meaning "a small gap" in different files.
+     xs = inside a control (icon-to-label). sm = between related controls
+     in a row. md = between blocks in a stack. lg = between sections.
+     xl = between major regions (header vs play area).
+     Genuinely optical values — a 3px nudge to clear a drop shadow, a
+     -5px overhang on a fraction bar — are NOT spacing and stay literal;
+     forcing those onto the scale would be cargo-culting it. */
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 32px;
+  --space-xl: 48px;
+
   --font-sans: 'Rubik', system-ui, -apple-system, sans-serif;
   --font-pixel: 'Press Start 2P', var(--font-sans);
 
@@ -75,7 +95,14 @@ body {
   /* Top padding reserves space for #global-nav (position:fixed, so it
      doesn't naturally push content down on its own) — see CLAUDE.md
      "Global navigation". Required on every page, hub included. */
-  padding: calc(var(--nav-height) + 1rem) 1rem 1rem;
+  padding: calc(var(--nav-height) + var(--space-sm)) var(--space-sm) var(--space-sm);
+  /* Anchor content to the TOP. This used to be the flex default (stretch)
+     combined with `#app { margin: auto }`, which on a flex child means
+     auto margins on all four sides — so any page shorter than the
+     viewport floated in the vertical middle, pushing the title ~190px
+     below the nav bar with nothing in between. Real feedback: "reduce the
+     vertical gap between the nav bar and the title block." */
+  align-items: flex-start;
 }
 /* Was 600px — real feedback: "make sizing more dynamic to fill a great
    proportion of the window." `width:100%` (of body's content box, itself
@@ -89,7 +116,9 @@ body {
    internal layout, see "Side-by-side board/playing-space layout") widen
    further still, in their own <style> blocks, since they have genuinely
    more horizontal content to fill. */
-#app { max-width: 860px; width: 100%; margin: auto; }
+/* `margin: 0 auto`, not `auto` — see body's align-items note above: the
+   four-sided version is what vertically centred every short page. */
+#app { max-width: 860px; width: 100%; margin: 0 auto; }
 
 /* ---------- global navigation bar ----------
    Injected by shared-game.js's renderGlobalNav() — see CLAUDE.md "Global
@@ -167,7 +196,7 @@ a.global-nav-item:hover, a.global-nav-item:focus-visible { background: var(--col
       started, so they're noise exactly where the player is choosing; and
       they're under-emphasized exactly where they matter. Hidden on
       settings, and given more presence during play. */
-#variant-card { margin-bottom: 1.1rem; }
+#variant-card { margin-bottom: var(--space-sm); }
 #variant-card .section-label { text-align: center; }
 
 .avatar-choose-btn { display: flex; align-items: center; gap: 10px; margin: 4px auto 14px; }
@@ -198,8 +227,10 @@ a.global-nav-item:hover, a.global-nav-item:focus-visible { background: var(--col
    dead weight — both go, leaving only the actions that still do
    something. */
 body.settings-active #top-bar .pill-group,
+body.settings-active .hud-secondary,
+body.settings-active .hud-primary,
 body.settings-active #settings-btn { display: none; }
-body.settings-active #top-bar { justify-content: flex-end; margin-bottom: 0.5rem; }
+body.settings-active #top-bar { justify-content: flex-end; margin-bottom: var(--space-xs); }
 
 /* The settings card is a centered stack: with the chips centered, a
    left-aligned label above them read as two different alignments in one
@@ -211,8 +242,11 @@ body.settings-active #top-bar { justify-content: flex-end; margin-bottom: 0.5rem
 #screen-settings #how-link { margin-left: auto; margin-right: auto; }
 /* In play: these are the readouts the player actually tracks, so give
    them a little more presence than they had. */
-body:not(.settings-active) .stat-pill { font-size: 17px; padding: 5px 12px; }
-body:not(.settings-active) .stat-pill b { font-size: 19px; }
+/* Scoped away from .hud-utility, whose own pills (Detective's level badge)
+   are chrome and must stay quiet — without :not() this rule out-specifies
+   the utility sizing and blows them back up mid-game. */
+body:not(.settings-active) .stat-pill:not(.hud-utility *) { font-size: 17px; padding: 5px 12px; }
+body:not(.settings-active) .stat-pill:not(.hud-utility *) b { font-size: 19px; }
 
 /* ---------- side-by-side play layout ----------
    Built at runtime by shared-game.js's initPlayLayout() — see its header
@@ -227,7 +261,7 @@ body:not(.settings-active) .stat-pill b { font-size: 19px; }
    body's own 1rem gutters. Below that there isn't room for two real
    columns, so it stays stacked. */
 @media (min-width: 880px) {
-  .play-layout { flex-direction: row; align-items: flex-start; gap: 20px; }
+  .play-layout { flex-direction: row; align-items: flex-start; gap: var(--space-md); }
   /* Fixed rather than proportional: this is a 3-row score table whose
      content never grows, so extra width would only stretch it. */
   .play-side { flex: 0 0 250px; }
@@ -265,7 +299,7 @@ body.settings-active #app.has-play-layout #top-bar { max-width: 680px; margin-le
    place — the same overlap trick .desc-line-stack already uses, and for
    the same reason. The cell sizes itself to the tallest child, so nothing
    below it moves either. */
-.action-stack { display: grid; justify-items: center; margin-top: 14px; }
+.action-stack { display: grid; justify-items: center; margin-top: var(--space-sm); }
 .action-stack > * { grid-area: 1 / 1; margin-top: 0; margin-bottom: 0; }
 
 /* ---------- card shell ---------- */
@@ -275,19 +309,28 @@ body.settings-active #app.has-play-layout #top-bar { max-width: 680px; margin-le
   border-radius: 4px;
   box-shadow: var(--shadow-card);
   padding: 1.4rem 1.2rem;
-  margin-bottom: 1.4rem;
+  margin-bottom: var(--space-md);
 }
 
-/* ---------- header: title / kicker / tagline ---------- */
+/* ---------- header: title / kicker / tagline ----------
+   LEFT-aligned, not centred. Real feedback: a centred title/kicker/tagline
+   block sitting directly above left-aligned cards read as two different
+   layouts stacked on top of each other. One alignment axis for the whole
+   page — the cards' own left edge — and the header now shares it, so the
+   page reads straight down the left margin. Menu/hub pages keep centring
+   (see .page-centered below), since there a title genuinely does head a
+   symmetric grid rather than a left-aligned column. */
 h1 {
   font-family: var(--font-pixel);
   font-size: 23px;
   line-height: 1.5;
-  text-align: center;
+  text-align: left;
   letter-spacing: -0.5px;
   color: var(--color-beast-red);
 }
-.kicker-wrap { display: flex; justify-content: center; margin-top: 8px; margin-bottom: 10px; }
+.page-centered h1, .page-centered .tagline { text-align: center; }
+.page-centered .kicker-wrap { justify-content: center; }
+.kicker-wrap { display: flex; justify-content: flex-start; margin-top: var(--space-xs); margin-bottom: var(--space-xs); }
 .kicker {
   display: inline-block;
   background: var(--color-background-primary);
@@ -302,7 +345,7 @@ h1 {
   text-transform: uppercase;
   color: var(--color-beast-blue);
 }
-.tagline { font-family: var(--font-sans); font-size: 16px; font-weight: 500; color: var(--color-text-secondary); text-align: center; margin-top: 4px; margin-bottom: 0.9rem; }
+.tagline { font-family: var(--font-sans); font-size: 16px; font-weight: 500; color: var(--color-text-secondary); text-align: left; margin-top: 0; margin-bottom: var(--space-sm); }
 .tagline b { color: var(--color-text-primary); }
 
 /* ---------- buttons ---------- */
@@ -347,9 +390,76 @@ span.chip.active { background: var(--color-beast-blue); color: #fff; border-colo
 button.small { font-size: 17px; padding: 0.35rem 0.6rem; text-transform: none; letter-spacing: 0; box-shadow: var(--shadow-sm); }
 button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 0 0 0 var(--color-ink); }
 
-/* ---------- top bar / scoreboard pills ---------- */
-#top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 0.9rem; }
-.pill-group { display: flex; gap: 6px; flex-wrap: wrap; }
+/* ---------- HUD: a 3-tier information hierarchy ----------
+   Built at runtime by shared-game.js's initHud(). Every game's status area
+   used to be one flat row where the number that defines winning, the round
+   counter, the bot tier, the score and the Settings button were all the
+   same size, same border, same weight — nothing told you what to look at.
+   Three tiers now, and a game's own markup didn't have to change:
+
+   1. PRIMARY (.hud-primary) — the ONE fact that defines this game's win
+      condition. Big, dedicated, its own block at the top of the left-hand
+      reading column. Never a pill.
+   2. SECONDARY (.hud-secondary) — round counter, bot difficulty, running
+      score. Still pills, grouped, one clear step down.
+   3. UTILITY (.hud-utility) — Settings, Print (and, while the experiment
+      lasts, Demo). Quiet, small, out of the gameplay sightline. */
+#top-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: var(--space-xs); margin-bottom: var(--space-sm);
+}
+.pill-group, .hud-secondary { display: flex; gap: var(--space-xs); flex-wrap: wrap; align-items: center; }
+
+/* Tier 1. The label is small and quiet precisely so the VALUE can be the
+   loudest thing on the page — a big number with no caption reads as
+   decoration, a big number under "TARGET" reads as an instruction. */
+.hud-primary {
+  display: block;
+  background: var(--color-warn-bg);
+  border: 3px solid var(--color-warn);
+  border-radius: 6px;
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+  font-family: var(--font-sans);
+}
+.hud-primary-label {
+  display: block;
+  font-size: 12px; font-weight: 800; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--color-warn);
+  margin-bottom: 2px;
+}
+.hud-primary-value {
+  display: block;
+  font-size: 42px; line-height: 1.1; font-weight: 800;
+  color: var(--color-warn);
+  font-variant-numeric: tabular-nums;
+}
+/* A primary whose content is a phrase ("Your turn", "Reach 10") rather
+   than a bare number needs to not run to 42px across two lines. */
+.hud-primary-value.is-text { font-size: 26px; line-height: 1.25; }
+.hud-primary-sub {
+  display: block; margin-top: 2px;
+  font-size: 13px; font-weight: 600; color: var(--color-text-secondary);
+}
+/* Outside a .play-layout there's no left rail to sit in, so the primary
+   becomes a band directly under the header — same size, same alignment,
+   still the first thing in the reading column. */
+.hud-primary.hud-primary-band { max-width: 320px; }
+
+/* Tier 3. Deliberately stripped of the pixel-shadow button language: these
+   are chrome, and giving them the same tactile weight as Roll Dice is what
+   put them in the gameplay sightline in the first place. */
+.hud-utility { display: flex; align-items: center; gap: var(--space-xs); }
+.hud-utility button, .hud-utility .stat-pill {
+  font-size: 12px; font-weight: 700; padding: 5px 9px;
+  border-width: 2px; border-color: var(--color-border-tertiary);
+  box-shadow: none; color: var(--color-text-secondary);
+  background: transparent;
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+.hud-utility button:active:not(:disabled) { transform: translate(2px,2px); box-shadow: none; }
+.hud-utility button:hover:not(:disabled) { border-color: var(--color-ink); color: var(--color-text-primary); }
+
 .stat-pill {
   background: var(--color-background-primary);
   border: 2px solid var(--color-ink);
@@ -368,7 +478,7 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
    Settings button at all) into one flex item, so #top-bar's own
    space-between still splits into exactly two groups — pills on the left,
    this group on the right — instead of spreading three items apart. */
-.top-bar-actions { display: flex; align-items: center; gap: 6px; }
+.top-bar-actions { display: flex; align-items: center; gap: var(--space-xs); }
 #settings-btn, #print-btn { font-size: 14px; padding: 7px 11px; }
 
 /* A game's own target number, called out from the rest of the pills —
@@ -601,7 +711,7 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 .sc-val.empty { color: var(--color-text-tertiary); opacity: 0.5; }
 
 /* ---------- round label ---------- */
-#round-label { font-family: var(--font-sans); font-weight: 700; font-size: 17px; letter-spacing: 0.5px; color: var(--color-text-secondary); text-align: center; margin-bottom: 14px; text-transform: uppercase; }
+#round-label { font-family: var(--font-sans); font-weight: 700; font-size: 17px; letter-spacing: 0.5px; color: var(--color-text-secondary); text-align: center; margin-bottom: var(--space-sm); text-transform: uppercase; }
 
 /* ---------- shared feedback message line (leading-zero warnings,
    answer-check results — one visual language everywhere) ---------- */
@@ -639,7 +749,7 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 .equation-line { text-align: center; font-family: var(--font-sans); font-size: 26px; font-weight: 800; margin: 10px 0; }
 
 /* ---------- answer entry ---------- */
-.answer-row { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.answer-row { display: flex; justify-content: center; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs); flex-wrap: wrap; }
 .answer-row label { font-family: var(--font-sans); font-size: 15px; font-weight: 600; color: var(--color-text-secondary); }
 .answer-input {
   width: 120px; font-size: 22px; text-align: center; font-family: var(--font-sans); font-weight: 800;
@@ -697,7 +807,7 @@ label.small { font-family: var(--font-sans); font-size: 15px; color: var(--color
 .fade-in { animation: fadeIn 0.18s ease; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .center { text-align: center; }
-.btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+.btn-row { display: flex; gap: var(--space-xs); justify-content: center; margin-top: var(--space-sm); flex-wrap: wrap; }
 
 /* ---------- answer-explanation modal (EXPERIMENTAL — see CLAUDE.md
    "Answer-explanation modal & stats-demo experiment") ----------

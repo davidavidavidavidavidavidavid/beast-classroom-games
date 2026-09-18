@@ -19,6 +19,12 @@
   .plus-sign { font-size: 22px; font-weight: 800; color: var(--color-text-secondary); padding: 0 2px; }
   .bot-mirror { margin-top: 16px; padding-top: 14px; border-top: 2px dashed var(--color-border-tertiary); opacity: 0.75; }
   .bot-mirror .slot { cursor: default; }
+  /* The shared die appears on every roll and disappears on every placement —
+     an alternating, within-phase toggle on one continuous screen — so it uses
+     .phase-hidden (visibility:hidden, space reserved), never .hidden. This
+     min-height is what actually holds the die's slot open between rolls; do
+     NOT remove it, or the card (and the bot's mirrored blanks below) jumps
+     ~74px on every single roll and back again. */
   #current-digit-wrap { display: flex; justify-content: center; margin: 4px 0 6px; min-height: 74px; }
 </style>
 </head>
@@ -105,7 +111,7 @@
            position is what actually reads that way; the old below-both
            placement looked like it belonged to whichever side happened to
            render nearest it. See CLAUDE.md's Pop redesign note. -->
-      <div id="current-digit-wrap" class="hidden"></div>
+      <div id="current-digit-wrap" class="phase-hidden"></div>
 
       <div class="bot-mirror">
         <div class="group-label">Bot's number</div>
@@ -500,7 +506,7 @@ function startRound(){
   // feedback actually asked for. See rollNextDigit()/handleSlotClick().
   st.rollFirst = 'bot';
   el('roll-btn-wrap').classList.remove('hidden');
-  el('current-digit-wrap').classList.add('hidden');
+  el('current-digit-wrap').classList.add('phase-hidden');
   el('current-digit-wrap').innerHTML = '';
   flashMsg('', false);
   renderBlanks();
@@ -529,7 +535,7 @@ function buildDie(value){
 }
 
 function rollNextDigit(){
-  el('current-digit-wrap').classList.remove('hidden');
+  el('current-digit-wrap').classList.remove('phase-hidden');
   const wrap = el('current-digit-wrap');
   let ticks = 0;
   const spin = setInterval(()=>{
@@ -568,7 +574,7 @@ function handleSlotClick(pos){
   const digit = st.currentDigit;
   st.human = place(st.human, pos, digit);
   st.currentDigit = null;
-  el('current-digit-wrap').classList.add('hidden');
+  el('current-digit-wrap').classList.add('phase-hidden');
   el('current-digit-wrap').innerHTML = '';
   renderBlanks();
 

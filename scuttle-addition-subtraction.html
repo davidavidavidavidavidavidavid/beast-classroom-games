@@ -119,20 +119,20 @@
       <button class="primary" id="roll-btn">Roll dice</button>
     </div>
 
-    <div id="dice-row" class="phase-hidden"></div>
+    <div id="dice-row" class="hidden"></div>
 
-    <div id="slots-wrap" class="phase-hidden">
+    <div id="slots-wrap" class="hidden">
       <div class="slot-labels"><span>Hun</span><span>Ten</span><span>One</span></div>
       <div id="slots-row"></div>
     </div>
 
-    <div id="lock-wrap" class="phase-hidden">
+    <div id="lock-wrap" class="hidden">
       <button class="primary" id="lock-btn" disabled>Lock in number</button>
     </div>
 
     <div id="msg" class="feedback-msg"></div>
 
-    <div class="center phase-hidden" id="next-round-wrap" style="margin-top:12px;">
+    <div class="center hidden" id="next-round-wrap">
       <button class="primary" id="next-round-btn">Next round →</button>
     </div>
   </div>
@@ -148,7 +148,7 @@
     </div>
     <div id="hint-line" class="hint-line"></div>
     <div id="compute-msg" class="feedback-msg"></div>
-    <div class="center phase-hidden" id="reveal-wrap">
+    <div class="center hidden" id="reveal-wrap">
       <button class="primary" id="reveal-btn">Reveal results →</button>
     </div>
   </div>
@@ -405,11 +405,16 @@ function startRound(){
   st.roll = null;
   st.slotAssignment = [null,null,null];
   el('r-num').textContent = st.round;
+  // roll-btn-wrap stays .phase-hidden (NOT .hidden) on purpose: it shares
+  // one .action-stack grid cell with Lock/Next, and for the ~500ms of dice
+  // spin between it hiding and Lock appearing it is the only thing keeping
+  // that cell's height. Everything else here belongs to a LATER phase and
+  // uses .hidden, so the pre-roll card is the size of the roll button.
   el('roll-btn-wrap').classList.remove('phase-hidden');
-  el('dice-row').classList.add('phase-hidden');
-  el('slots-wrap').classList.add('phase-hidden');
-  el('lock-wrap').classList.add('phase-hidden');
-  el('next-round-wrap').classList.add('phase-hidden');
+  showPhaseBlock(el('dice-row'), false);
+  showPhaseBlock(el('slots-wrap'), false);
+  showPhaseBlock(el('lock-wrap'), false);
+  showPhaseBlock(el('next-round-wrap'), false);
   el('msg').textContent = '';
   el('msg').className = '';
 }
@@ -417,7 +422,7 @@ function startRound(){
 el('roll-btn').addEventListener('click', rollDice);
 function rollDice(){
   el('roll-btn-wrap').classList.add('phase-hidden');
-  el('dice-row').classList.remove('phase-hidden');
+  showPhaseBlock(el('dice-row'), true);
 
   let ticks = 0;
   const diceRow = el('dice-row');
@@ -431,8 +436,8 @@ function rollDice(){
       clearInterval(spin);
       st.roll = rollN(3);
       renderDice();
-      el('slots-wrap').classList.remove('phase-hidden');
-      el('lock-wrap').classList.remove('phase-hidden');
+      showPhaseBlock(el('slots-wrap'), true);
+      showPhaseBlock(el('lock-wrap'), true);
       renderSlots();
     }
   }, 70);
@@ -529,12 +534,12 @@ function lockInRound(){
 
   updateScorecard(st.humanNums, st.botNums);
 
-  el('lock-wrap').classList.add('phase-hidden');
-  el('slots-wrap').classList.add('phase-hidden');
-  el('dice-row').classList.add('phase-hidden');
+  showPhaseBlock(el('lock-wrap'), false);
+  showPhaseBlock(el('slots-wrap'), false);
+  showPhaseBlock(el('dice-row'), false);
 
   if (st.round < 3){
-    el('next-round-wrap').classList.remove('phase-hidden');
+    showPhaseBlock(el('next-round-wrap'), true);
   } else {
     setTimeout(goToCompute, 500);
   }
@@ -557,7 +562,7 @@ function goToCompute(){
   el('check-btn').disabled = false;
   el('compute-msg').textContent = '';
   el('hint-line').textContent = '';
-  el('reveal-wrap').classList.add('phase-hidden');
+  showPhaseBlock(el('reveal-wrap'), false);
   renderEquation();
 }
 
@@ -830,7 +835,7 @@ function renderColumnMethodExplanationFrames(a, op1, b, op2, c){
 // duplicating the completion logic.
 function commitCorrectTotal(correct){
   flashComputeMsg('That checks out!', false);
-  el('reveal-wrap').classList.remove('phase-hidden');
+  showPhaseBlock(el('reveal-wrap'), true);
   document.querySelectorAll('.op-btn').forEach(b => b.disabled = true);
   document.querySelectorAll('.eq-num.draggable').forEach(t => t.classList.add('locked'));
   el('answer-input').disabled = true;

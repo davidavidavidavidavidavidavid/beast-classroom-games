@@ -202,7 +202,7 @@ async function main() {
 
   const beforeContinue = runInPage(dom, () => ({
     finalHumanTotal: st.finalHumanTotal,
-    revealHidden: el('reveal-wrap').classList.contains('phase-hidden'),
+    revealHidden: el('reveal-wrap').classList.contains('hidden'),
   }));
   assert.strictEqual(beforeContinue.finalHumanTotal, null, 'the round should not auto-complete just from the modal appearing — only "Continue" should do that');
   assert.strictEqual(beforeContinue.revealHidden, true, 'reveal-wrap should still be hidden until Continue is clicked');
@@ -229,7 +229,7 @@ async function main() {
   const afterContinue = runInPage(dom, () => ({
     finalHumanTotal: st.finalHumanTotal,
     modalHidden: document.getElementById('explain-modal-backdrop').classList.contains('hidden'),
-    revealHidden: el('reveal-wrap').classList.contains('phase-hidden'),
+    revealHidden: el('reveal-wrap').classList.contains('hidden'),
     inputsDisabled: el('answer-input').disabled && el('check-btn').disabled,
   }));
   assert.strictEqual(afterContinue.finalHumanTotal, correctTotal, 'clicking Continue should complete the round using the real correct total');

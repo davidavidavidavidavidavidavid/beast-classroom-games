@@ -681,8 +681,151 @@ function initPlayLayout(){
   app.classList.add('has-play-layout');
 }
 
+/* ---------------- phase blocks ------------------------------------------
+   `showPhaseBlock(node, visible)` — reveal/remove a block that belongs to a
+   LATER phase than the one showing, with the same fadeIn() every screen
+   swap in this project gets. Originally local to numbo-operations.html,
+   which hit the dead-space bug first; promoted here once the same fix was
+   needed across Scuttle and Nim too.
+
+   Use this, NOT `.phase-hidden`, whenever an element belongs to a phase the
+   player has not reached yet — see CLAUDE.md "Layout stability" for where
+   the line actually falls. `.phase-hidden` is still right, and still the
+   default, for content that appears WHILE the player is working inside the
+   phase it belongs to. */
+function showPhaseBlock(node, visible){
+  if (!node || !node.classList) return;
+  const wasHidden = node.classList.contains('hidden');
+  node.classList.toggle('hidden', !visible);
+  if (wasHidden && visible && typeof fadeIn === 'function') fadeIn(node);
+}
+
+/* ---------------- 3-tier information hierarchy --------------------------
+   Real design feedback: the status row gave the number that DEFINES the
+   win condition exactly the same weight as the bot-difficulty readout and
+   the Settings button — one flat row of identically-styled pills with no
+   signal about what to actually look at.
+
+   Three tiers (see design-system.css's HUD block for the visual side):
+     PRIMARY   — the one fact that defines winning, big and on its own.
+     SECONDARY — round / difficulty / score, still pills, one step down.
+     UTILITY   — Settings, Print, and the temporary Demo button: chrome.
+
+   Which element is PRIMARY is genuinely per-game, not one shape repeated
+   six times — Scuttle and Pop have a target number, Beeline has whose turn
+   it is on a board with no target at all, Nim has a target the player
+   races toward, Detective is single-player with no opponent. So this
+   function does NOT invent or recompute any game state: it MOVES an
+   element the game already owns and already keeps up to date (the same
+   move-don't-rebuild trick initSettingsChrome() uses for the avatar
+   picker, so every existing render function and handler keeps working
+   untouched). A game nominates its own primary with `data-hud-primary`
+   plus a `data-hud-label`; a `.target-pill` is adopted automatically so
+   the 7 Scuttle/Pop files need no markup change at all. */
+function initHud(){
+  const probe = document.createElement && document.createElement('div');
+  if (!probe || !probe.children || !document.body) return;
+  const topBar = document.getElementById('top-bar');
+  if (!topBar || document.querySelector('.hud-primary')) return;
+
+  // Tier 3: the existing actions wrapper simply gains the utility class —
+  // no restructuring, so Detective's level-badge-instead-of-Settings shape
+  // works with no special case.
+  const actions = topBar.querySelector('.top-bar-actions');
+  if (actions) actions.classList.add('hud-utility');
+  // Tier 2: the remaining pills.
+  const pills = topBar.querySelector('.pill-group');
+  if (pills) pills.classList.add('hud-secondary');
+
+  // Tier 1. A game either nominates an element or has a .target-pill.
+  const nominated = topBar.querySelector('[data-hud-primary]') ||
+    document.querySelector('[data-hud-primary]');
+  const source = nominated || topBar.querySelector('.target-pill');
+  if (!source) return;
+
+  const label = source.getAttribute('data-hud-label') ||
+    // A .target-pill's own text is "Target 500" — the word before the
+    // <b> is the label, the <b> is the value. Read them off rather than
+    // hardcoding "Target", since Pop variants word it differently.
+    (source.firstChild && (source.firstChild.textContent || '').trim()) || '';
+  // The value can be marked explicitly; otherwise a .target-pill's own <b>
+  // is it, and failing that the element's whole text.
+  const valueNode = source.querySelector('[data-hud-value]') || source.querySelector('b') || source;
+
+  const block = document.createElement('div');
+  block.className = 'hud-primary';
+  const labelEl = document.createElement('span');
+  labelEl.className = 'hud-primary-label';
+  labelEl.textContent = label.replace(/[:\s]+$/, '');
+  const valueEl = document.createElement('span');
+  valueEl.className = 'hud-primary-value';
+  block.appendChild(labelEl);
+  block.appendChild(valueEl);
+  const subText = source.getAttribute('data-hud-sub');
+  let subEl = null;
+  if (subText){
+    subEl = document.createElement('span');
+    subEl.className = 'hud-primary-sub';
+    subEl.textContent = subText;
+    block.appendChild(subEl);
+  }
+
+  // Mirror rather than move: the game's own code keeps writing to its own
+  // element (st updates, renderTrack(), updateScorePills(), ...) and this
+  // just reflects it, so nothing has to know the HUD exists. The source
+  // element is hidden, not removed, for the same reason — a render that
+  // writes into a detached node would silently stop working.
+  const sync = () => {
+    const txt = (valueNode.textContent || '').trim();
+    if (valueEl.textContent !== txt) valueEl.textContent = txt;
+    // A phrase ("Your turn") needs smaller type than a bare number.
+    valueEl.classList.toggle('is-text', !/^[\d.,−-]+$/.test(txt));
+  };
+  sync();
+  source.classList.add('hidden');
+  if (typeof MutationObserver === 'function'){
+    new MutationObserver(sync).observe(source, { childList: true, subtree: true, characterData: true });
+  }
+  if (document.addEventListener) document.addEventListener('click', sync);
+
+  // Placement: the top of the left-hand reading column. In a two-column
+  // game that's the rail the scorecard already lives in; everywhere else
+  // it's a band directly under the header. Deliberately ABOVE the
+  // scorecard rather than below it (the feedback suggested "bottom-left"):
+  // this is a fact the player consults constantly, and the top of the
+  // first column is the strongest position for that in a left-to-right
+  // reading order — below a scorecard it would float in whitespace with
+  // nothing anchoring it.
+  const side = document.querySelector('.play-side');
+  if (side){
+    side.insertBefore(block, side.firstChild);
+  } else {
+    block.classList.add('hud-primary-band');
+    topBar.parentNode.insertBefore(block, topBar.nextSibling);
+  }
+}
+
 if (typeof document !== 'undefined' && document.addEventListener){
-  document.addEventListener('DOMContentLoaded', initSettingsChrome);
+  document.addEventListener('DOMContentLoaded', () => {
+    // Order matters: initSettingsChrome() runs initPlayLayout(), which is
+    // what creates the .play-side rail initHud() wants to put the primary
+    // block into. Detective has no settings screen at all, so it exits
+    // early and initHud() falls back to the under-header band — which is
+    // why initHud is called from here rather than from inside that chain.
+    initSettingsChrome();
+    initHud();
+    markCenteredPage();
+  });
+}
+
+/* A listing page (the hub, a family sub-menu) keeps its centred title: a
+   title there heads a symmetric 2-column grid of cards rather than a
+   left-aligned play column, so centring is genuinely right for it, and
+   these are exactly the pages that have a card grid and no #top-bar. */
+function markCenteredPage(){
+  if (!document.body || !document.body.classList) return;
+  if (document.getElementById('top-bar')) return;
+  if (document.querySelector('.variant-list, .game-grid')) document.body.classList.add('page-centered');
 }
 
 /* ---------------- staged step-reveal (EXPERIMENTAL) ----------------------

@@ -1128,27 +1128,67 @@ appearing → correct) in an unstable mode and a stable mode side by side; the
 bug and the fix are the literal difference between those two render
 functions.
 
-Every hideable element in a game falls into exactly one of two categories.
-Ask "does the space this leaves behind need to be reserved?" — if yes, it's
-category 1; if the element is an entire screen swap or a one-off disclosure
-the player deliberately opened, it's category 2.
+**THE RULE, CORRECTED — read this version, not the older phrasing it
+replaces.** The original wording ("within-round content uses
+`.phase-hidden`") was right about the bug and far too broad about the
+remedy, and it got over-applied until the round card reserved space for its
+*entire eventual lifecycle* from first paint: Scuttle's pre-roll card
+reserved the dice row, the slot row, the answer-check row and every advance
+button at once, so an empty round showed a ~290px dead box with a lone
+"Roll dice" button floating at the bottom of it. Reserving space is not
+free — every reservation is empty space the player is looking at.
 
-1. **Within-round / within-phase content** — anything that appears or
-   disappears *while the player stays on the same already-visible screen*:
-   the dice row, slot/frame rows, an answer-check row that only appears once
-   slots are full, a reveal/next-round button that appears once a round
-   locks in, a hint line, etc. This is the content responsible for the
-   jumpy-card bug, because within a single screen there's nothing else to
-   cover for the reflow. **Use `.phase-hidden` (`visibility: hidden`,
-   defined in `design-system.css`), never `.hidden`, never
-   `classList.remove()`/removing the node.** `visibility: hidden` keeps the
-   element's box in the flow — space stays reserved, nothing below it
-   moves — while also (like `display:none`) taking it out of the tab order
-   and blocking clicks, which matters here since this content is usually
-   interactive (dice, slots). The element must already exist in the DOM at
-   its full/final markup shape before you first reveal it — don't build it
-   with `innerHTML` only once needed, since a wrapper that's *empty* until
-   populated reserves zero space and reintroduces the exact same jump.
+Ask the question that actually matters: **would this element's arrival
+shove something the player is interacting with right now?**
+
+- **Yes → reserve it (`.phase-hidden`).** This is content that appears
+  *while the player is working inside the phase it belongs to*: a feedback
+  or validation line under the control they're using, a hint that unlocks
+  after two wrong attempts, a shared die that pops in and out on every roll
+  while the player keeps placing digits on the same screen. Their hand is
+  already on that screen; nothing may move under it.
+- **No → remove it (`.hidden` + `showPhaseBlock()`).** This is content that
+  belongs to a **later phase** — it arrives as the result of a deliberate,
+  one-way action that also retires whatever control caused it. Clicking
+  "Roll dice" is not an event that must leave the pre-roll card the height
+  of a fully-populated one; the click has already landed and the button is
+  spent.
+
+**The test is "one step ahead", not "same screen".** Same-screen was the
+part that was wrong — a screen can hold four sequential phases, and
+reserving all four at once is exactly the bug. Reserve for the transition
+the player is *in the middle of*, never for the whole round.
+
+**This cuts both ways, and both directions were real bugs found by the same
+audit.** Scuttle and Nim were over-reserving (dead box: Nim's
+`#answer-area` held ~145px empty from first paint for a phase reached only
+by clicking a move button). Pop was *under*-reserving in the opposite
+direction: `#current-digit-wrap` — the shared die that appears and
+disappears on every single roll while the player stays put — used `.hidden`,
+so the card jumped ~74px on every roll and back on every placement, and its
+own `min-height: 74px` sat there as dead code because `display:none` beats
+it. Getting the rule right moved elements in *both* directions.
+
+Use `showPhaseBlock(node, visible)` (`shared-game.js`) for every later-phase
+toggle — it handles `.hidden` plus the `fadeIn()` every swap gets.
+
+Two further notes that survive unchanged from the original rule:
+
+1. **A `.phase-hidden` element must already exist at its full markup shape
+   before you first reveal it** — a wrapper that's *empty* until JS
+   populates it reserves zero space and reintroduces the identical jump.
+   This shipped once anyway: `#slots-row` grew Scuttle's card 375px → 431px
+   on first roll until it was given a `min-height`.
+2. `visibility: hidden` also takes the element out of the tab order and
+   blocks clicks, which matters because reserved content is usually
+   interactive (dice, slots).
+
+The two categories below are the original framing, kept because the
+`.hidden` half of it was always correct:
+
+1. **Within-round / within-phase content** — see the corrected rule above
+   for which content genuinely qualifies. **Use `.phase-hidden`
+   (`visibility: hidden`), never `.hidden`, never removing the node.**
 2. **Top-level screen swaps and one-off disclosures** — switching between
    `screen-settings` / `screen-round` / `screen-compute-or-sum` /
    `screen-reveal` (there's nothing else on screen to jump, since the whole
@@ -2478,6 +2518,109 @@ a multi-variant key names a family and would guess the wrong default. A
 page with neither (the hub, a sub-menu) opens with nothing expanded, which
 is the right outcome rather than an error.
 
+## Spacing scale — use the tokens, not arbitrary values
+
+`design-system.css`'s `:root` defines `--space-xs: 8px` / `--space-sm: 16px`
+/ `--space-md: 24px` / `--space-lg: 32px` / `--space-xl: 48px`. **New
+margin, padding and gap values come from this scale.** Roughly: `xs` inside
+a control, `sm` between related controls, `md` between blocks in a stack,
+`lg` between sections, `xl` between major regions.
+
+The problem this solves isn't any single wrong number — it's that spacing
+accumulated as 4/6/8/10/12/14/18/20px all meaning "a small gap" in files
+written months apart, so there was no vertical rhythm to speak of and no
+way to change density globally. The steps are a ~1.5x progression,
+deliberately far enough apart that choosing between two adjacent ones is an
+easy call.
+
+**Genuinely optical values are NOT spacing and stay literal** — the 3px
+nudge that drops `.fbar` clear of a digit box's drop shadow, its -5px
+overhang, a 2px label offset. Forcing those onto the scale would be
+cargo-culting it. The test is whether the number is "how far apart should
+these two things be" (scale) or "this specific shadow is 3px tall"
+(literal).
+
+Migration is **opportunistic, not a big-bang rewrite**: values were moved
+onto the scale in the blocks this pass actually touched (page rhythm, the
+HUD, the play layout, the round card, action stacks, button rows). Plenty
+of older per-component values are still literal. Convert them when you're
+next editing that block for another reason — a blanket find-and-replace
+across every component would be a large untested visual change for no
+behavioural gain.
+
+## Information hierarchy — three tiers, on every game's status area
+
+Real design feedback: the status row gave the number that DEFINES the win
+condition exactly the same weight as the bot-difficulty readout and the
+Settings button — one flat row of identically-styled pills, nothing telling
+you what to look at.
+
+Three tiers, built at runtime by `initHud()` (`shared-game.js`), styled in
+`design-system.css`'s HUD block:
+
+1. **PRIMARY** (`.hud-primary`) — the ONE fact that defines *this* game's
+   win condition. Big value, small caption, its own bordered block, warn-
+   coloured, at the top of the left-hand reading column (inside `.play-side`
+   where a two-column game has one, otherwise a band under the header).
+   Never a pill.
+2. **SECONDARY** (`.hud-secondary`) — round counter, bot difficulty,
+   running score. Still pills, grouped, one clear step down.
+3. **UTILITY** (`.hud-utility`) — Settings, Print, and the temporary Demo
+   button. Deliberately stripped of the pixel-shadow button language:
+   small, thin-bordered, muted, transparent. Giving chrome the same tactile
+   weight as "Roll dice" is what put it in the gameplay sightline.
+
+**`initHud()` never invents or recomputes game state.** It MIRRORS an
+element the game already owns and already keeps up to date, and hides the
+original — the same move/mirror-don't-rebuild discipline
+`initSettingsChrome()` uses for the avatar picker, so every existing render
+function and click handler keeps working untouched. A game nominates its
+own primary with `data-hud-primary` + `data-hud-label` (+ optional
+`data-hud-sub`, and `data-hud-value` on the inner node holding the number).
+A `.target-pill` is adopted automatically, so the 7 Scuttle/Pop files
+needed no markup change at all.
+
+**What each family's primary actually is** — genuinely per-game, not one
+shape repeated six times:
+
+| Family | Primary | Source |
+|---|---|---|
+| Scuttle ×3 | Target N | existing `.target-pill` (automatic) |
+| Pop ×4 | Target N | existing `.target-pill` (automatic) |
+| Nim ×3 | the running total, captioned by the win rule ("Total / First to reach 10 or more wins") | `.nim-total-wrap` |
+| Numbo | the round's target | the target `.section-label` |
+| Beeline ×6 | **none, deliberately** | — |
+| Detective | **none, deliberately** | — |
+
+**Beeline and Detective deliberately have no tier 1, and this is a real
+judgment call, not an omission.** Beeline's win condition is *spatial* —
+four in a row — and the 36-cell claim grid that expresses it is already the
+largest element on screen; a band reading "Connect 4" would be hierarchy
+theatre, restating in small type what the board says at full size. Its
+`#turn-status` was considered and rejected as the primary because that same
+element doubles as the error channel ("That would just repeat a position
+from earlier this game…"), so promoting it would render rule-violation
+messages at 42px in a warn-coloured box. Detective is single-player with no
+opponent and no target; its closest analogue, the six-guess dot track, is
+already a dedicated visual sitting directly above the input. Both still get
+tiers 2 and 3. If a future pass wants a tier-1 block everywhere for
+consistency's sake, that's a real decision to make deliberately — don't
+assume it was just missed here.
+
+**Page alignment is left, one axis for the whole page.** The title / kicker
+/ tagline block used to be centred directly above left-aligned cards, which
+read as two different layouts stacked. Game pages are now left-aligned
+throughout, sharing the cards' own left edge. Listing pages (the hub, family
+sub-menus) keep centring via `body.page-centered` — added by
+`markCenteredPage()` to pages that have a card grid and no `#top-bar` —
+because there a title genuinely heads a symmetric grid.
+
+**Also fixed here:** `body` was a flex container with `#app { margin: auto }`
+— four-sided auto margins on a flex child, which vertically centred every
+page shorter than the viewport and pushed the title ~190px below the nav
+bar with nothing in between. Now `align-items: flex-start` plus
+`margin: 0 auto`. Content is top-anchored on every page.
+
 ## Bot AI philosophy — read this before writing any bot logic
 
 - Bots must **always compute arithmetic correctly** regardless of difficulty.
@@ -2770,6 +2913,21 @@ For every new game, before considering it done:
    fields so this doesn't need reimplementing per game; see
    `smoke-addition-subtraction.test.js` / `smoke-product.test.js` for the
    pattern.
+8b. **Empty-state density.** A test that only asserts "height doesn't
+   change during a phase" will happily pass a card that reserves its entire
+   eventual content from first paint — that is exactly how the dead-box
+   regression shipped, with a green test file actively locking it in. Every
+   game with a multi-phase play card needs the *other* assertion too: its
+   pre-action container must occupy **meaningfully fewer layout boxes** than
+   its populated one. `test/layout-stability.test.js` does this in jsdom by
+   counting blocks actually in flow (a block inside a `display:none` subtree
+   contributes no height; a `visibility:hidden` one contributes its whole
+   box), which is a real structural statement about height rather than a
+   restatement of the class names. Measured: Scuttle 1 box empty vs 4
+   populated, Nim 0 vs 1. The real pixel numbers need a browser and live in
+   `test/layout-density.playwright.js` (run by hand, per point 8):
+   Scuttle's round card 139px empty → 320px populated (was ~320px empty),
+   Nim's 199px → 354px.
 8. For an actual pixel-layout claim (a box stays the same height, nothing
    moves), jsdom isn't enough on its own — it has no layout engine, so
    structural proxies (point 5's ".hidden never appears") are the strongest

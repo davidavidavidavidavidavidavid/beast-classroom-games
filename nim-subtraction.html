@@ -77,8 +77,12 @@
   <!-- GAME SCREEN -->
   <div class="card hidden" id="screen-game">
 
-    <div class="nim-total-wrap">
-      <div class="nim-total" id="total-display">20</div>
+    <!-- Tier-1 HUD fact: this running total against the goal IS the win
+         condition. initHud() mirrors it into the primary block and hides
+         this copy; renderTrack() keeps writing #total-display as before.
+         See CLAUDE.md's information-hierarchy section. -->
+    <div class="nim-total-wrap" data-hud-primary data-hud-label="Tokens left" data-hud-sub="Take the last token to win">
+      <div class="nim-total" id="total-display" data-hud-value>20</div>
       <div class="nim-total-label">Tokens left</div>
     </div>
     <div class="nim-track" id="nim-track"></div>
@@ -91,7 +95,7 @@
       <button class="primary move-btn" data-amount="3">Remove 3</button>
     </div>
 
-    <div id="answer-area" class="phase-hidden">
+    <div id="answer-area" class="hidden">
       <div class="equation-line" id="equation-line"></div>
       <div class="answer-row">
         <label for="answer-input">Tokens left:</label>
@@ -336,11 +340,14 @@ function render(){
     btn.disabled = !legal.includes(amount);
     btn.classList.toggle('selected', st.phase === 'awaiting-answer' && st.pendingMove !== null && amount === st.pendingMove.amount);
   });
-  // Within-round phase content on an already-visible screen — must reserve
-  // its space (see CLAUDE.md "Layout stability"), so .phase-hidden, never
-  // .hidden. Built once at full markup shape in the HTML above already, so
-  // there's nothing to construct here.
-  el('answer-area').classList.toggle('phase-hidden', st.phase !== 'awaiting-answer');
+  // LATER-phase content, so .hidden (real removal from flow) via
+  // showPhaseBlock(), not .phase-hidden. The answer area sits BELOW the
+  // move-button row, so revealing it never displaces the buttons the player
+  // just used or is about to use again — nothing moves out from under them.
+  // Reserving its ~145px (equation + answer row + hint + feedback) from
+  // first paint was pure dead space, since the player's very first action
+  // is clicking a move button, not answering anything.
+  showPhaseBlock(el('answer-area'), st.phase === 'awaiting-answer');
 }
 
 /* ---------------- human move selection ---------------- */

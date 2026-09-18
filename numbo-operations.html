@@ -138,7 +138,11 @@
     </div>
 
     <div id="dice-expr-wrap" class="hidden">
-      <div class="section-label" style="text-align:center;">Target: <span id="target-display">–</span></div>
+      <!-- The round's target IS this game's win condition, so it's the HUD's
+           tier-1 fact — see CLAUDE.md's information-hierarchy section.
+           initHud() mirrors it into the primary block and hides this line;
+           every existing write to #target-display keeps working untouched. -->
+      <div class="section-label" style="text-align:center;" data-hud-primary data-hud-label="Target" data-hud-sub="Closest expression wins the round">Target: <span id="target-display" data-hud-value>–</span></div>
       <div class="numbo-dice-row" id="numbo-dice-row"></div>
       <div class="expr-row">
         <label for="expr-input" class="small">Your expression (use all 4 digits once each):</label>

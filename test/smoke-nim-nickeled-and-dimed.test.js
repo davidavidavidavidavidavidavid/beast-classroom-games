@@ -123,14 +123,17 @@ async function main() {
   /* ---------------- layout-stability probe ----------------
      #answer-area is within-round phase content on an already-visible
      screen (idle -> awaiting-answer -> idle again) — see CLAUDE.md "Layout
-     stability". Must only ever toggle .phase-hidden, never .hidden. */
+     stability". #answer-area is LATER-phase content — it sits below the
+     move-button row, so revealing it displaces nothing the player is
+     using, and reserving its ~145px from first paint was dead space.
+     It therefore toggles .hidden, never .phase-hidden. */
   function snapshotAnswerArea() {
     const cl = document.getElementById('answer-area').classList;
     return { hidden: cl.contains('hidden'), phaseHidden: cl.contains('phase-hidden') };
   }
   let snap = runInPage(dom, snapshotAnswerArea);
-  assert.strictEqual(snap.hidden, false, 'idle (before any move): #answer-area should never carry .hidden');
-  assert.strictEqual(snap.phaseHidden, true, 'idle (before any move): #answer-area should be reserved-but-invisible');
+  assert.strictEqual(snap.hidden, true, 'idle (before any move): #answer-area belongs to a later phase and must be out of the layout, not reserving ~145px of dead space');
+  assert.strictEqual(snap.phaseHidden, false, 'idle (before any move): #answer-area must not reserve space for a phase the player has not reached');
 
   /* ---------------- wrong-answer probe: the retry gate actually blocks ---------------- */
   const wrongProbe = runInPage(dom, () => {
@@ -159,7 +162,7 @@ async function main() {
   assert.ok(/¢/.test(wrongProbe.equationText), 'the equation line should be currency-formatted (contains ¢), not bare numbers');
 
   snap = runInPage(dom, snapshotAnswerArea);
-  assert.strictEqual(snap.hidden, false, 'awaiting-answer (after a wrong guess): #answer-area should never carry .hidden');
+  assert.strictEqual(snap.hidden, false, 'awaiting-answer (after a wrong guess): #answer-area is in the layout');
   assert.strictEqual(snap.phaseHidden, false, 'awaiting-answer (after a wrong guess): #answer-area should be visible');
 
   // A second wrong attempt should surface the hint line, currency-formatted.
@@ -210,8 +213,8 @@ async function main() {
   assert.strictEqual(correctProbe.turnAfter, 'bot', 'turn should pass to the bot after a correct human move');
 
   snap = runInPage(dom, snapshotAnswerArea);
-  assert.strictEqual(snap.hidden, false, 'back to idle after committing: #answer-area should never carry .hidden');
-  assert.strictEqual(snap.phaseHidden, true, 'back to idle after committing: #answer-area should be reserved-but-invisible again');
+  assert.strictEqual(snap.hidden, true, 'back to idle after committing: #answer-area leaves the layout again');
+  assert.strictEqual(snap.phaseHidden, false, 'back to idle after committing: #answer-area must not start reserving space again');
 
   // Let the bot resolve before handing off to the general playthrough loop.
   for (let i = 0; i < 20; i++) {
