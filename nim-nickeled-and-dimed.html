@@ -221,6 +221,7 @@ let nextStarter = 'human';
 const el = id => document.getElementById(id);
 renderGlobalNav('nim'); // see CLAUDE.md "Global navigation"
 renderVariantSwitcher('variant-row', 'nim', 'nim-nickeled-and-dimed.html'); // jump to a sibling Nim variant — see CLAUDE.md's navigation redesign note
+initSettingsChrome(); // settings-screen chrome — see design-system.css "settings-screen chrome"
 const screens = { settings: el('screen-settings'), game: el('screen-game') };
 
 // Local, not shared-game.js's showScreen() — same no-#scorecard reasoning

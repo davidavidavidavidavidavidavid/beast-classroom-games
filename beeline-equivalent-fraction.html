@@ -230,6 +230,7 @@ let st = {
 const el = id => document.getElementById(id);
 renderGlobalNav('beeline'); // see CLAUDE.md "Global navigation"
 renderVariantSwitcher('variant-row', 'beeline', 'beeline-equivalent-fraction.html'); // jump to a sibling Beeline variant
+initSettingsChrome(); // settings-screen chrome — see design-system.css "settings-screen chrome"
 const screens = { settings: el('screen-settings'), game: el('screen-game') };
 function showScreen(name){
   Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));

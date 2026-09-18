@@ -24,7 +24,14 @@
 }
 
 #slots-wrap { text-align: center; margin-bottom: 16px; }
-#slots-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 4px; }
+/* min-height matches .slot's own height for the same reason #dice-row has
+   one: this row is EMPTY in the markup and only gets its slot boxes once
+   a roll happens, so without a reservation the round card grew by a full
+   slot-height the moment you rolled (measured: 375px -> 431px). A
+   .phase-hidden element only reserves the space its CONTENT occupies —
+   an empty wrapper reserves nothing, which is the trap CLAUDE.md's
+   "Layout stability" note warns about. */
+#slots-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 4px; min-height: 56px; }
 .slot {
   width: 50px; height: 56px;
   border: 2px solid var(--color-ink);

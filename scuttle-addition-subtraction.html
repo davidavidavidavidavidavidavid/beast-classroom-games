@@ -327,6 +327,7 @@ let st = {
 const el = id => document.getElementById(id);
 renderGlobalNav('scuttle'); // see CLAUDE.md "Global navigation"
 renderVariantSwitcher('variant-row', 'scuttle', 'scuttle-addition-subtraction.html'); // jump to a sibling Scuttle variant — see CLAUDE.md's navigation redesign note
+initSettingsChrome(); // settings-screen chrome — see design-system.css "settings-screen chrome"
 const screens = { settings: el('screen-settings'), round: el('screen-round'), compute: el('screen-compute'), reveal: el('screen-reveal') };
 // fadeIn/showScreen/updateScorePills/resetScorecard/updateScorecard all
 // live in shared-game.js now — see CLAUDE.md "File structure & the point

@@ -359,6 +359,7 @@ function currentLevel() { return st.devLevel > 0 ? st.devLevel : getRoundLevel(s
    than just starting a fresh puzzle. */
 const el = id => document.getElementById(id);
 renderGlobalNav('detective'); // see CLAUDE.md "Global navigation"
+initSettingsChrome(); // settings-screen chrome — see design-system.css "settings-screen chrome"
 const screens = { game: el('screen-game'), gameover: el('screen-gameover') };
 function showScreen(name) {
   Object.entries(screens).forEach(([k, node]) => {

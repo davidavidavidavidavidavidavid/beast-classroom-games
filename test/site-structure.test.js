@@ -344,6 +344,73 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   check('beeline-menu.html: 15 variant cards (6 built + 9 catalogued-unbuilt)', n === 15, `got ${n}`);
 }
 
+/* ---------------- settings-screen chrome -------------------------------
+   initSettingsChrome() (shared-game.js) restructures every game's settings
+   screen at runtime — see design-system.css's "settings-screen chrome"
+   block for why each piece moved. Checked on one multi-variant game, one
+   single-variant game, and the one game with no settings screen at all,
+   since those are the three shapes the function has to handle. */
+{
+  const dom = loadGame('scuttle-addition-subtraction.html');
+  const r = runInPage(dom, () => {
+    const before = {
+      variantRowLifted: !!document.querySelector('#variant-card #variant-row'),
+      variantRowNotInSettings: !document.querySelector('#screen-settings #variant-row'),
+      avatarBtn: !!document.getElementById('avatar-choose-btn'),
+      avatarRowInModal: !!document.querySelector('.avatar-modal #avatar-row'),
+      avatarModalClosed: document.getElementById('avatar-modal-backdrop').classList.contains('hidden'),
+      settingsActive: document.body.classList.contains('settings-active'),
+      variantCardVisible: !document.getElementById('variant-card').classList.contains('hidden'),
+      btnLabel: document.getElementById('avatar-choose-btn').textContent,
+    };
+    // Picking from the modal must still drive the game's own avatar state.
+    document.getElementById('avatar-choose-btn').click();
+    const opened = !document.getElementById('avatar-modal-backdrop').classList.contains('hidden');
+    document.querySelector('#avatar-row [data-avatar="winnie"]').click();
+    const picked = {
+      opened,
+      avatar: st.avatar,
+      youBadge: el('you-badge').getAttribute('src'),
+      closedAfterPick: document.getElementById('avatar-modal-backdrop').classList.contains('hidden'),
+      btnLabel: document.getElementById('avatar-choose-btn').textContent,
+    };
+    // Starting a game must take the settings chrome away with it.
+    el('target-input').value = '500';
+    el('start-btn').click();
+    const inGame = {
+      settingsActive: document.body.classList.contains('settings-active'),
+      variantCardHidden: document.getElementById('variant-card').classList.contains('hidden'),
+    };
+    return { before, picked, inGame };
+  });
+  check('settings: the variant picker is lifted out into its own card above the settings card', r.before.variantRowLifted && r.before.variantRowNotInSettings, JSON.stringify(r.before));
+  check('settings: the avatar picker is behind a button, in a modal that starts closed', r.before.avatarBtn && r.before.avatarRowInModal && r.before.avatarModalClosed, JSON.stringify(r.before));
+  check('settings: the avatar button names the current avatar before anything is clicked', /grogg/i.test(r.before.btnLabel), r.before.btnLabel);
+  check('settings: picking in the modal still updates st.avatar and the badges, then closes', r.picked.opened && r.picked.avatar === 'winnie' && r.picked.youBadge === 'avatars/winnie.png' && r.picked.closedAfterPick && /winnie/i.test(r.picked.btnLabel), JSON.stringify(r.picked));
+  check('settings: body.settings-active is on while settings shows, off once a game starts', r.before.settingsActive === true && r.inGame.settingsActive === false, JSON.stringify([r.before.settingsActive, r.inGame.settingsActive]));
+  check('settings: the variant card follows the settings screen in and out of view', r.before.variantCardVisible === true && r.inGame.variantCardHidden === true, JSON.stringify([r.before.variantCardVisible, r.inGame.variantCardHidden]));
+}
+{
+  // Single-variant game: no variant row to lift, but the rest still applies.
+  const dom = loadGame('numbo-operations.html');
+  const r = runInPage(dom, () => ({
+    noVariantCard: !document.getElementById('variant-card'),
+    avatarBtn: !!document.getElementById('avatar-choose-btn'),
+    settingsActive: document.body.classList.contains('settings-active'),
+  }));
+  check('settings: a single-variant game gets no variant card, but still gets the avatar modal', r.noVariantCard && r.avatarBtn && r.settingsActive, JSON.stringify(r));
+}
+{
+  // Detective has no settings screen and no avatar picker — must no-op.
+  const dom = loadGame('detective-fraction-equivalence.html');
+  const r = runInPage(dom, () => ({
+    noVariantCard: !document.getElementById('variant-card'),
+    noAvatarBtn: !document.getElementById('avatar-choose-btn'),
+    notSettingsActive: !document.body.classList.contains('settings-active'),
+  }));
+  check('settings: a game with no settings screen is left completely untouched', r.noVariantCard && r.noAvatarBtn && r.notSettingsActive, JSON.stringify(r));
+}
+
 /* ---------------- menu organization: playable vs. coming soon ----------
    Every listing page splits its cards into two labelled sections rather
    than running both tiers together — see CLAUDE.md's design-sweep note. */

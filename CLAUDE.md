@@ -2277,6 +2277,58 @@ aesthetic is unchanged; this is hierarchy and hygiene.
    `--color-warn-bg`), which also helps the target pills and Nim's
    selected-move ring, not just the demo markers.
 
+### Design sweep (settings screens)
+
+A second review pass, this time on the settings screen itself. All of it is
+done by `initSettingsChrome()` (shared-game.js) restructuring the DOM at
+runtime — same "one real implementation" reasoning as `renderGlobalNav()` —
+so **no game's settings markup was edited**; each game just calls it once,
+right after `renderVariantSwitcher()`.
+
+1. **Variant is now its own card, above the settings card.** It swaps the
+   entire game, unlike difficulty/target/avatar which only tune the current
+   one — but it was just another `.section-label` inside the same card,
+   carrying the same weight as picking a bot tier. The card is hidden and
+   shown in step with `#screen-settings`, so it never sits above the board
+   mid-game.
+2. **The avatar picker moved into a modal** behind one button that shows
+   the current pick ("Choose avatar · Grogg"). Eight avatar tiles were the
+   visually dominant element of the settings card while being its least
+   consequential choice. The picker's own nodes are MOVED, not rebuilt, so
+   every handler each game bound to them still works untouched — picking
+   still updates `st.avatar` and the badges exactly as before.
+3. **Chips are centered and sized to their content.** `.chip-row button`
+   had `flex: 1`, which stretched "Easy / Medium / Hard" across the full
+   card width — three buttons far wider than their labels, left-aligned
+   against a lot of empty space. The rest of the settings stack is centered
+   to match, since centered controls under left-aligned labels read as two
+   different alignments in one column.
+4. **The top bar's pills are hidden on the settings screen** (they report a
+   game that hasn't started) **and given more presence during play** (they
+   were under-emphasized exactly where they matter). The `Settings` button
+   also hides itself on the settings screen. Driven by a
+   `body.settings-active` class, kept in sync three ways: an initial call, a
+   `MutationObserver` on `#screen-settings` (guarded — the bare
+   `vm-load-page.js` sandbox has no `MutationObserver`, same as its lack of
+   `setPointerCapture`), and a bubble-phase document click listener, which
+   is what makes the switch synchronous for both players and tests rather
+   than landing a microtask late.
+
+**`initSettingsChrome()` gates itself on being in a real DOM** —
+`vm-load-page.js`'s sandbox returns the same stub element for every query,
+so the function probes for a `children` collection and no-ops rather than
+having a guard bolted onto every DOM call in it.
+
+**And a real layout bug this surfaced:** `#slots-row` was EMPTY in the
+markup and only got its slot boxes once a roll happened, so Scuttle's round
+card grew from 375px to 431px the instant you rolled. `.phase-hidden`
+reserves the space an element's CONTENT occupies — an empty wrapper
+reserves nothing, which is exactly the trap "Layout stability" already
+warns about, shipped anyway. `#dice-row` next to it already had the
+`min-height` that prevents this; `#slots-row` now does too, and
+`test/layout-stability.test.js` statically asserts that both keep one (a
+static check because jsdom has no layout engine to catch it dynamically).
+
 **Audit method, worth reusing:** rather than eyeballing pages, a throwaway
 Playwright script walked all 24 pages at 1100px and 380px and reported (a)
 any shadowed element clipped by an `overflow` ancestor, (b) anything

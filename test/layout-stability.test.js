@@ -43,6 +43,29 @@ function checkDesignSystemCss() {
   console.log('  ✅ design-system.css: .hidden = display:none, .phase-hidden = visibility:hidden');
 }
 
+/* A .phase-hidden element only reserves the space its CONTENT takes up —
+   an element that's EMPTY in the markup until JS fills it reserves
+   nothing, so the card still jumps the moment it's populated. jsdom has no
+   layout engine and can't catch that dynamically (Testing methodology
+   point 8), so guard it statically: every row that a game populates from
+   JS must declare a min-height matching the component it will hold.
+   #slots-row is here because it actually shipped without one — Scuttle's
+   round card grew 375px -> 431px the instant you rolled. */
+function checkPopulatedRowsReserveSpace() {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'components', 'dice-slot.css'), 'utf8');
+  [
+    ['#dice-row', 74, '.die-wrap is 72px tall'],
+    ['#slots-row', 56, '.slot is 56px tall'],
+  ].forEach(([sel, min, why]) => {
+    const rule = css.match(new RegExp(sel.replace('#', '#') + '\\s*\\{([^}]*)\\}'));
+    assert.ok(rule, `components/dice-slot.css should define ${sel}`);
+    const m = rule[1].match(/min-height\s*:\s*(\d+)px/);
+    assert.ok(m, `${sel} must declare a min-height — it is empty in the markup until JS fills it (${why})`);
+    assert.ok(Number(m[1]) >= min, `${sel}'s min-height should be at least ${min}px (${why}), got ${m[1]}px`);
+  });
+  console.log('  ✅ components/dice-slot.css: JS-populated rows reserve their height up front');
+}
+
 // Snapshot which of `ids` currently carry 'hidden' and which carry
 // 'phase-hidden'. Run inside the page via runInPage, so `ids` must be
 // passed in as an arg (no closing over Node-side variables).
@@ -256,6 +279,7 @@ async function checkProduct() {
 
 async function main() {
   checkDesignSystemCss();
+  checkPopulatedRowsReserveSpace();
   await checkAdditionSubtraction();
   await checkProduct();
 }

@@ -149,6 +149,71 @@ a.global-nav-item:hover, a.global-nav-item:focus-visible { background: var(--col
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
+/* ---------- settings-screen chrome ----------
+   Restructured after a review pass ("organization of settings needs
+   work"). Three separate problems, all handled by initSettingsChrome()
+   in shared-game.js so no game's own markup had to change:
+
+   1. VARIANT is a high-impact choice — it swaps the whole game, unlike
+      difficulty/target/avatar which only tune the current one. Burying it
+      as just another .section-label inside the settings card gave it the
+      same weight as picking a bot tier. It now sits in its own card ABOVE
+      the settings card.
+   2. The 8-avatar picker dominated the settings card visually while being
+      the least consequential choice on it. It moves into a modal behind a
+      single button showing the current pick.
+   3. The top bar's score/target/round pills are IN-GAME readouts. On the
+      settings screen they show placeholder values for a game that hasn't
+      started, so they're noise exactly where the player is choosing; and
+      they're under-emphasized exactly where they matter. Hidden on
+      settings, and given more presence during play. */
+#variant-card { margin-bottom: 1.1rem; }
+#variant-card .section-label { text-align: center; }
+
+.avatar-choose-btn { display: flex; align-items: center; gap: 10px; margin: 4px auto 14px; }
+.avatar-choose-btn img {
+  width: 30px; height: 30px; border-radius: 4px; object-fit: cover;
+  image-rendering: pixelated; border: 2px solid var(--color-beast-blue);
+}
+.avatar-modal-backdrop {
+  position: fixed; inset: 0; z-index: 210;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.avatar-modal {
+  background: var(--color-background-primary);
+  border: var(--border-w) solid var(--color-ink);
+  border-radius: 6px; box-shadow: var(--shadow-card);
+  padding: 1.2rem; max-width: 420px; width: 100%;
+  max-height: calc(100vh - 32px); overflow-y: auto;
+}
+/* Explicit 4-up grid rather than letting 8 avatars flex-wrap, which left
+   a ragged 6 + 2. */
+.avatar-modal .avatar-row { display: grid; grid-template-columns: repeat(4, auto); justify-content: center; gap: 10px; margin: 4px 0 14px; }
+@media (max-width: 380px) { .avatar-modal .avatar-row { grid-template-columns: repeat(3, auto); } }
+.avatar-modal-title { font-family: var(--font-sans); font-weight: 800; font-size: 17px; text-align: center; margin-bottom: 10px; }
+
+/* Settings screen: the pills describe a game that isn't running yet, and
+   a "Settings" button that takes you to the screen you're already on is
+   dead weight — both go, leaving only the actions that still do
+   something. */
+body.settings-active #top-bar .pill-group,
+body.settings-active #settings-btn { display: none; }
+body.settings-active #top-bar { justify-content: flex-end; margin-bottom: 0.5rem; }
+
+/* The settings card is a centered stack: with the chips centered, a
+   left-aligned label above them read as two different alignments in one
+   column. Scoped to the settings screens only — in-game layouts keep
+   their own alignment. */
+#screen-settings, #variant-card { text-align: center; }
+#screen-settings .section-label { text-align: center; }
+#screen-settings .target-row, #screen-settings .desc-line-stack { justify-content: center; }
+#screen-settings #how-link { margin-left: auto; margin-right: auto; }
+/* In play: these are the readouts the player actually tracks, so give
+   them a little more presence than they had. */
+body:not(.settings-active) .stat-pill { font-size: 17px; padding: 5px 12px; }
+body:not(.settings-active) .stat-pill b { font-size: 19px; }
+
 /* ---------- card shell ---------- */
 .card {
   background: var(--color-background-primary);
@@ -376,8 +441,14 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
 
 /* ---------- settings screen scaffolding ---------- */
 .section-label { font-family: var(--font-sans); font-weight: 700; font-size: 17px; letter-spacing: 0.6px; color: var(--color-text-secondary); margin-bottom: 6px; text-transform: uppercase; }
-.chip-row { display: flex; gap: 8px; margin: 4px 0 10px; flex-wrap: wrap; }
-.chip-row button { flex: 1; min-width: 70px; }
+/* Centered, natural-width chips. `flex: 1` used to stretch each chip to
+   fill the row, so "Easy / Medium / Hard" spread across the full card
+   width — three buttons far wider than their labels need, left-aligned
+   against a lot of empty space. Chips are now sized to their content and
+   the row is centered, which also keeps a 3-chip row and a 6-chip row
+   looking like the same control. */
+.chip-row { display: flex; gap: 8px; margin: 4px 0 10px; flex-wrap: wrap; justify-content: center; }
+.chip-row button, .chip-row a.chip, .chip-row span.chip { flex: 0 0 auto; min-width: 88px; }
 .desc-line { font-family: var(--font-sans); font-size: 15.5px; color: var(--color-text-secondary); min-height: 32px; margin-bottom: 12px; line-height: 1.4; }
 /* Option-description stability: when a settings chip (format, difficulty,
    ...) swaps in one of several DIFFERENT-LENGTH description strings, sizing

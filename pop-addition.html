@@ -388,6 +388,7 @@ let st = {
 const el = id => document.getElementById(id);
 renderGlobalNav('pop'); // see CLAUDE.md "Global navigation"
 renderVariantSwitcher('variant-row', 'pop', 'pop-addition.html'); // jump to a sibling Pop variant — see CLAUDE.md's navigation redesign note
+initSettingsChrome(); // settings-screen chrome — see design-system.css "settings-screen chrome"
 const screens = { settings: el('screen-settings'), round: el('screen-round'), compute: el('screen-compute'), reveal: el('screen-reveal') };
 function showScreen(name){
   Object.entries(screens).forEach(([k,node]) => node.classList.toggle('hidden', k!==name));

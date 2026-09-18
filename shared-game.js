@@ -304,6 +304,140 @@ function renderMenuSections(playableLabel, lockedLabel){
   if (firstLocked) list.insertBefore(head(lockedLabel || 'Coming soon'), firstLocked);
 }
 
+/* ---------------- settings-screen chrome --------------------------------
+   Restructures the settings screen at runtime rather than by editing all
+   18 games' markup — same "one real implementation" reasoning as
+   renderGlobalNav(). See design-system.css's "settings-screen chrome"
+   block for WHY each of these moved. Runs itself on DOMContentLoaded
+   (shared-game.js is loaded before each game's own inline script, and
+   that script runs during parsing, so by DOMContentLoaded every element
+   and handler this touches already exists). No-ops on pages with no
+   settings screen — the hub, the sub-menus, stats-demo. */
+function initSettingsChrome(){
+  // test/vm-load-page.js runs a page's script in a bare sandbox whose
+  // document returns the same stub element for everything (it exists to
+  // exercise pure functions like decideWinner, not the DOM). Detect that
+  // and no-op rather than sprinkling guards through every DOM call below:
+  // a real element has a `children` collection, the stub doesn't.
+  const probe = document.createElement && document.createElement('div');
+  if (!probe || !probe.children || !document.body) return;
+
+  const settings = document.getElementById('screen-settings');
+  if (!settings || !settings.classList) return;
+
+  // Anything that depends on "is the settings screen showing" registers
+  // here. Each one runs on THREE triggers, because no single one covers
+  // every case: a MutationObserver (catches programmatic screen changes,
+  // but only on a later microtask), a bubble-phase document click (runs
+  // straight after whichever button handler just swapped screens, so the
+  // update is synchronous from both the player's and a test's point of
+  // view), and once now for the initial state.
+  const syncers = [];
+  const runSyncers = () => syncers.forEach(fn => fn());
+  const addSyncer = (fn) => { syncers.push(fn); fn(); };
+  // MutationObserver doesn't exist in test/vm-load-page.js's bare sandbox
+  // (see CLAUDE.md's note on what that harness deliberately doesn't
+  // provide) — guarded the same way makeDraggable() guards
+  // setPointerCapture. The click listener below is the one that actually
+  // matters for real interactions; the observer only adds coverage for
+  // screen changes made programmatically rather than by a click.
+  if (typeof MutationObserver === 'function'){
+    new MutationObserver(runSyncers).observe(settings, { attributes: true, attributeFilter: ['class'] });
+  }
+  if (document.addEventListener) document.addEventListener('click', runSyncers);
+
+  // 1. Lift the variant picker out into its own card above the settings.
+  const variantRow = document.getElementById('variant-row');
+  if (variantRow && variantRow.children.length && !document.getElementById('variant-card')){
+    const label = variantRow.previousElementSibling;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'variant-card';
+    if (label && label.classList.contains('section-label')) card.appendChild(label);
+    card.appendChild(variantRow);
+    settings.parentNode.insertBefore(card, settings);
+    // The variant card is part of the settings step — it must come and go
+    // with it, or it would sit above the board mid-game.
+    addSyncer(() => card.classList.toggle('hidden', settings.classList.contains('hidden')));
+  }
+
+  // 2. Avatar picker -> a button that opens a modal.
+  const avatarRow = document.getElementById('avatar-row');
+  if (avatarRow && !document.getElementById('avatar-modal-backdrop')){
+    const label = avatarRow.previousElementSibling;
+    if (label && label.classList.contains('section-label')) label.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'avatar-modal-backdrop';
+    backdrop.className = 'avatar-modal-backdrop hidden';
+    const modal = document.createElement('div');
+    modal.className = 'avatar-modal';
+    const title = document.createElement('div');
+    title.className = 'avatar-modal-title';
+    title.textContent = 'Choose your avatar';
+    modal.appendChild(title);
+    const done = document.createElement('button');
+    done.className = 'primary';
+    done.style.width = '100%';
+    done.textContent = 'Done';
+
+    const btn = document.createElement('button');
+    btn.id = 'avatar-choose-btn';
+    btn.className = 'avatar-choose-btn';
+    const thumb = document.createElement('img');
+    const btnText = document.createElement('span');
+    btn.appendChild(thumb);
+    btn.appendChild(btnText);
+
+    // Reflect whichever avatar is currently selected in the (moved) picker,
+    // so the button always shows the real state — including after a pick.
+    // Falls back to st.avatar because this can run BEFORE the game's own
+    // renderAvatarPicker() has marked a slot .selected (initSettingsChrome
+    // is called right after renderVariantSwitcher, partway down the inline
+    // script) — without the fallback the button rendered a broken <img>
+    // and a nameless label until the first click.
+    const sync = () => {
+      const sel = avatarRow.querySelector('.avatar-slot.selected');
+      const name = (sel && sel.dataset.avatar) ||
+        (typeof st !== 'undefined' && st && st.avatar) || null;
+      thumb.hidden = !name;
+      if (name) thumb.src = `avatars/${name}.png`;
+      thumb.alt = '';
+      btnText.textContent = 'Choose avatar' + (name ? ` · ${name.charAt(0).toUpperCase() + name.slice(1)}` : '');
+    };
+
+    avatarRow.parentNode.insertBefore(btn, avatarRow);
+    modal.appendChild(avatarRow);
+    modal.appendChild(done);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    sync();
+
+    btn.addEventListener('click', () => { sync(); backdrop.classList.remove('hidden'); });
+    done.addEventListener('click', () => backdrop.classList.add('hidden'));
+    // The picker's own click handlers still run (they were bound to these
+    // exact nodes before the move) — this only mirrors the result onto the
+    // button and closes up, so picking is one tap, not tap-then-Done.
+    avatarRow.addEventListener('click', (e) => {
+      if (!e.target.closest('[data-avatar]')) return;
+      sync();
+      backdrop.classList.add('hidden');
+    });
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.classList.add('hidden'); });
+    // Re-sync on any click (cheap) and once after the rest of the page's
+    // own script has finished wiring itself up.
+    addSyncer(sync);
+    setTimeout(sync, 0);
+  }
+
+  // 3. Track whether the settings screen is showing, for the top bar.
+  addSyncer(() => document.body.classList.toggle('settings-active', !settings.classList.contains('hidden')));
+}
+
+if (typeof document !== 'undefined' && document.addEventListener){
+  document.addEventListener('DOMContentLoaded', initSettingsChrome);
+}
+
 /* ---------------- staged step-reveal (EXPERIMENTAL) ----------------------
    See CLAUDE.md "Answer-explanation modal & stats-demo experiment". Same
    governing rule as every other animation in this project (see
