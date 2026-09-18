@@ -2319,7 +2319,38 @@ right after `renderVariantSwitcher()`.
 so the function probes for a `children` collection and no-ops rather than
 having a guard bolted onto every DOM call in it.
 
-**And a real layout bug this surfaced:** `#slots-row` was EMPTY in the
+### Design sweep (click positions, modal height)
+
+1. **The explanation modal grew mid-sequence.** Every one of these visuals
+   ADDS content as it animates (the column method keeps step 1 on screen
+   and builds step 2 below it; the number line adds its verdict lines; the
+   area model adds its addition row), so the modal — and the Continue
+   button under it — jumped while the reader was watching.
+   `reserveFrameHeight()` (shared-game.js) now renders every frame once
+   into a hidden probe at the container's real width, takes the tallest,
+   and sets that as a `min-height` before the sequence starts. Measured
+   rather than hardcoded per visual, so it stays right for any future
+   representation and for whatever a given problem's numbers render as.
+   All four are now single-height for their whole reveal.
+2. **Advance buttons wandered.** Roll dice / Lock in number / Next round
+   are the same "advance" click at different moments, but they lived at
+   different depths in the round card — measured on Scuttle Add/Sub, the
+   button the player clicks over and over appeared at y=557, then y=788,
+   then y=851. They're now collected into one `.action-stack` at the
+   bottom of the card, overlapping in a single grid cell (the same trick
+   `.desc-line-stack` already uses), so whichever is showing renders in
+   exactly the same place — verified at a constant y=794 across a whole
+   round. `stackAdvanceControls()` does this at runtime, per game.
+   **Deliberately scoped to bare advance BUTTONS**: an answer-check row
+   (input + submit) is a different kind of control, much taller, and
+   overlapping it with a lone button would reserve its height on every
+   step. **Checked and left alone:** Numbo's five round sub-phases are
+   mutually exclusive `.hidden` blocks that all collapse to the same top
+   edge, so its Next round button is already positionally consistent; Pop
+   and Beeline have one advance control per screen; Nim's move buttons
+   never move. Scuttle was the family with the real problem.
+
+**And a real layout bug an earlier pass surfaced:** `#slots-row` was EMPTY in the
 markup and only got its slot boxes once a roll happened, so Scuttle's round
 card grew from 375px to 431px the instant you rolled. `.phase-hidden`
 reserves the space an element's CONTENT occupies — an empty wrapper

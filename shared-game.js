@@ -283,6 +283,31 @@ function markDemoReadyCards(){
   }
 }
 
+/* ---------------- advance-control stacking -----------------------------
+   Collects a screen's "advance the game" wrappers into one .action-stack
+   at the bottom of that screen, so the button the player clicks to move
+   forward is always in the same place instead of migrating up and down
+   the card between steps. See design-system.css's .action-stack block.
+   Pass only wrappers whose content is a bare advance BUTTON — an
+   answer-check row (input + submit) is a different kind of control and
+   stays where it is. Order in the array is irrelevant; they overlap. */
+function stackAdvanceControls(screenId, wrapperIds){
+  const screen = document.getElementById(screenId);
+  if (!screen || screen.querySelector('.action-stack')) return;
+  const wraps = wrapperIds.map(id => document.getElementById(id)).filter(Boolean);
+  if (wraps.length < 2) return; // nothing to keep consistent with
+  const stack = document.createElement('div');
+  stack.className = 'action-stack';
+  screen.appendChild(stack);
+  wraps.forEach(w => {
+    // These carry their own spacing for their old position in the flow;
+    // inside the overlap cell it would offset them from each other.
+    w.style.marginTop = '';
+    w.style.marginBottom = '';
+    stack.appendChild(w);
+  });
+}
+
 /* ---------------- menu sections ----------------------------------------
    Splits any .variant-list into "Playable now" / "Coming soon" instead of
    running both tiers together and leaving a footnote at the bottom as the
@@ -454,8 +479,40 @@ if (typeof document !== 'undefined' && document.addEventListener){
    explanation before the animation finishes on its own, so speed-focused
    players are never forced to sit through it, and so the interval never
    leaks past the modal being dismissed. */
+// Reserve the tallest frame's height up front so the modal never grows
+// mid-sequence. Every one of these visuals adds content as it goes (the
+// column method keeps step 1 on screen and adds step 2 below it; the
+// number line adds its verdict lines; the area model adds its addition
+// row), so without this the whole modal — including the Continue button —
+// jumps under the reader partway through. Measured rather than hardcoded
+// per visual: each frame is rendered once, hidden, at the container's real
+// width, so this stays correct for any future representation and for
+// whatever a specific problem's numbers happen to render as. No-ops where
+// there's no layout engine (jsdom reports 0 for everything).
+function reserveFrameHeight(containerEl, frames){
+  if (!containerEl) return;
+  // Clear any reservation from a previous explanation first, or a short
+  // one would inherit a tall one's floor.
+  containerEl.style.minHeight = '';
+  if (!frames || frames.length < 2) return;
+  const probe = document.createElement('div');
+  probe.setAttribute('aria-hidden', 'true');
+  probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;';
+  probe.style.width = (containerEl.clientWidth || containerEl.offsetWidth || 0) + 'px';
+  if (!containerEl.parentNode) return;
+  containerEl.parentNode.appendChild(probe);
+  let max = 0;
+  frames.forEach(html => {
+    probe.innerHTML = html;
+    max = Math.max(max, probe.scrollHeight);
+  });
+  probe.remove();
+  if (max > 0) containerEl.style.minHeight = max + 'px';
+}
+
 function revealSteps(containerEl, frames, msPerFrame, onDone){
   if (!frames || !frames.length){ if (onDone) onDone(); return () => {}; }
+  reserveFrameHeight(containerEl, frames);
   if (prefersReducedMotion() || frames.length === 1){
     containerEl.innerHTML = frames[frames.length - 1];
     if (onDone) onDone();

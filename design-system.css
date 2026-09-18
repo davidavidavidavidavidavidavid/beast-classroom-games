@@ -214,6 +214,20 @@ body.settings-active #top-bar { justify-content: flex-end; margin-bottom: 0.5rem
 body:not(.settings-active) .stat-pill { font-size: 17px; padding: 5px 12px; }
 body:not(.settings-active) .stat-pill b { font-size: 19px; }
 
+/* ---------- action stack ----------
+   Every "advance the game" control — Roll dice, Lock in number, Next
+   round — is functionally the same button at different moments, but they
+   lived at different depths in the round card, so the one thing the
+   player clicks over and over jumped around the screen between steps
+   (measured on Scuttle Add/Sub: y=557 to roll, y=788 to lock, y=851 to go
+   to the next round). They now overlap in a single grid cell at the
+   bottom of the card, so whichever is showing renders in exactly the same
+   place — the same overlap trick .desc-line-stack already uses, and for
+   the same reason. The cell sizes itself to the tallest child, so nothing
+   below it moves either. */
+.action-stack { display: grid; justify-items: center; margin-top: 14px; }
+.action-stack > * { grid-area: 1 / 1; margin-top: 0; margin-bottom: 0; }
+
 /* ---------- card shell ---------- */
 .card {
   background: var(--color-background-primary);

@@ -411,6 +411,31 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   check('settings: a game with no settings screen is left completely untouched', r.noVariantCard && r.noAvatarBtn && r.notSettingsActive, JSON.stringify(r));
 }
 
+/* ---------------- advance controls share one position ------------------
+   Roll dice / Lock in number / Next round are the same "advance" click at
+   different moments; they used to sit at three different depths in the
+   round card, so the button moved between every step. They're now
+   overlapped in one .action-stack cell — see design-system.css. jsdom has
+   no layout engine, so assert the STRUCTURE that guarantees the shared
+   position (all of them in the same stack) rather than pixel positions. */
+[
+  ['scuttle-addition-subtraction.html', ['roll-btn-wrap', 'lock-wrap', 'next-round-wrap']],
+  ['scuttle-product.html', ['roll-btn-wrap', 'next-round-wrap']],
+  ['scuttle-difference.html', ['roll-btn-wrap', 'next-round-wrap']],
+].forEach(([file, wrapIds]) => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, (ids) => {
+    const stack = document.querySelector('#screen-round .action-stack');
+    return {
+      hasStack: !!stack,
+      allInStack: stack ? ids.every(id => { const n = document.getElementById(id); return n && n.parentElement === stack; }) : false,
+      stackIsLast: stack ? stack === stack.parentElement.lastElementChild : false,
+    };
+  }, wrapIds);
+  check(`${file}: every advance control shares one .action-stack, so the button never moves`, r.hasStack && r.allInStack, JSON.stringify(r));
+  check(`${file}: the action stack sits at the bottom of the round card`, r.stackIsLast === true, JSON.stringify(r));
+});
+
 /* ---------------- menu organization: playable vs. coming soon ----------
    Every listing page splits its cards into two labelled sections rather
    than running both tiers together — see CLAUDE.md's design-sweep note. */
