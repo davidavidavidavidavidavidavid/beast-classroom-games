@@ -27,7 +27,7 @@
      font-size is too wide for that at a narrow viewport even with
      claim-grid.css's own minmax(0,1fr) fix, so this file alone dials it
      down. Confirmed with a real Playwright viewport check. */
-  .claim-cell { font-size: 15px; }
+  .claim-cell { font-size: var(--text-sm); }
 </style>
 </head>
 <body>

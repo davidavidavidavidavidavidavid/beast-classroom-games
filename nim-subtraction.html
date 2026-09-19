@@ -14,7 +14,7 @@
      instead of base Nim's two or Nickeled & Dimed's two coins — otherwise
      identical shared nim-track component, same disabled-row pattern. ---- */
   .move-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 4px; flex-wrap: wrap; }
-  .move-btn { font-size: 15px; padding: 14px 10px; width: 110px; }
+  .move-btn { font-size: var(--text-sm); padding: 14px 10px; width: 110px; }
   .move-row.disabled { pointer-events: none; opacity: 0.55; }
   /* Marks whichever amount is the CURRENT pending choice while awaiting the
      answer-check — see nim.html's identical rule/comment. */

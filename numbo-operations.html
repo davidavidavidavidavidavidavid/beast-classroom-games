@@ -18,11 +18,11 @@
   .numbo-die {
     width: 44px; height: 44px; border: 2px solid var(--color-ink); border-radius: 6px;
     background: var(--color-beast-blue); color: #fff; display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-sans); font-weight: 800; font-size: 20px; box-shadow: var(--shadow-sm);
+    font-family: var(--font-sans); font-weight: 800; font-size: var(--text-lg); box-shadow: var(--shadow-sm);
   }
   .expr-row { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 8px; }
   .expr-input {
-    width: 100%; max-width: 320px; font-size: 19px; text-align: center; font-family: var(--font-sans); font-weight: 700;
+    width: 100%; max-width: 320px; font-size: var(--text-lg); text-align: center; font-family: var(--font-sans); font-weight: 700;
     padding: 8px; border: 2px solid var(--color-ink); border-radius: 4px; box-shadow: var(--shadow-sm);
     background: var(--color-background-primary); color: var(--color-text-primary);
   }
@@ -35,12 +35,12 @@
   .numbo-keyboard { display: flex; flex-direction: column; gap: 6px; align-items: center; margin: 4px 0 10px; }
   .numbo-kb-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
   .numbo-kb-btn {
-    min-width: 44px; padding: 10px 8px; font-size: 18px; font-weight: 800;
+    min-width: 44px; padding: 10px 8px; font-size: var(--text-lg); font-weight: 800;
     font-family: var(--font-sans); text-transform: none;
   }
   .numbo-kb-btn.digit-btn { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); }
   .numbo-kb-btn.digit-btn:disabled { background: var(--color-background-secondary); color: var(--color-text-tertiary); border-color: var(--color-ink); opacity: 0.6; }
-  .numbo-kb-btn.wide { min-width: 120px; font-size: 15px; }
+  .numbo-kb-btn.wide { min-width: 120px; font-size: var(--text-sm); }
   /* Reuses design-system.css's .target-row (Pop's target-number input row)
      for the input styling itself — just centers it, since Pop's own usage
      doesn't need to. */
@@ -49,12 +49,12 @@
   .result-side { border-radius: 4px; padding: 10px; border: 2px solid; text-align: center; }
   .result-side.human { background: var(--color-beast-blue-bg); border-color: var(--color-beast-blue); }
   .result-side.bot { background: var(--color-beast-red-bg); border-color: var(--color-beast-red); }
-  .result-side h4 { font-family: var(--font-sans); font-weight: 700; font-size: 13px; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 6px; }
+  .result-side h4 { font-family: var(--font-sans); font-weight: 700; font-size: var(--text-xs); letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 6px; }
   .result-side.human h4 { color: var(--color-beast-blue); }
   .result-side.bot h4 { color: var(--color-beast-red); }
-  .result-expr { font-family: var(--font-sans); font-size: 13.5px; color: var(--color-text-secondary); word-break: break-word; margin-bottom: 4px; }
-  .result-value { font-family: var(--font-sans); font-size: 22px; font-weight: 800; }
-  .result-dist-numbo { font-family: var(--font-sans); font-size: 12.5px; color: var(--color-text-tertiary); }
+  .result-expr { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--color-text-secondary); word-break: break-word; margin-bottom: 4px; }
+  .result-value { font-family: var(--font-sans); font-size: var(--text-lg); font-weight: 800; }
+  .result-dist-numbo { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--color-text-tertiary); }
 </style>
 </head>
 <body>

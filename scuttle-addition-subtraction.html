@@ -18,21 +18,21 @@
      of this specific layout is shared; only the modal SHELL itself
      (design-system.css) is. */
   .colm-step { margin-bottom: 14px; text-align: center; }
-  .colm-step-label { font-family: var(--font-sans); font-weight: 700; font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .colm-step-label { font-family: var(--font-sans); font-weight: 700; font-size: var(--text-xs); color: var(--color-text-secondary); margin-bottom: 4px; }
   .colm-grid { display: inline-grid; gap: 2px 4px; font-family: var(--font-sans); }
-  .colm-digit { font-size: 20px; font-weight: 700; text-align: center; line-height: 1.1; }
-  .colm-carry { font-size: 12px; font-weight: 700; color: var(--color-warn); text-align: center; height: 14px; }
-  .colm-op { font-size: 20px; font-weight: 700; text-align: center; }
+  .colm-digit { font-size: var(--text-lg); font-weight: 700; text-align: center; line-height: 1.1; }
+  .colm-carry { font-size: var(--text-xs); font-weight: 700; color: var(--color-warn); text-align: center; height: 14px; }
+  .colm-op { font-size: var(--text-lg); font-weight: 700; text-align: center; }
   /* A digit that just changed value between frames (a borrowed-from digit
      dropping by 1, a borrowing digit gaining 10) — see CLAUDE.md's note on
      why this replaced the original strikethrough+superscript notation: a
      single value that visibly CHANGES between two quick animation frames
      reads as less "calculation heavy" than two stacked annotations shown
      at once, while still being real, standard borrow/carry notation. */
-  .colm-changed { color: var(--color-warn); font-size: 15px; }
-  .colm-new { color: var(--color-beast-red); font-size: 18px; }
+  .colm-changed { color: var(--color-warn); font-size: var(--text-sm); }
+  .colm-new { color: var(--color-beast-red); font-size: var(--text-lg); }
   .colm-hr { grid-column: 1 / -1; border-top: 2px solid var(--color-ink); margin: 2px 0; }
-  .colm-fallback { font-family: var(--font-sans); font-size: 15px; text-align: center; }
+  .colm-fallback { font-family: var(--font-sans); font-size: var(--text-sm); text-align: center; }
 </style>
 </head>
 <body>

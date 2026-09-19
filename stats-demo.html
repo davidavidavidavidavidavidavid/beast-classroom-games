@@ -18,7 +18,7 @@
      reviewed and cut back to plain sample data like every other column). */
   .demo-banner {
     background: var(--color-warn); color: #fff; font-family: var(--font-sans);
-    font-weight: 800; font-size: 13px; text-align: center; letter-spacing: 0.4px;
+    font-weight: 800; font-size: var(--text-xs); text-align: center; letter-spacing: 0.4px;
     padding: 6px 10px; border-radius: 4px; margin-bottom: 1rem;
   }
   /* Five columns don't fit a phone. Let the TABLE scroll inside its own
@@ -28,19 +28,19 @@
   .stat-scroll { overflow-x: auto; }
   .stat-table { width: 100%; border-collapse: collapse; min-width: 520px; }
   .stat-table th {
-    font-family: var(--font-sans); font-size: 12.5px; text-transform: uppercase;
+    font-family: var(--font-sans); font-size: var(--text-xs); text-transform: uppercase;
     letter-spacing: 0.4px; color: var(--color-text-tertiary); text-align: left;
     padding: 6px 8px; border-bottom: 2px solid var(--color-ink);
   }
   .stat-table td { padding: 10px 8px; border-bottom: 1px solid var(--color-border-tertiary); vertical-align: middle; }
   .stat-table tr:last-child td { border-bottom: none; }
-  .skill-name { font-family: var(--font-sans); font-weight: 700; font-size: 15px; color: var(--color-text-primary); }
-  .stat-num { font-family: var(--font-sans); font-weight: 700; font-size: 15px; white-space: nowrap; }
+  .skill-name { font-family: var(--font-sans); font-weight: 700; font-size: var(--text-sm); color: var(--color-text-primary); }
+  .stat-num { font-family: var(--font-sans); font-weight: 700; font-size: var(--text-sm); white-space: nowrap; }
   .pct-cell { display: flex; align-items: center; gap: 8px; min-width: 120px; }
   .pct-bar-track { flex: 1 1 auto; height: 10px; background: var(--color-background-secondary); border: 1px solid var(--color-ink); border-radius: 3px; overflow: hidden; }
   .pct-bar-fill { height: 100%; background: var(--color-beast-blue); }
-  .pct-label { font-family: var(--font-sans); font-weight: 700; font-size: 14px; width: 42px; text-align: right; }
-  .stat-soft { font-family: var(--font-sans); font-size: 13.5px; color: var(--color-text-tertiary); white-space: nowrap; }
+  .pct-label { font-family: var(--font-sans); font-weight: 700; font-size: var(--text-sm); width: 42px; text-align: right; }
+  .stat-soft { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--color-text-tertiary); white-space: nowrap; }
 </style>
 </head>
 <body>

@@ -2548,6 +2548,78 @@ next editing that block for another reason — a blanket find-and-replace
 across every component would be a large untested visual change for no
 behavioural gain.
 
+## Type scale — seven steps, 13px floor
+
+Real feedback: **"Too much font is too small. For example the header banner
+is too small. Too many font sizes, indents, font types on a page looks
+cluttered."**
+
+There were **28 distinct font sizes** across the project. 10, 10.5, 11, 12,
+12.5, 13, 13.5, 14, 14.5, 15, 15.5 all existed as separate values — eleven
+ways to say "small text", which is why pages read as cluttered: nothing
+signalled what the hierarchy was meant to be.
+
+`design-system.css`'s `:root` now defines seven steps, and **every**
+`font-size` in the project uses one (144 declarations migrated):
+
+| token | px | for |
+|---|---|---|
+| `--text-xs` | 13 | the FLOOR — captions, legends. Nothing is smaller. |
+| `--text-sm` | 15 | supporting text, labels, secondary buttons |
+| `--text-md` | 17 | body and primary controls — the default |
+| `--text-lg` | 21 | sub-headings, board cells, the numbers you tap |
+| `--text-xl` | 27 | page H1, a big in-game statement |
+| `--text-2xl` | 36 | the hub wordmark; the HUD primary when short |
+| `--text-3xl` | 48 | the HUD primary — the loudest thing on the page |
+
+`test/site-structure.test.js` **forbids raw px font sizes** anywhere outside
+that `:root` block, and asserts the floor stays ≥13px. Pick a step; don't
+invent a value between two. Something that genuinely needs an in-between
+size is a sign the hierarchy is wrong, not that the scale needs an eighth
+entry.
+
+**Banner sizes specifically**, since "too small" was the complaint: the
+global nav grew 44px → 56px with a 17px wordmark (was 14px); a game's H1 is
+27px (was 23px); the hub's own `BEAST 64` wordmark is 36px, a clear step
+above a game's H1. Press Start 2P runs small for its point size, so a pixel
+H1 sits a step above where a sans one would.
+
+**Font FAMILIES were already fine and are unchanged** — two, and only two:
+Press Start 2P for the H1 and the win banner, Rubik for everything else.
+Worth stating because the feedback mentioned "font types": the clutter was
+sizes and alignment, not families, and adding a third family to "fix" it
+would make it worse.
+
+## Settings screens — two columns
+
+Real feedback: **"pop settings page is too cluttered - lots of rows of
+unequal lengths. Better to arrange in 2 columns."**
+
+A settings card was one column of `.section-label` + control pairs, each a
+different width (three difficulty chips, two format chips, one number
+input), stacked down the page — nothing to line up against, and a long card
+for very little content.
+
+`initSettingsColumns()` (`shared-game.js`) wraps each label with the
+controls that belong to it into a `.setting-group` and lays the groups out
+2-up. Actions — Start, the avatar button, the rules disclosure — are pulled
+into a full-width `.settings-footer` underneath, as a wrapping ROW, because
+they aren't settings and shouldn't compete for a column. Runtime, after the
+variant lift and the avatar move, so it groups the final DOM. 18 screens,
+one implementation, no markup edits.
+
+The settings step is capped at 820px and **left-aligned, not centred** — at
+full card width its two columns were ~500px each holding ~250px of chips,
+and centring the capped card under a left-aligned page header put the page
+on two different left edges, which was the "indents" half of the clutter
+feedback. One left axis for the whole page.
+
+`@media (max-height: 940px)` covers the ordinary laptop as well as an iPad
+in landscape, tightening chrome (the HUD primary, card padding, header
+margins) so a content-heavy settings screen doesn't scroll. **The H1 is
+deliberately excluded from that tightening** — shrinking the banner on the
+most common screen size would undo the feedback that made it bigger.
+
 ## Information hierarchy — three tiers, on every game's status area
 
 Real design feedback: the status row gave the number that DEFINES the win

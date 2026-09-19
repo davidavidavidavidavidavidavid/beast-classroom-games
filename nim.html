@@ -17,7 +17,7 @@
      as Beeline's .operand-row.disabled, so this row never participates in
      the layout-stability concern at all. ---- */
   .move-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 4px; }
-  .move-btn { font-size: 20px; padding: 14px 0; width: 84px; }
+  .move-btn { font-size: var(--text-lg); padding: 14px 0; width: 84px; }
   .move-row.disabled { pointer-events: none; opacity: 0.55; }
   /* Marks whichever amount is the CURRENT pending choice while awaiting
      the answer-check — both buttons are already .primary (always blue),

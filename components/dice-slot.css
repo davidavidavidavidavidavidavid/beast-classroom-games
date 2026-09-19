@@ -20,7 +20,7 @@
 .die-wrap.pickable:active { transform: translate(3px,3px); filter: none; }
 .die-num {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-sans); font-size: 27px; font-weight: 800; color: #fff; pointer-events: none;
+  font-family: var(--font-sans); font-size: var(--text-xl); font-weight: 800; color: #fff; pointer-events: none;
 }
 
 #slots-wrap { text-align: center; margin-bottom: 16px; }
@@ -38,9 +38,9 @@
   border-radius: 4px;
   box-shadow: var(--shadow-sm);
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-sans); font-size: 25px; font-weight: 800; cursor: pointer;
+  font-family: var(--font-sans); font-size: var(--text-xl); font-weight: 800; cursor: pointer;
   background: var(--color-background-primary);
 }
 .slot.filled { background: var(--color-beast-blue); border-color: var(--color-beast-blue); color: #fff; }
 .slot-labels { display: flex; justify-content: center; gap: 8px; }
-.slot-labels span { width: 50px; font-family: var(--font-sans); font-size: 14px; letter-spacing: 0.3px; font-weight: 600; color: var(--color-text-tertiary); text-transform: uppercase; }
+.slot-labels span { width: 50px; font-family: var(--font-sans); font-size: var(--text-sm); letter-spacing: 0.3px; font-weight: 600; color: var(--color-text-tertiary); text-transform: uppercase; }

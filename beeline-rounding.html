@@ -29,16 +29,16 @@
   .numline-wrap { padding: 18px 10px 8px; }
   .numline-track { position: relative; height: 4px; background: var(--color-ink); border-radius: 2px; margin: 0 6px; }
   .numline-tick { position: absolute; top: -8px; width: 4px; height: 20px; background: var(--color-ink); transform: translateX(-2px); }
-  .numline-tick-label { position: absolute; top: 14px; transform: translateX(-50%); font-family: var(--font-sans); font-weight: 700; font-size: 14px; }
-  .numline-tick-label.numline-answer { color: var(--color-correct); font-size: 17px; }
+  .numline-tick-label { position: absolute; top: 14px; transform: translateX(-50%); font-family: var(--font-sans); font-weight: 700; font-size: var(--text-sm); }
+  .numline-tick-label.numline-answer { color: var(--color-correct); font-size: var(--text-md); }
   .numline-dot { position: absolute; top: -6px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-beast-blue); border: 2px solid var(--color-ink); transform: translateX(-8px); }
   .numline-dot.numline-dot-answer { background: var(--color-correct); width: 20px; height: 20px; top: -8px; transform: translateX(-10px); }
-  .numline-dot-label { position: absolute; top: -32px; transform: translateX(-50%); font-family: var(--font-sans); font-weight: 800; font-size: 15px; }
+  .numline-dot-label { position: absolute; top: -32px; transform: translateX(-50%); font-family: var(--font-sans); font-weight: 800; font-size: var(--text-sm); }
   /* Leads every settled frame — a direct "Rounds to X" statement, not a
      "closer to... so..." reasoning sentence — see CLAUDE.md's note on why
      the original version read as more of a hint than a stated answer. */
-  .numline-headline { font-family: var(--font-sans); font-weight: 800; font-size: 20px; text-align: center; margin-top: 34px; color: var(--color-correct); }
-  .numline-explain { font-family: var(--font-sans); font-size: 13px; text-align: center; margin-top: 4px; color: var(--color-text-secondary); }
+  .numline-headline { font-family: var(--font-sans); font-weight: 800; font-size: var(--text-lg); text-align: center; margin-top: 34px; color: var(--color-correct); }
+  .numline-explain { font-family: var(--font-sans); font-size: var(--text-xs); text-align: center; margin-top: 4px; color: var(--color-text-secondary); }
 </style>
 </head>
 <body>

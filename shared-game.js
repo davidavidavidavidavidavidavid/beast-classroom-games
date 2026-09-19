@@ -628,7 +628,67 @@ function initSettingsChrome(){
   // 3. Track whether the settings screen is showing, for the top bar.
   addSyncer(() => document.body.classList.toggle('settings-active', !settings.classList.contains('hidden')));
 
+  // 4. Two columns instead of one tall stack of ragged rows.
+  initSettingsColumns(settings);
+
   initPlayLayout();
+}
+
+/* ---------------- settings: two columns ---------------------------------
+   Real design feedback: "pop settings page is too cluttered - lots of rows
+   of unequal lengths. Better to arrange in 2 columns."
+
+   A settings card was a single column of `.section-label` + control pairs,
+   each a different width (three difficulty chips, two format chips, one
+   number input), stacked down the page — so the eye had nothing to line up
+   against and the card ran long for very little content.
+
+   Each label and the controls that belong to it are wrapped into one
+   `.setting-group`, and the groups are laid out 2-up (see
+   design-system.css). Actions — Start, the rules disclosure, the avatar
+   button — are pulled into a full-width footer underneath, because they
+   aren't settings and shouldn't compete for a column.
+
+   Runtime again, for the same reason as everything else in this file: 18
+   settings screens, one implementation, no markup edits. Called AFTER the
+   variant lift and the avatar move so it groups the final DOM, not the
+   original. */
+const SETTINGS_FOOTER_IDS = ['avatar-choose-btn', 'how-link', 'rules-box'];
+function isSettingsFooterNode(n){
+  if (!n.classList) return false;
+  if (n.classList.contains('btn-row')) return true;
+  return SETTINGS_FOOTER_IDS.indexOf(n.id) !== -1;
+}
+function initSettingsColumns(settings){
+  if (!settings || settings.querySelector('.settings-grid')) return;
+  const kids = Array.prototype.slice.call(settings.children);
+  if (!kids.length) return;
+
+  const grid = document.createElement('div');
+  grid.className = 'settings-grid';
+  const footer = document.createElement('div');
+  footer.className = 'settings-footer';
+
+  let group = null;
+  kids.forEach(node => {
+    if (isSettingsFooterNode(node)){ group = null; footer.appendChild(node); return; }
+    if (node.classList && node.classList.contains('section-label')){
+      group = document.createElement('div');
+      group.className = 'setting-group';
+      grid.appendChild(group);
+    }
+    // Anything before the first label (nothing, normally) just leads the
+    // grid on its own rather than being dropped.
+    if (!group){
+      group = document.createElement('div');
+      group.className = 'setting-group';
+      grid.appendChild(group);
+    }
+    group.appendChild(node);
+  });
+
+  settings.appendChild(grid);
+  if (footer.children.length) settings.appendChild(footer);
 }
 
 /* ---------------- side-by-side play layout ------------------------------

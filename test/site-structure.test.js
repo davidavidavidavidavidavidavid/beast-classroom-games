@@ -545,6 +545,73 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   check(`${file}: clicking Demo opens a populated explanation modal`, r.modalOpened === true && r.visualRendered === true && r.answerText.length > 0, JSON.stringify(r));
 });
 
+/* ---------------- type scale ---------------------------------------------
+   Real feedback: "Too many font sizes... looks cluttered." There were 28
+   distinct font sizes; there are now 7 tokens. This guards the collapse by
+   forbidding raw px font sizes anywhere except the :root scale itself —
+   the failure mode isn't one wrong value, it's the slow return of
+   12/12.5/13/13.5 as four different ways to say "small". */
+{
+  const fs2 = require('fs');
+  const path2 = require('path');
+  const root = path2.join(__dirname, '..');
+  const files = fs2.readdirSync(root)
+    .filter(f => f.endsWith('.html'))
+    .concat(['design-system.css'])
+    .concat(fs2.readdirSync(path2.join(root, 'components')).map(f => 'components/' + f));
+  const offenders = [];
+  files.forEach(f => {
+    let src = fs2.readFileSync(path2.join(root, f), 'utf8');
+    // Skip the token definitions themselves.
+    const marker = '--text-3xl: 48px;';
+    if (src.indexOf(marker) !== -1) src = src.slice(src.indexOf(marker) + marker.length);
+    const m = src.match(/font-size:\s*[0-9.]+px/g);
+    if (m) offenders.push(`${f}: ${m.join(', ')}`);
+  });
+  check('type scale: no raw px font sizes outside the :root scale (use var(--text-*))',
+    offenders.length === 0, offenders.join(' | '));
+
+  // The floor was 10px. Nothing should be able to go below 13px again.
+  const ds = fs2.readFileSync(path2.join(root, 'design-system.css'), 'utf8');
+  const xs = ds.match(/--text-xs:\s*(\d+)px/);
+  check('type scale: the smallest step is at least 13px ("too much font is too small")',
+    !!xs && Number(xs[1]) >= 13, xs ? xs[1] + 'px' : 'missing');
+}
+
+/* ---------------- settings in two columns --------------------------------
+   Real feedback: "pop settings page is too cluttered - lots of rows of
+   unequal lengths. Better to arrange in 2 columns." */
+[
+  ['pop-addition.html', 3],
+  ['scuttle-addition-subtraction.html', 2],
+  ['scuttle-product.html', 3],
+].forEach(([file, minGroups]) => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => {
+    const grid = document.querySelector('#screen-settings .settings-grid');
+    const footer = document.querySelector('#screen-settings .settings-footer');
+    if (!grid) return { built: false };
+    const groups = Array.from(grid.querySelectorAll('.setting-group'));
+    return {
+      built: true,
+      groups: groups.length,
+      // Every group must lead with its own label, or the grouping has
+      // sliced a control away from the label that names it.
+      everyGroupStartsWithLabel: groups.every(g => g.firstElementChild && g.firstElementChild.classList.contains('section-label')),
+      everyGroupHasAControl: groups.every(g => g.children.length >= 2),
+      // Actions belong in the footer, not competing for a column.
+      footerHasStart: !!footer && !!footer.querySelector('#start-btn'),
+      startInAGroup: groups.some(g => g.querySelector('#start-btn')),
+      labelsLooseInCard: Array.from(document.querySelectorAll('#screen-settings > .section-label')).length,
+    };
+  });
+  check(`${file}: settings render as a grid of ${minGroups}+ labelled groups`,
+    r.built === true && r.groups >= minGroups && r.everyGroupStartsWithLabel === true && r.everyGroupHasAControl === true,
+    JSON.stringify(r));
+  check(`${file}: actions sit in the full-width footer, not in a settings column`,
+    r.footerHasStart === true && r.startInAGroup === false && r.labelsLooseInCard === 0, JSON.stringify(r));
+});
+
 /* ---------------- side-by-side play layout -----------------------------
    shared-game.js's initPlayLayout() — see CLAUDE.md "Side-by-side
    board/playing-space layout". jsdom has no layout engine, so the pixel

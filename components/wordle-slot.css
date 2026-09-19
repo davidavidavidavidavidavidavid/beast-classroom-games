@@ -34,12 +34,12 @@
    overhangs its numerator/denominator slightly) — all three of the real
    playtesting asks. */
 .fbar { height: 5px; border-radius: 2px; background: var(--color-ink); width: 100%; min-width: 34px; margin: 3px -5px 0; }
-.eq-sign { font-size: 22px; font-weight: 800; color: var(--color-text-tertiary); padding: 0 4px; align-self: center; }
+.eq-sign { font-size: var(--text-lg); font-weight: 800; color: var(--color-text-tertiary); padding: 0 4px; align-self: center; }
 
 .dbox {
   width: 38px; height: 44px; border: 2px solid var(--color-ink); border-radius: 4px;
   box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-sans); font-size: 19px; font-weight: 800;
+  font-family: var(--font-sans); font-size: var(--text-lg); font-weight: 800;
   background: var(--color-background-primary); color: var(--color-text-primary);
   position: relative;
 }
@@ -80,11 +80,11 @@
 .kb-key {
   flex: 1 1 0; min-width: 0; max-width: 44px; height: 40px; border: 2px solid var(--color-ink); border-radius: 4px;
   box-shadow: var(--shadow-sm); background: var(--color-background-primary); color: var(--color-text-primary);
-  font-family: var(--font-sans); font-weight: 800; font-size: 15px;
+  font-family: var(--font-sans); font-weight: 800; font-size: var(--text-sm);
   display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none;
 }
 .kb-key:active { transform: translate(3px,3px); box-shadow: 0 0 0 var(--color-ink); }
-.kb-key.wide { max-width: 96px; font-size: 11.5px; }
+.kb-key.wide { max-width: 96px; font-size: var(--text-xs); }
 
 /* ---------- guess-progress dots (the current puzzle's 6 tries, and
    endurance mode's 50-guess track) ---------- */
