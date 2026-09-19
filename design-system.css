@@ -85,24 +85,45 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ---------- page sizing model ----------
+   Real design feedback: "Make minimum size a small iPad/tablet proportion.
+   If bigger, dynamically grow to fit the screen. Only if smaller than the
+   minimum allow a scroll bar."
+
+   These are classroom games played on tablets, so the SMALL TABLET is the
+   design floor, not the phone. --min-page-width is a small iPad's portrait
+   width (768px). At or above it the layout fills whatever space there is;
+   below it the page scrolls horizontally rather than reflowing further —
+   a deliberate, requested reversal of the previous phone-first breakpoints,
+   which is why the old narrow-viewport collapse rules further down are now
+   scoped to menu/listing pages (plain content that genuinely still reads
+   fine on a phone) rather than to the game layouts. */
+:root { --min-page-width: 768px; }
+
+html { min-height: 100%; }
 body {
   font-family: var(--font-sans);
   background: var(--color-background-secondary);
   color: var(--color-text-primary);
   min-height: 100vh;
+  /* Below the tablet floor, scroll — don't squeeze. `overflow-x: hidden`
+     here would CLIP that overflow instead of offering the scrollbar the
+     feedback asks for. */
+  min-width: var(--min-page-width);
   display: flex;
   justify-content: center;
   /* Top padding reserves space for #global-nav (position:fixed, so it
      doesn't naturally push content down on its own) — see CLAUDE.md
      "Global navigation". Required on every page, hub included. */
   padding: calc(var(--nav-height) + var(--space-sm)) var(--space-sm) var(--space-sm);
-  /* Anchor content to the TOP. This used to be the flex default (stretch)
-     combined with `#app { margin: auto }`, which on a flex child means
-     auto margins on all four sides — so any page shorter than the
-     viewport floated in the vertical middle, pushing the title ~190px
-     below the nav bar with nothing in between. Real feedback: "reduce the
-     vertical gap between the nav bar and the title block." */
-  align-items: flex-start;
+  /* `stretch` (the default) so #app can FILL the viewport height — that's
+     what lets the play area grow with the screen and keep a stable height.
+     Content is still top-anchored: the ~190px gap under the nav bar that
+     prompted "reduce the vertical gap between the nav bar and the title
+     block" came from `#app { margin: auto }` (four-sided auto margins on a
+     flex child), not from align-items — #app uses `margin: 0 auto` now. */
+  align-items: stretch;
 }
 /* Was 600px — real feedback: "make sizing more dynamic to fill a great
    proportion of the window." `width:100%` (of body's content box, itself
@@ -117,8 +138,13 @@ body {
    further still, in their own <style> blocks, since they have genuinely
    more horizontal content to fill. */
 /* `margin: 0 auto`, not `auto` — see body's align-items note above: the
-   four-sided version is what vertically centred every short page. */
-#app { max-width: 860px; width: 100%; margin: 0 auto; }
+   four-sided version is what vertically centred every short page.
+   A flex COLUMN so the play area can claim the leftover height and stay a
+   consistent size regardless of what's currently inside it. */
+#app {
+  max-width: 1100px; width: 100%; margin: 0 auto;
+  display: flex; flex-direction: column;
+}
 
 /* ---------- global navigation bar ----------
    Injected by shared-game.js's renderGlobalNav() — see CLAUDE.md "Global
@@ -255,28 +281,66 @@ body:not(.settings-active) .stat-pill:not(.hud-utility *) b { font-size: 19px; }
    markup. Stacked by default (identical to what these games rendered
    before this existed); a row only above the breakpoint, so narrow
    viewports are untouched. */
-.play-layout { display: flex; flex-direction: column; }
+/* `flex: 1` — the play area claims all the height left under the header,
+   which is what makes the right-hand container a CONSISTENT size: its
+   height comes from the viewport, not from whatever happens to be inside
+   it at this moment. Real feedback: "try to keep the right container a
+   consistent height, rather than changing as the internal content
+   changes." This is NOT a return to reserving each phase's space — the
+   dead box was invisible blocks stacking up and stranding the button at
+   the bottom of them. Here there is one stable frame and its content is
+   vertically centred inside it, so an empty round reads as a deliberate
+   empty frame rather than a mis-measured one. */
+.play-layout { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 /* 880px = the scorecard column (250px) + gap (20px) + the round card at
    roughly the 560px it needs before its dice row starts wrapping, plus
    body's own 1rem gutters. Below that there isn't room for two real
    columns, so it stays stacked. */
-@media (min-width: 880px) {
-  .play-layout { flex-direction: row; align-items: flex-start; gap: var(--space-md); }
+/* The tablet floor is 768px, so the two columns are the layout at every
+   supported size — there is no narrower fallback to break to any more. */
+@media (min-width: 768px) {
+  /* `stretch`, not flex-start: .play-main has to receive the row's full
+     height for its card to be a consistent frame. The side rail opts out
+     (align-self) since a 3-row score table stretched to 600px would just
+     be a tall empty box. */
+  .play-layout { flex-direction: row; align-items: stretch; gap: var(--space-md); }
   /* Fixed rather than proportional: this is a 3-row score table whose
      content never grows, so extra width would only stretch it. */
-  .play-side { flex: 0 0 250px; }
+  .play-side { flex: 0 0 250px; align-self: flex-start; }
   /* min-width:0 so a wide child (the reveal screen's compare grid) can
      shrink to its share instead of forcing the row wider — the same fix
      .claim-cell needed, see CLAUDE.md. */
-  .play-main { flex: 1 1 auto; min-width: 0; }
-  /* The scorecard is short and never changes mid-round, so it can ride
-     along rather than scrolling away from a long reveal screen. */
-  .play-side #scorecard { position: sticky; top: calc(var(--nav-height) + 1rem); }
+  .play-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
   .play-side .card, .play-main .card { margin-bottom: 0; }
+  /* THE CONSISTENT FRAME. Every play screen fills the column, so swapping
+     round -> compute -> reveal, or rolling dice into an empty card, never
+     changes the container's size. Content centres rather than stacking
+     from the top, so a sparse phase sits in the middle of the frame
+     instead of stranding one button at the bottom of a tall empty box —
+     which is what the original dead-box complaint actually looked like. */
+  .play-main > .card:not(.hidden) {
+    flex: 1 1 auto;
+    display: flex; flex-direction: column; justify-content: center;
+    /* A floor for short viewports, so the frame stays a usable size even
+       when there isn't much height to hand out. */
+    min-height: 360px;
+  }
 }
-/* A two-column game needs real room for both columns; every other game
-   keeps #app's universal 860px. */
-#app.has-play-layout { max-width: 1060px; }
+/* The same stable frame for SINGLE-card games (Nim, Pop, Numbo,
+   Detective), tagged by shared-game.js's initPlayFrames(). Not inside the
+   768px query: these games have no two-column arrangement to switch on, so
+   the frame applies at every supported size. */
+.play-frame:not(.hidden) {
+  flex: 1 1 auto;
+  display: flex; flex-direction: column; justify-content: center;
+  min-height: 360px;
+}
+/* A two-column game (Scuttle's scorecard+play rail, Beeline's play+board)
+   gets real room to grow into; a single-column game stays narrower, since
+   a 1440px-wide single card is a worse reading measure, not a better one.
+   Both are ceilings, not fixed widths — below them the layout fills
+   whatever the window actually offers. */
+#app.has-play-layout { max-width: 1440px; }
 /* ...but a settings FORM at 1060px is a very wide single column of chips.
    Cap the settings step back to a readable width, the same way #rules-box
    already caps itself inside Beeline's widened #app. The top bar is capped
@@ -310,6 +374,17 @@ body.settings-active #app.has-play-layout #top-bar { max-width: 680px; margin-le
   box-shadow: var(--shadow-card);
   padding: 1.4rem 1.2rem;
   margin-bottom: var(--space-md);
+}
+/* A card demoted to a bare positioning wrapper — Beeline's #screen-game,
+   whose two columns are each their own card now (shared-game.js's
+   initBoardLayout()). Keeps the id/class the game's own showScreen() and
+   tests already depend on while dropping every bit of visible chrome, so
+   the columns read as two separate containers rather than panels inside a
+   third one. */
+.card.card-shell {
+  background: none; border: none; box-shadow: none;
+  padding: 0; margin-bottom: 0;
+  display: flex; flex-direction: column; flex: 1 1 auto;
 }
 
 /* ---------- header: title / kicker / tagline ----------
@@ -445,6 +520,22 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
    becomes a band directly under the header — same size, same alignment,
    still the first thing in the reading column. */
 .hud-primary.hud-primary-band { max-width: 320px; }
+
+/* Short viewports — an iPad in LANDSCAPE is only 768px tall, and the HUD's
+   tier-1 block plus the header stack cost enough height there to push a
+   content-heavy game (Pop's two number groups, say) into vertical scroll.
+   Tighten the chrome rather than the gameplay: the primary keeps its
+   dedicated block and its hierarchy, just at a smaller scale. */
+@media (max-height: 820px) {
+  .hud-primary { padding: var(--space-xs) var(--space-sm); margin-bottom: var(--space-xs); }
+  .hud-primary-value { font-size: 32px; }
+  .hud-primary-value.is-text { font-size: 21px; }
+  h1 { font-size: 19px; }
+  .kicker-wrap { margin-top: 4px; margin-bottom: 4px; }
+  .tagline { font-size: 14px; margin-bottom: var(--space-xs); }
+  #top-bar { margin-bottom: var(--space-xs); }
+  .card { padding: 1rem; }
+}
 
 /* Tier 3. Deliberately stripped of the pixel-shadow button language: these
    are chrome, and giving them the same tactile weight as Roll Dice is what

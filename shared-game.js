@@ -681,6 +681,55 @@ function initPlayLayout(){
   app.classList.add('has-play-layout');
 }
 
+/* ---------------- Beeline: separate containers --------------------------
+   Real design feedback: "Beeline, match the layout style of scuttle. With
+   separate containers."
+
+   Beeline already had two side-by-side COLUMNS, but both lived inside one
+   bordered card, so it read as a single panel split down the middle
+   rather than as Scuttle's two distinct containers. This promotes each
+   column to its own card and demotes the wrapper to a bare shell.
+
+   CSS-only would have needed `:has()` to target the one card that holds a
+   .game-layout; doing it here instead keeps it working on older tablet
+   browsers, and matches how every other cross-cutting restructure in this
+   project is done. Six files, no markup edits. */
+/* Every game's play screens become a stable frame — see design-system.css's
+   .play-frame rule. A two-column game gets this from .play-main instead;
+   this covers the single-card games (Nim, Pop, Numbo, Detective) so the
+   container stops resizing on every phase there too. Keyed off the
+   `screen-` id convention (Code conventions' showScreen names), excluding
+   the settings step, which is a form and should be its own natural size. */
+function initPlayFrames(){
+  const app = document.getElementById('app');
+  if (!app || !app.children) return;
+  if (document.querySelector('.play-layout')) return; // .play-main handles it
+  Array.prototype.forEach.call(app.children, (n) => {
+    if (!n.classList || !n.classList.contains('card')) return;
+    if (n.classList.contains('card-shell')) return; // Beeline's columns stretch themselves
+    if (!n.id || n.id.indexOf('screen-') !== 0 || n.id === 'screen-settings') return;
+    n.classList.add('play-frame');
+  });
+}
+
+function initBoardLayout(){
+  const layout = document.querySelector('.game-layout');
+  if (!layout || layout.classList.contains('is-split')) return;
+  const shell = layout.closest && layout.closest('.card');
+  if (!shell) return;
+  shell.classList.add('card-shell');
+  layout.classList.add('is-split');
+  // Same two-column width treatment Scuttle's play layout gets, so the
+  // shared rule in design-system.css is the single place widths live —
+  // this replaced a per-file `#app { max-width: 1100px }` in all 6 files.
+  const app = document.getElementById('app');
+  if (app) app.classList.add('has-play-layout');
+  ['.game-board-col', '.game-play-col'].forEach(sel => {
+    const col = layout.querySelector(sel);
+    if (col) col.classList.add('card');
+  });
+}
+
 /* ---------------- phase blocks ------------------------------------------
    `showPhaseBlock(node, visible)` — reveal/remove a block that belongs to a
    LATER phase than the one showing, with the same fadeIn() every screen
@@ -813,6 +862,8 @@ if (typeof document !== 'undefined' && document.addEventListener){
     // early and initHud() falls back to the under-header band — which is
     // why initHud is called from here rather than from inside that chain.
     initSettingsChrome();
+    initBoardLayout();
+    initPlayFrames();
     initHud();
     markCenteredPage();
   });

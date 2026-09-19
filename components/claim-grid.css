@@ -25,37 +25,32 @@
    `order`, it doesn't rely on DOM order, so narrow-viewport stacking is
    unchanged from before this feature existed.
 
-   The breakpoint (820px) and the two columns' own minimum widths are
-   real, computed numbers, not round guesses: the operand row needs
-   ~408px to avoid its own already-documented 2-line wrap (see CLAUDE.md's
-   Beeline "known, accepted limitation" note), and a 6-column claim grid
-   stays legible at ~300px (6 cells + 5 gaps, ~45px/cell). 408 + 300 + a
-   24px gap = 732px of CONTENT width; #app's own widened max-width for
-   these pages (see each game file's own <style> block) plus body/.card
-   padding is what the 820px viewport breakpoint is sized against — see
-   Testing methodology point 8's discipline on verifying a real pixel
-   layout claim in an actual browser, not just by arithmetic (confirmed
-   with Playwright screenshots at both a narrow and a wide viewport). */
-.game-layout { display: flex; flex-direction: column; gap: 16px; }
+   SUPERSEDED IN PART: the old 820px breakpoint and the columns' fixed
+   max-widths are gone — the page floor is now a small tablet (768px) and
+   the columns grow to fill whatever is there. See the rules below. */
+/* SEPARATE CONTAINERS — real feedback: "Beeline, match the layout style of
+   scuttle. With separate containers." Both columns used to sit inside one
+   bordered card, which read as a single panel split down the middle rather
+   than as Scuttle's two distinct cards. shared-game.js's initBoardLayout()
+   adds `.card` to each column and `.card-shell` to the wrapper (see
+   design-system.css), so the chrome comes from the shared card rules
+   rather than a second definition here. */
+.game-layout { display: flex; flex-direction: column; gap: var(--space-md); flex: 1 1 auto; }
 .game-board-col { flex: 1 1 auto; min-width: 0; }
 .game-play-col { flex: 1 1 auto; min-width: 0; }
-@media (min-width: 820px) {
-  .game-layout { flex-direction: row; align-items: flex-start; gap: 24px; }
-  /* Real feedback: "make sizing more dynamic to fill a great proportion
-     of the window." Both columns now grow to fill whatever extra width
-     #app's own widened max-width (see each game file's own <style> block)
-     makes available, rather than the board staying pinned at a fixed
-     300px forever. The BOARD grows faster (flex-grow 1) and further (up
-     to 500px) than the play column (flex-grow 0.6, capped at 560px) —
-     the play column's own content (a turn-status line, an operand row of
-     buttons) doesn't get MORE legible past a certain width the way a
-     6-column grid's cells genuinely do, so letting it keep growing
-     unbounded just left dead whitespace around already-appropriately-sized
-     buttons rather than putting the extra room to visible use; confirmed
-     by comparing real screenshots at 1000px/1400px before settling on
-     this ratio, not by the arithmetic alone. */
-  .game-board-col { flex: 1 1 300px; max-width: 500px; order: 2; }
-  .game-play-col { flex: 0.6 1 420px; max-width: 560px; min-width: 420px; order: 1; }
+.game-layout.is-split > .card { margin-bottom: 0; }
+/* 768px is the tablet floor (see design-system.css's page sizing model) —
+   below it the page scrolls rather than collapsing to a stacked column, so
+   this is the layout at every supported size. */
+@media (min-width: 768px) {
+  .game-layout { flex-direction: row; align-items: stretch; gap: var(--space-md); }
+  /* No max-width any more: "if bigger, dynamically grow to fit the
+     screen". The board still grows faster than the play column, which is
+     what keeps the extra room going to the 6x6 grid's cells (they do get
+     more legible) rather than to whitespace around already-well-sized
+     buttons. */
+  .game-board-col { flex: 1.4 1 340px; order: 2; display: flex; flex-direction: column; justify-content: center; }
+  .game-play-col { flex: 1 1 440px; min-width: 440px; order: 1; display: flex; flex-direction: column; justify-content: center; }
 }
 
 /* minmax(0, 1fr), not a bare 1fr — a bare 1fr track's implicit min-width
@@ -68,7 +63,18 @@
    via a real Playwright viewport check while verifying the new
    .game-layout side-by-side redesign, not by this redesign itself (the
    grid's own sizing was already like this before). */
-#claim-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; margin-bottom: 16px; }
+/* The grid's cells are `aspect-ratio: 1`, so its HEIGHT follows its width.
+   Once the board column is free to grow with the window (no max-width any
+   more), a wide viewport makes the grid taller than the room beneath the
+   header and the page picks up a stray scrollbar. Capping the WIDTH in vh
+   is what bounds the height: ~60vh leaves room for the legend, the card's
+   padding and the page header at every supported viewport, and scales
+   instead of being a fixed number that only works at one size. */
+#claim-grid {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 5px; margin: 0 auto var(--space-sm);
+  width: 100%; max-width: min(100%, 57vh);
+}
 .claim-cell {
   aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
   min-width: 0; overflow: hidden;
@@ -107,13 +113,23 @@
    the exact "container jumps when content appears" bug CLAUDE.md's
    "Layout stability" already covers elsewhere in this project, just
    applied here to a fixed margin instead of a toggled element. */
-.operand-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; margin: 34px 0; position: relative; }
+.operand-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin: 34px 0; position: relative; }
+/* Real feedback: "For the numbers to select the product, make those
+   larger." 34x40 at 15px was the smallest touch target in the project, on
+   games built for tablets. Now 52x58 at 24px — comfortably past the ~44px
+   minimum touch target, and the row still fits the play column without
+   wrapping (9 cells x 52px + 8 gaps x 6px = 516px against a 440px minimum
+   column plus its card padding; the row is centred and allowed to wrap
+   only in the genuinely-narrower-than-tablet case the page already
+   scrolls for). */
 .op-num {
-  width: 34px; height: 40px; display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-sans); font-weight: 800; font-size: 15px;
+  width: 52px; height: 58px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-sans); font-weight: 800; font-size: 24px;
   border: 2px solid var(--color-ink); border-radius: 4px; background: var(--color-background-primary);
+  box-shadow: var(--shadow-sm);
   position: relative; cursor: pointer;
 }
+.op-num:active { transform: translate(3px,3px); box-shadow: 0 0 0 var(--color-ink); }
 /* .op-num.selected (an active token's own current cell) no longer applies
    — that whole concept belonged to the old single-"active"-token design;
    the token circles themselves already mark their own position clearly
@@ -149,7 +165,7 @@
    will move, as opposed to a direct drag which is unambiguous on its own)
    gets a distinct ring — st.selectedTokenIdx in beeline-product.html. */
 .token {
-  position: absolute; width: 26px; height: 26px; border-radius: 50%;
+  position: absolute; width: 34px; height: 34px; border-radius: 50%;
   border: 3px solid var(--color-ink); box-shadow: 2px 2px 0 var(--color-ink);
   z-index: 2; transition: box-shadow 0.1s;
   cursor: grab; touch-action: none;

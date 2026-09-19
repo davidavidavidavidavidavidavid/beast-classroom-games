@@ -2621,6 +2621,97 @@ page shorter than the viewport and pushed the title ~190px below the nav
 bar with nothing in between. Now `align-items: flex-start` plus
 `margin: 0 auto`. Content is top-anchored on every page.
 
+## Page sizing model — tablet floor, grow to fit
+
+Real design feedback: **"Make minimum size a small iPad/tablet proportion.
+If bigger, dynamically grow to fit the screen. Only if smaller than the
+minimum allow a scroll bar."**
+
+`--min-page-width: 768px` (a small iPad's portrait width) on `body`. At or
+above it the layout fills whatever the window offers; below it the page
+scrolls horizontally rather than reflowing further. **This is a deliberate
+reversal of the project's earlier phone-first responsiveness** — these are
+classroom tablet games, and the previous 375px/480px/560px collapse
+breakpoints were being designed around for devices nobody plays them on.
+The old collapse rules now apply to menu/listing pages only, which are
+plain content that genuinely still reads fine narrow.
+
+`index.html`'s `html, body { overflow-x: hidden }` had to become
+`html { overflow-x: auto }` — the old rule would CLIP the horizontal scroll
+this model deliberately offers. (The boot byline that originally needed it
+is sized in `vw` and can't exceed the floor's width.)
+
+Widths: `#app` is 1100px by default, **1440px for a two-column game**
+(`.has-play-layout` — Scuttle's scorecard+play rail, and now Beeline, whose
+six per-file `#app { max-width: 1100px }` overrides were deleted in favour
+of that shared class). Both are ceilings, not fixed widths.
+
+`@media (max-height: 820px)` tightens the chrome — an iPad in *landscape*
+is only 768px tall, and the HUD's tier-1 block plus the header stack cost
+enough height there to push a content-heavy game into vertical scroll. It
+shrinks the primary, the H1 and the card padding, never the gameplay.
+
+## Consistent play container — and why it isn't the dead box again
+
+Real feedback, after the dead-box fix landed: **"Scuttle, try to keep the
+right container a consistent height, rather than changing as the internal
+content changes."** A card that resizes on every phase is its own
+distraction, even when every size is honestly earned.
+
+**These are two different claims, and both now hold:**
+- The **container** is a stable frame whose height comes from the
+  **viewport**, not from its contents, with its content vertically centred.
+  `#app` is a flex column, `.play-layout` takes `flex: 1`, and
+  `.play-main > .card` fills it. Single-card games (Nim, Pop, Numbo,
+  Detective) get the same via `.play-frame`, tagged by `initPlayFrames()`.
+- The **content** still does not reserve space for phases the player hasn't
+  reached — that's the corrected `.phase-hidden` rule, unchanged.
+
+The second is what stops the first from being the old bug wearing a new
+name. The original dead box wasn't "a tall card" — it was *invisible
+reserved blocks stacking up and stranding the roll button at the bottom of
+them*. A stable frame with centred content reads as a deliberate empty
+frame; the old one read as a mis-measurement. **If you ever find yourself
+making the frame smaller to fix "too much empty space", check which of
+these two you actually have** — the fix for a stranded control is centring
+and un-reserving, not shrinking the frame.
+
+Measured: Scuttle 654px empty and 654px populated at 1280×900 (0px drift),
+554px at 1024×768, and it tracks the viewport (546px at 760px tall → 794px
+at 1040px tall). `test/layout-density.playwright.js` asserts exactly this —
+**its assertion was deliberately reversed** from the earlier
+"empty must be much shorter" version; read its header before changing it
+back.
+
+## Beeline: separate containers, matching Scuttle
+
+Real feedback: **"Beeline, match the layout style of scuttle. With separate
+containers. For the numbers to select the product, make those larger."**
+
+Beeline already had two side-by-side columns, but both lived inside one
+bordered card, so it read as a single panel split down the middle rather
+than Scuttle's two distinct containers. `initBoardLayout()`
+(`shared-game.js`) promotes each column to its own `.card` and demotes the
+wrapper to `.card-shell` (chrome stripped, ids/classes kept so
+`showScreen()` and the tests are untouched). Six files, zero markup edits.
+
+Done in JS rather than CSS because the CSS-only version needs `:has()` to
+find the one card containing a `.game-layout`, and these run on older
+classroom tablets.
+
+**`.op-num` went from 34×40px/15px to 52×58px/24px** — it was the smallest
+touch target in the project, on games built for fingers. It now clears the
+~44px touch-target minimum comfortably, and `.token` grew 26px → 34px to
+stay proportionate. The row still fits: 9 × 52px + 8 × 6px gaps = 516px
+against the play column's 440px minimum plus card padding.
+
+`#claim-grid` gained `max-width: min(100%, 57vh)`. Its cells are
+`aspect-ratio: 1`, so height follows width — once the board column was free
+to grow with the window (the old fixed `max-width: 500px` is gone), a wide
+viewport made the grid taller than the room under the header and the page
+picked up a stray scrollbar. Capping the width in `vh` is what bounds the
+height, and it scales instead of being a number that only works at one size.
+
 ## Bot AI philosophy — read this before writing any bot logic
 
 - Bots must **always compute arithmetic correctly** regardless of difficulty.

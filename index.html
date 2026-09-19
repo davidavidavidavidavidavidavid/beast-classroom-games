@@ -15,7 +15,11 @@
      #app/#game-grid's edge — visible as shadows that stop dead at the
      column edge. Only the document needs horizontal overflow suppressed
      (the boot byline is sized in vw and can exceed it on a narrow phone). */
-  html, body { overflow-x: hidden; }
+  /* Was `overflow-x: hidden`, which would now CLIP the horizontal scroll
+     the page sizing model deliberately offers below the 768px tablet floor
+     (see design-system.css). The boot byline that originally needed this is
+     sized in vw and can't exceed that floor's width. */
+  html { overflow-x: auto; }
 
   /* ============ BOOT SCREEN ============
      See CLAUDE.md "Boot sequence" — lives here now (the project's true
