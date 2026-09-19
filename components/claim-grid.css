@@ -105,7 +105,7 @@
 @media (prefers-reduced-motion: reduce) { .claim-cell.win.flash { animation: none; } }
 
 /* ---- operand row: the number line a token moves along ---- */
-.operand-title { text-align: center; font-family: var(--font-sans); font-weight: 700; font-size: var(--text-xs); letter-spacing: 0.3px; color: var(--color-text-tertiary); text-transform: uppercase; margin: 10px 0 4px; }
+.operand-title { text-align: center; font-family: var(--font-sans); font-weight: 700; font-size: var(--text-xs); letter-spacing: 0.3px; color: var(--color-text-tertiary); text-transform: uppercase; margin: var(--space-xs) 0 2px; }
 /* margin: 34px top+bottom, not the original 8px-bottom-only, reserves room
    for the .token lanes below (see further down) on BOTH sides — always,
    whether or not a token is actually rendered right now (during setup,
@@ -113,7 +113,9 @@
    the exact "container jumps when content appears" bug CLAUDE.md's
    "Layout stability" already covers elsewhere in this project, just
    applied here to a fixed margin instead of a toggled element. */
-.operand-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin: 34px 0; position: relative; }
+/* The margin reserves BOTH token lanes; it scales with the token so the
+   pair can never drift apart (see the token rule below). */
+.operand-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin: clamp(20px, 3.4vh, 34px) 0; position: relative; }
 /* Real feedback: "For the numbers to select the product, make those
    larger." 34x40 at 15px was the smallest touch target in the project, on
    games built for tablets. Now 52x58 at 24px — comfortably past the ~44px
@@ -122,8 +124,15 @@
    column plus its card padding; the row is centred and allowed to wrap
    only in the genuinely-narrower-than-tablet case the page already
    scrolls for). */
+/* FLUID. At a fixed 52px, nine cells plus their gaps needed 516px — more
+   than the play column gets at 1024px wide, so the row WRAPPED to two
+   lines and cost 122px instead of 58. clamp() keeps the enlarged tap
+   target on a desktop and shrinks it just enough to stay on one line at
+   the tablet floor. 4.2vw at 1024px = 43px; nine of those plus eight gaps
+   fit the column with room over. */
 .op-num {
-  width: 52px; height: 58px; display: flex; align-items: center; justify-content: center;
+  width: clamp(36px, 4.2vw, 52px); height: clamp(40px, 5.6vh, 58px);
+  display: flex; align-items: center; justify-content: center;
   font-family: var(--font-sans); font-weight: 800; font-size: var(--text-xl);
   border: 2px solid var(--color-ink); border-radius: 4px; background: var(--color-background-primary);
   box-shadow: var(--shadow-sm);
@@ -165,7 +174,7 @@
    will move, as opposed to a direct drag which is unambiguous on its own)
    gets a distinct ring — st.selectedTokenIdx in beeline-product.html. */
 .token {
-  position: absolute; width: 34px; height: 34px; border-radius: 50%;
+  position: absolute; width: clamp(22px, 3.4vh, 34px); height: clamp(22px, 3.4vh, 34px); border-radius: 50%;
   border: 3px solid var(--color-ink); box-shadow: 2px 2px 0 var(--color-ink);
   z-index: 2; transition: box-shadow 0.1s;
   cursor: grab; touch-action: none;

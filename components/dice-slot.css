@@ -8,8 +8,15 @@
 
 #roll-btn-wrap, #lock-wrap { text-align: center; }
 
-#dice-row { display: flex; justify-content: center; gap: 10px; margin-bottom: 18px; min-height: 74px; flex-wrap: wrap; }
-.die-wrap { width: 50px; height: 72px; position: relative; filter: drop-shadow(var(--shadow-sm)); transition: transform 0.1s; }
+/* FLUID SIZING (1024x600 floor). These were fixed px, so four stacked
+   slot rows plus a die row blew past a 600px viewport by ~70px. Each
+   dimension is now clamp(floor, Nvh, ceiling): full size on a desktop,
+   compressed at 600px, never below a comfortable touch target. The
+   min-heights that reserve space for JS-populated rows use the SAME
+   expression as the thing they reserve for, so they can't drift apart —
+   that pairing is what test/layout-stability.test.js checks. */
+#dice-row { display: flex; justify-content: center; gap: var(--space-xs); margin-bottom: var(--space-sm); min-height: clamp(56px, 8vh, 74px); flex-wrap: wrap; }
+.die-wrap { width: clamp(38px, 5vh, 50px); height: clamp(54px, 7.6vh, 72px); position: relative; filter: drop-shadow(var(--shadow-sm)); transition: transform 0.1s; }
 .die-shape {
   width: 100%; height: 100%;
   background: var(--color-beast-blue);
@@ -31,9 +38,9 @@
    .phase-hidden element only reserves the space its CONTENT occupies —
    an empty wrapper reserves nothing, which is the trap CLAUDE.md's
    "Layout stability" note warns about. */
-#slots-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 4px; min-height: 56px; }
+#slots-row { display: flex; justify-content: center; gap: var(--space-xs); margin-bottom: 4px; min-height: clamp(40px, 6vh, 56px); }
 .slot {
-  width: 50px; height: 56px;
+  width: clamp(36px, 5vh, 50px); height: clamp(40px, 6vh, 56px);
   border: 2px solid var(--color-ink);
   border-radius: 4px;
   box-shadow: var(--shadow-sm);
@@ -43,4 +50,4 @@
 }
 .slot.filled { background: var(--color-beast-blue); border-color: var(--color-beast-blue); color: #fff; }
 .slot-labels { display: flex; justify-content: center; gap: 8px; }
-.slot-labels span { width: 50px; font-family: var(--font-sans); font-size: var(--text-sm); letter-spacing: 0.3px; font-weight: 600; color: var(--color-text-tertiary); text-transform: uppercase; }
+.slot-labels span { width: clamp(38px, 5vh, 50px); font-family: var(--font-sans); font-size: var(--text-sm); letter-spacing: 0.3px; font-weight: 600; color: var(--color-text-tertiary); text-transform: uppercase; }

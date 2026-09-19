@@ -67,37 +67,65 @@ function checkDesignSystemCss() {
    shipped without one (Scuttle's card grew 375px -> 431px on first roll).
    Pop's #current-digit-wrap is here because its min-height sat dead behind
    a `.hidden` that beat it — the under-reserving half of the same rule. */
+/* Parse a CSS length that may be fluid: "56px" -> {min:56,max:56};
+   "clamp(40px, 6vh, 56px)" -> {min:40,max:56}. The vh term is viewport-
+   dependent and deliberately ignored — what matters statically is that the
+   reservation's floor and ceiling both cover the thing being reserved for. */
+function lengthRange(decl) {
+  if (!decl) return null;
+  const clamp = decl.match(/clamp\(\s*([0-9.]+)px\s*,[^,]+,\s*([0-9.]+)px\s*\)/);
+  if (clamp) return { min: Number(clamp[1]), max: Number(clamp[2]) };
+  const plain = decl.match(/^\s*([0-9.]+)px\s*$/);
+  return plain ? { min: Number(plain[1]), max: Number(plain[1]) } : null;
+}
+function prop(css, selector, name) {
+  const rule = css.match(new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}'));
+  if (!rule) return null;
+  const m = rule[1].match(new RegExp(name + '\\s*:\\s*([^;]+);'));
+  return m ? m[1].trim() : null;
+}
+
+/* A .phase-hidden element only reserves the space its CONTENT takes up, so
+   a wrapper that's empty in the markup until JS fills it reserves nothing
+   and the jump comes straight back. #slots-row is here because it actually
+   shipped without one (Scuttle's card grew 375px -> 431px on first roll).
+
+   Checked as a PAIRING, not against a hardcoded number: the reservation
+   must cover the thing it reserves for, at both ends of its fluid range.
+   That matters more since these went fluid for the 1024x600 floor — a
+   stale constant left beside a now-clamped item is exactly how Pop ended
+   up over-reserving its die slot by ~20px at 600px tall. */
 function checkReservingRowsDeclareHeight() {
   const dice = fs.readFileSync(path.join(__dirname, '..', 'components', 'dice-slot.css'), 'utf8');
   [
-    ['#dice-row', 74, '.die-wrap is 72px tall'],
-    ['#slots-row', 56, '.slot is 56px tall'],
-  ].forEach(([sel, min, why]) => {
-    const rule = dice.match(new RegExp(sel + '\\s*\\{([^}]*)\\}'));
-    assert.ok(rule, `components/dice-slot.css should define ${sel}`);
-    const m = rule[1].match(/min-height\s*:\s*(\d+)px/);
-    assert.ok(m, `${sel} must declare a min-height — it is empty in the markup until JS fills it (${why})`);
-    assert.ok(Number(m[1]) >= min, `${sel}'s min-height should be at least ${min}px (${why}), got ${m[1]}px`);
+    ['#dice-row', 'min-height', '.die-wrap', 'height', 'the die it holds'],
+    ['#slots-row', 'min-height', '.slot', 'height', 'the slot it holds'],
+  ].forEach(([row, rowProp, item, itemProp, why]) => {
+    const res = lengthRange(prop(dice, row, rowProp));
+    const got = lengthRange(prop(dice, item, itemProp));
+    assert.ok(res, `components/dice-slot.css: ${row} must declare a ${rowProp} — it is empty in the markup until JS fills it`);
+    assert.ok(got, `components/dice-slot.css: ${item} must declare a parseable ${itemProp}`);
+    assert.ok(res.min >= got.min && res.max >= got.max,
+      `${row}'s ${rowProp} (${res.min}-${res.max}px) must cover ${why} (${got.min}-${got.max}px) at BOTH ends of its fluid range, or the row stops reserving enough and the card jumps when JS fills it`);
   });
-  ok('components/dice-slot.css: JS-populated rows reserve their height up front');
+  ok('components/dice-slot.css: JS-populated rows reserve at least the height of what they hold');
 
   ['pop-addition.html', 'pop-subtraction.html', 'pop-expression.html', 'pop-perimeter.html'].forEach(file => {
     const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-    const rule = src.match(/#current-digit-wrap\s*\{([^}]*)\}/);
-    assert.ok(rule, `${file} should style #current-digit-wrap`);
-    const m = rule[1].match(/min-height\s*:\s*(\d+)px/);
-    assert.ok(m && Number(m[1]) >= 74,
-      `${file}: #current-digit-wrap must declare min-height >= 74px — it is the shared die's reserved slot, and without it the card jumps on every roll`);
+    const res = lengthRange(prop(src, '#current-digit-wrap', 'min-height'));
+    const die = lengthRange(prop(dice, '.die-wrap', 'height'));
+    assert.ok(res, `${file}: #current-digit-wrap must declare a min-height — it is the shared die's reserved slot, and without it the card jumps on every roll`);
+    assert.ok(res.min >= die.min && res.max >= die.max,
+      `${file}: #current-digit-wrap's min-height (${res.min}-${res.max}px) must cover .die-wrap (${die.min}-${die.max}px) at both ends`);
     const tag = src.match(/<div[^>]*id="current-digit-wrap"[^>]*>/);
     assert.ok(tag, `${file} should contain #current-digit-wrap`);
     // Exact class-token match, not a substring/\b test — `\bhidden\b`
-    // matches INSIDE "phase-hidden" (the hyphen is a word boundary), which
-    // made this assertion fire on the correct markup.
+    // matches INSIDE "phase-hidden" (the hyphen is a word boundary).
     const classAttr = (tag[0].match(/class="([^"]*)"/) || [, ''])[1];
     assert.ok(!classAttr.split(/\s+/).includes('hidden'),
       `${file}: #current-digit-wrap must not use .hidden — the shared die appears and disappears on every roll while the player stays on the same screen, so its space must stay reserved (and .hidden makes that min-height dead code)`);
   });
-  ok('pop-*.html: the shared die reserves its slot (min-height live, not behind display:none)');
+  ok('pop-*.html: the shared die reserves its slot, sized to the die itself');
 }
 
 /* ---------------- 3. empty-state density ---------------------------------

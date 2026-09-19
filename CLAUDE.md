@@ -2620,6 +2620,68 @@ margins) so a content-heavy settings screen doesn't scroll. **The H1 is
 deliberately excluded from that tightening** — shrinking the banner on the
 most common screen size would undo the feedback that made it bigger.
 
+## 1024×600 zero-scroll architecture
+
+A design handoff set the floor explicitly: **the app must fit a landscape
+small tablet (1024×600) with no scrolling in either axis.** Measured before
+starting: **13/13 game pages overflowed**, by up to 335px, and "Start game"
+sat below the fold on 8 of them. After: **0/13**, verified settings, play
+and mid-round.
+
+Three mechanisms, in the order they do the work:
+
+**1. Fluid spacing.** `--space-*` are now `clamp(floor, Nvh, ceiling)`
+rather than fixed px. On a desktop the ceiling wins and nothing is cramped;
+at 600px tall the vh term wins and the whole page compresses. **The air
+between elements goes before the elements themselves** — that ordering is
+the whole point. `.card` padding is `clamp()` on the same principle.
+
+*Accepted tradeoff:* these tokens are used for horizontal gaps too, so a
+short-but-wide window tightens those more than it strictly needs to. Not
+worth a parallel set of horizontal tokens — that doubles the vocabulary the
+scale exists to shrink.
+
+**2. Fluid components.** Fixed px dimensions in `dice-slot.css` and
+`claim-grid.css` became `clamp()` too. This caught a real bug the height
+work would otherwise have masked: at a fixed 52px, Beeline's nine operand
+cells needed 516px and **wrapped to two lines at 1024px wide**, costing
+122px instead of 58. Any reservation paired with a fluid item (`#dice-row`
+vs `.die-wrap`, Pop's `#current-digit-wrap` vs the die) must use a matching
+expression — a stale constant beside a clamped item is how Pop over-reserved
+its die slot by ~20px. `test/layout-stability.test.js` now checks that
+pairing directly, at both ends of the fluid range, instead of against a
+hardcoded number.
+
+**3. A hard outer boundary.** `body` is exactly `100vh`; `#app` is a flex
+column with `min-height: 0` (without which a flex child cannot compress,
+and the clamp() spacing has nothing to compress into).
+
+**Deliberate deviation from the handoff: `#app` uses `overflow-y: auto`,
+not `overflow: hidden`.** Hidden gives the same boundary but makes any
+overflow invisible *and unreachable* — a long rules box or the 15-card
+Beeline menu would silently lose content with no way to get at it, and it
+would also break the "scroll below 768px wide" rule from the previous
+round. `auto` fails safe. The compression that makes things *fit* is the
+clamp() spacing; clipping was never what would have achieved it.
+
+**Short-viewport tiers live at the END of design-system.css, on purpose.**
+They override by *source order*, not specificity — a later single-class
+rule like `.feedback-msg { margin: 8px 0 }` was silently beating the
+identical-specificity override inside a media query defined earlier in the
+file, so several trims were doing nothing at all. Anything added to those
+blocks must stay below every rule it intends to override. Two tiers:
+`max-height: 940px` (ordinary laptop and iPad landscape — chrome tightens)
+and `max-height: 640px` (the floor itself — the header collapses to one
+row via `.page-head`, the HUD primary becomes a compact inline strip, the
+variant card goes single-line, and the settings kicker hides because the
+highlighted variant chip below it already says the same thing).
+
+**What was NOT sacrificed:** no control's font size shrinks below the
+scale, no tap target goes under ~40px, and the H1 is explicitly excluded
+from the 940px tightening — "the header banner is too small" was the
+feedback that made it bigger, and clawing it back on the commonest screen
+size would undo exactly that.
+
 ## Information hierarchy — three tiers, on every game's status area
 
 Real design feedback: the status row gave the number that DEFINES the win
@@ -3520,6 +3582,19 @@ For every new game, before considering it done:
   a regression from that session's changes (which never touched Scuttle
   Product's own game file). No fix attempted, per the same reasoning as
   above; noted here only as a second confirmed sighting.
+  **Third sighting, and the first with an identified TRIGGER — worth
+  remembering before diagnosing this file again:** running a Playwright
+  check (`test/layout-density.playwright.js`) concurrently with `npm test`
+  reliably produced a DIFFERENT failure in `smoke-product.test.js` —
+  `once the reveal finishes, every cell should hold a real partial product
+  (1 !== 2)`, the area-model explanation's settled state. That probe waits
+  a fixed 10s for a ~7s animation, so a machine saturated by a headless
+  browser can miss the last frame. It looked exactly like a regression
+  from the same session's CSS work. Resolved by evidence, not assumption:
+  **6 of 6 isolated runs passed**, while both failures happened only under
+  concurrent load. **Never run the jsdom suite and a headless-browser
+  check at the same time** — and when a timing-sensitive assertion fails,
+  re-run it alone before believing it.
 
 ## Suggested next steps, in priority order
 

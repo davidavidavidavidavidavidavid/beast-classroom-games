@@ -921,6 +921,7 @@ if (typeof document !== 'undefined' && document.addEventListener){
     // block into. Detective has no settings screen at all, so it exits
     // early and initHud() falls back to the under-header band — which is
     // why initHud is called from here rather than from inside that chain.
+    initPageHead();
     initSettingsChrome();
     initBoardLayout();
     initPlayFrames();
@@ -933,6 +934,28 @@ if (typeof document !== 'undefined' && document.addEventListener){
    title there heads a symmetric 2-column grid of cards rather than a
    left-aligned play column, so centring is genuinely right for it, and
    these are exactly the pages that have a card grid and no #top-bar. */
+/* Groups the title, variant kicker and tagline into one header unit.
+   Block-stacked as before at normal heights; at the 1024x600 floor they
+   become a single row (see design-system.css's short-viewport tier),
+   which recovers a whole line of height without hiding the variant name
+   the way simply dropping the kicker would. Runtime, like every other
+   cross-cutting restructure here — 18 files, no markup edits. */
+function initPageHead(){
+  const app = document.getElementById('app');
+  if (!app || !app.children || document.querySelector('.page-head')) return;
+  const h1 = app.querySelector(':scope > h1');
+  if (!h1) return;
+  const head = document.createElement('div');
+  head.className = 'page-head';
+  app.insertBefore(head, h1);
+  let n = head.nextElementSibling;
+  while (n && (n.tagName === 'H1' || n.classList.contains('kicker-wrap') || n.classList.contains('tagline'))){
+    const next = n.nextElementSibling;
+    head.appendChild(n);
+    n = next;
+  }
+}
+
 function markCenteredPage(){
   if (!document.body || !document.body.classList) return;
   if (document.getElementById('top-bar')) return;

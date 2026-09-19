@@ -129,6 +129,57 @@ const CASES = [
   console.log(`\n  ${grows ? '✅' : '❌'} scuttle frame tracks the viewport: ${short}px at 760px tall -> ${tall}px at 1040px tall`);
   await ctx.close();
 
+  // ---- 1024x600 ZERO-SCROLL FLOOR ----------------------------------
+  // The design floor: a landscape small tablet. Nothing may scroll, in
+  // either axis, on any game page — settings, play, or mid-round. This is
+  // the acceptance test for the fluid spacing/type work; before it, 13/13
+  // pages overflowed and "Start game" sat below the fold on 8 of them.
+  const FLOOR_PAGES = [
+    'scuttle-addition-subtraction.html', 'scuttle-product.html', 'scuttle-difference.html',
+    'pop-addition.html', 'pop-subtraction.html', 'pop-expression.html', 'pop-perimeter.html',
+    'beeline-product.html', 'beeline-difference.html', 'beeline-addition.html',
+    'beeline-decimal.html', 'beeline-rounding.html', 'beeline-equivalent-fraction.html',
+    'nim.html', 'nim-subtraction.html', 'nim-nickeled-and-dimed.html',
+    'numbo-operations.html', 'detective-fraction-equivalence.html',
+  ];
+  const floorCtx = await browser.newContext({ viewport: { width: 1024, height: 600 } });
+  const fp = await floorCtx.newPage();
+  const ferr = [];
+  fp.on('pageerror', e => ferr.push(e.message));
+  console.log('\n  1024x600 zero-scroll floor');
+  const scrollAmounts = () => fp.evaluate(() => {
+    const a = document.getElementById('app');
+    const d = document.documentElement;
+    return {
+      v: Math.max(0, a.scrollHeight - a.clientHeight, d.scrollHeight - d.clientHeight),
+      h: Math.max(0, d.scrollWidth - d.clientWidth),
+    };
+  });
+  for (const f of FLOOR_PAGES) {
+    ferr.length = 0;
+    await fp.goto(BASE + f);
+    await fp.waitForTimeout(280);
+    const settings = await scrollAmounts();
+    // Is the primary action reachable without scrolling?
+    const startInView = await fp.evaluate(() => {
+      const b = document.getElementById('start-btn');
+      if (!b) return true; // single-player game with no settings step
+      return b.getBoundingClientRect().bottom <= window.innerHeight;
+    });
+    await fp.click('#start-btn').catch(() => {});
+    await fp.waitForTimeout(320);
+    const play = await scrollAmounts();
+    await fp.click('#roll-btn').catch(() => {});
+    await fp.waitForTimeout(820);
+    const mid = await scrollAmounts();
+    const worstV = Math.max(settings.v, play.v, mid.v);
+    const worstH = Math.max(settings.h, play.h, mid.h);
+    const good = worstV === 0 && worstH === 0 && startInView && !ferr.length;
+    if (!good) failures++;
+    console.log(`    ${good ? '✅' : '❌'} ${f.padEnd(36)} scroll v=${worstV} h=${worstH} startInView=${startInView}${ferr.length ? ' ERR ' + ferr[0] : ''}`);
+  }
+  await floorCtx.close();
+
   await browser.close();
   if (failures) {
     console.error(`\n  ${failures} case(s) FAILED`);

@@ -43,12 +43,24 @@
      xl = between major regions (header vs play area).
      Genuinely optical values — a 3px nudge to clear a drop shadow, a
      -5px overhang on a fraction bar — are NOT spacing and stay literal;
-     forcing those onto the scale would be cargo-culting it. */
-  --space-xs: 8px;
-  --space-sm: 16px;
-  --space-md: 24px;
-  --space-lg: 32px;
-  --space-xl: 48px;
+     forcing those onto the scale would be cargo-culting it.
+
+     Fluid since the 1024x600 pass: at a 600px vertical floor these stacked
+     up and pushed "Start game" below the fold on 8 of 13 games. Each step
+     is now clamp(floor, 2-4vh, ceiling) — at 600px tall the vh term wins
+     and the whole page compresses; on a desktop the ceiling wins and
+     nothing looks cramped. The UI elements themselves are never squeezed;
+     the air between them goes first, which is the right order.
+     One accepted tradeoff: these tokens are used for HORIZONTAL gaps too
+     (.settings-grid's column gap), so a short-but-wide window tightens
+     those slightly more than it strictly needs to. Not worth a parallel
+     set of horizontal tokens — that trades a cosmetic issue for twice the
+     vocabulary, which is the clutter this scale exists to prevent. */
+  --space-xs: clamp(4px, 1vh, 8px);
+  --space-sm: clamp(8px, 1.6vh, 16px);
+  --space-md: clamp(10px, 2.4vh, 24px);
+  --space-lg: clamp(14px, 3.2vh, 32px);
+  --space-xl: clamp(20px, 4.8vh, 48px);
 
   /* --- type scale ---
      Real feedback: "Too much font is too small... Too many font sizes,
@@ -115,6 +127,20 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ---------- line height ----------
+   Two values, by role. Implicit/default line heights were letting elements
+   shift their container's height for reasons no rule in this file
+   accounted for. Headings and controls are single-line things that should
+   occupy exactly their own box; body text needs room to read. */
+h1, h2, h3, h4, .kicker, button, .chip, .stat-pill, .section-label,
+.hud-primary-label, .hud-primary-value, .badge, .variant-name {
+  line-height: 1.2;
+}
+p, .tagline, .desc-line, .desc-line-option, .variant-desc, #rules-box,
+.skill-stats, .skill-games, .hud-primary-sub, .feedback-msg {
+  line-height: 1.5;
+}
+
 /* ---------- page sizing model ----------
    Real design feedback: "Make minimum size a small iPad/tablet proportion.
    If bigger, dynamically grow to fit the screen. Only if smaller than the
@@ -130,15 +156,24 @@
    fine on a phone) rather than to the game layouts. */
 :root { --min-page-width: 768px; }
 
-html { min-height: 100%; }
+/* ZERO-SCROLL ARCHITECTURE (1024x600 floor).
+   html keeps the horizontal scrollbar for the sub-768px case; the VERTICAL
+   boundary is body's exact viewport height, with #app scrolling internally
+   if content ever genuinely exceeds it. Deliberately `auto`, not the
+   `overflow: hidden` the handoff specified: hidden makes overflow
+   invisible AND unreachable, so any page that didn't quite fit (a long
+   rules box, the 15-card Beeline menu) would silently lose content with no
+   way to get at it. `auto` gives the same hard outer boundary — the page
+   itself never exceeds the viewport — while failing safe. The compression
+   that makes things FIT is the clamp() spacing above, not the clipping. */
+html { height: 100%; overflow-x: auto; }
 body {
   font-family: var(--font-sans);
   background: var(--color-background-secondary);
   color: var(--color-text-primary);
-  min-height: 100vh;
+  height: 100vh; max-height: 100vh;
   /* Below the tablet floor, scroll — don't squeeze. `overflow-x: hidden`
-     here would CLIP that overflow instead of offering the scrollbar the
-     feedback asks for. */
+     here would CLIP that overflow instead of offering the scrollbar. */
   min-width: var(--min-page-width);
   display: flex;
   justify-content: center;
@@ -173,6 +208,10 @@ body {
 #app {
   max-width: 1100px; width: 100%; margin: 0 auto;
   display: flex; flex-direction: column;
+  /* min-height:0 is what actually lets a flex child COMPRESS instead of
+     forcing its parent taller — without it the clamp() spacing above has
+     nothing to compress into. */
+  min-height: 0; overflow-y: auto;
 }
 
 /* ---------- global navigation bar ----------
@@ -273,8 +312,8 @@ a.global-nav-item:hover, a.global-nav-item:focus-visible { background: var(--col
 }
 /* Explicit 4-up grid rather than letting 8 avatars flex-wrap, which left
    a ragged 6 + 2. */
-.avatar-modal .avatar-row { display: grid; grid-template-columns: repeat(4, auto); justify-content: center; gap: 10px; margin: 4px 0 14px; }
-@media (max-width: 380px) { .avatar-modal .avatar-row { grid-template-columns: repeat(3, auto); } }
+.avatar-modal .avatar-row { grid-template-columns: repeat(4, 1fr); gap: var(--space-xs); margin: 4px 0 var(--space-sm); }
+
 .avatar-modal-title { font-family: var(--font-sans); font-weight: 800; font-size: var(--text-md); text-align: center; margin-bottom: 10px; }
 
 /* Settings screen: the pills describe a game that isn't running yet, and
@@ -296,8 +335,16 @@ body.settings-active #top-bar { justify-content: flex-end; margin-bottom: var(--
    short group (one number input) and a tall one (chips plus a description)
    sit side by side instead of stacking into a long ragged column. */
 .settings-grid {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: var(--space-sm) var(--space-lg);
+  /* auto-fit rather than a hardcoded `1fr 1fr`. The handoff asked for two
+     columns; two is what this produces at the narrow end, but with THREE
+     setting groups (Pop: format, difficulty, target) a fixed 2-up leaves
+     the second cell of row 2 empty and costs a whole row of height — which
+     at the 600px floor is the difference between Start being on screen or
+     not. auto-fit packs 3 across once there's room and falls back to 2,
+     then 1, without another breakpoint. Columns stay exactly equal either
+     way, which is the alignment the handoff actually wanted. */
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-sm) var(--space-md);
   align-items: start;
 }
 /* A group that would look silly halved — a description stack that needs the
@@ -380,8 +427,9 @@ body:not(.settings-active) .stat-pill:not(.hud-utility *) b { font-size: var(--t
     flex: 1 1 auto;
     display: flex; flex-direction: column; justify-content: center;
     /* A floor for short viewports, so the frame stays a usable size even
-       when there isn't much height to hand out. */
-    min-height: 360px;
+       when there isn't much height to hand out — fluid, or at the 600px
+       tablet floor this floor is itself what overflows. */
+    min-height: clamp(220px, 40vh, 360px);
   }
 }
 /* The same stable frame for SINGLE-card games (Nim, Pop, Numbo,
@@ -391,7 +439,7 @@ body:not(.settings-active) .stat-pill:not(.hud-utility *) b { font-size: var(--t
 .play-frame:not(.hidden) {
   flex: 1 1 auto;
   display: flex; flex-direction: column; justify-content: center;
-  min-height: 360px;
+  min-height: clamp(220px, 40vh, 360px);
 }
 /* A two-column game (Scuttle's scorecard+play rail, Beeline's play+board)
    gets real room to grow into; a single-column game stays narrower, since
@@ -415,8 +463,14 @@ body:not(.settings-active) .stat-pill:not(.hud-utility *) b { font-size: var(--t
 /* LEFT-aligned, not centred: the page header sits on the far left, so
    centring the capped cards under it put the page on two different left
    edges — the "too many indents" half of the clutter feedback. One axis. */
+/* `width: 100%` + `margin-right: 0`, NOT `margin-right: auto`: these are
+   flex items of #app's column, and an auto margin on the cross axis stops
+   a flex item stretching — so the card shrank to its content, which made
+   the chip grid inside it collapse to one column, which made the card
+   narrower still. width:100% with the cap does the same visual job
+   (left-aligned, never wider than 820px) without that feedback loop. */
 #screen-settings, #variant-card,
-body.settings-active #top-bar { max-width: 820px; margin-left: 0; margin-right: auto; }
+body.settings-active #top-bar { width: 100%; max-width: 820px; margin-left: 0; margin-right: 0; }
 
 /* ---------- action stack ----------
    Every "advance the game" control — Roll dice, Lock in number, Next
@@ -438,7 +492,8 @@ body.settings-active #top-bar { max-width: 820px; margin-left: 0; margin-right: 
   border: var(--border-w) solid var(--color-ink);
   border-radius: 4px;
   box-shadow: var(--shadow-card);
-  padding: 1.4rem 1.2rem;
+  /* Fluid: chunky on a desktop, efficient at the 600px floor. */
+  padding: clamp(0.55rem, 2vh, 1.4rem) clamp(0.9rem, 2vw, 1.2rem);
   margin-bottom: var(--space-md);
 }
 /* A card demoted to a bare positioning wrapper — Beeline's #screen-game,
@@ -467,7 +522,7 @@ h1 {
   /* Raised from 23px via the type scale — real feedback: "the header
      banner is too small". Press Start 2P runs small for its point size,
      so a pixel H1 needs to sit a step above where a sans one would. */
-  line-height: 1.5;
+  line-height: 1.2;
   text-align: left;
   letter-spacing: -0.5px;
   color: var(--color-beast-red);
@@ -595,24 +650,8 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
    content-heavy game (Pop's two number groups, say) into vertical scroll.
    Tighten the chrome rather than the gameplay: the primary keeps its
    dedicated block and its hierarchy, just at a smaller scale. */
-/* 940px covers the ordinary laptop (900px tall) as well as an iPad in
-   LANDSCAPE (768px) — both are short enough that the header stack plus the
-   HUD's tier-1 block push a content-heavy game into vertical scroll once
-   the type scale raised every size. Tighten the chrome, never the
-   gameplay. The H1 deliberately does NOT shrink here: "the header banner
-   is too small" was the feedback that made it bigger in the first place,
-   and clawing it back on the most common screen size would undo exactly
-   that. */
-@media (max-height: 940px) {
-  .hud-primary { padding: var(--space-xs) var(--space-sm); margin-bottom: var(--space-xs); }
-  .hud-primary-value { font-size: var(--text-2xl); }
-  .hud-primary-value.is-text { font-size: var(--text-lg); }
-  .kicker-wrap { margin-top: 4px; margin-bottom: 4px; }
-  .tagline { margin-bottom: var(--space-xs); }
-  #top-bar { margin-bottom: var(--space-xs); }
-  .card { padding: 1rem; }
-  #variant-card { margin-bottom: var(--space-xs); }
-}
+
+
 
 /* Tier 3. Deliberately stripped of the pixel-shadow button language: these
    are chrome, and giving them the same tactile weight as Roll Dice is what
@@ -784,15 +823,35 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
 .menu-section-head:first-child { margin-top: 0; }
 
 /* ---------- settings screen scaffolding ---------- */
-.section-label { font-family: var(--font-sans); font-weight: 700; font-size: var(--text-md); letter-spacing: 0.6px; color: var(--color-text-secondary); margin-bottom: 6px; text-transform: uppercase; }
+.section-label { font-family: var(--font-sans); font-weight: 700; font-size: var(--text-sm); letter-spacing: 0.6px; color: var(--color-text-secondary); margin-bottom: 6px; text-transform: uppercase; }
 /* Centered, natural-width chips. `flex: 1` used to stretch each chip to
    fill the row, so "Easy / Medium / Hard" spread across the full card
    width — three buttons far wider than their labels need, left-aligned
    against a lot of empty space. Chips are now sized to their content and
    the row is centered, which also keeps a 3-chip row and a 6-chip row
    looking like the same control. */
-.chip-row { display: flex; gap: 8px; margin: 4px 0 10px; flex-wrap: wrap; justify-content: center; }
-.chip-row button, .chip-row a.chip, .chip-row span.chip { flex: 0 0 auto; min-width: 88px; }
+/* A GRID of equal columns, not content-sized flex items. Centring each
+   chip on its own text meant a 2-chip row, a 3-chip row and a 6-chip row
+   all had different edges, so nothing in the settings card lined up
+   vertically with anything else — the "staircase" the design handoff
+   named. `grid-auto-flow: column` + `grid-auto-columns: 1fr` gives N equal
+   columns for ANY n without hardcoding a count per row, which matters
+   because these rows range from 2 (Pop's formats) to 6 (Beeline's
+   variants). */
+.chip-row {
+  /* auto-fit, not `grid-auto-flow: column`. Forcing every chip onto one
+     row gave equal widths but CLIPPED the labels once a column got narrow
+     ("MEDIUM" ran under "HARD" at three settings columns). auto-fit keeps
+     the equal widths — empty tracks collapse, so N chips become exactly N
+     equal columns — while allowing a wrap instead of an overlap when the
+     labels genuinely don't fit. 84px is the widest chip label in the
+     project ("MEDIUM" at --text-md) plus its padding. */
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: var(--space-xs); margin: 4px 0 var(--space-xs);
+}
+.chip-row button, .chip-row a.chip, .chip-row span.chip {
+  width: 100%; min-width: 0; padding-left: 4px; padding-right: 4px;
+}
 .desc-line { font-family: var(--font-sans); font-size: var(--text-sm); color: var(--color-text-secondary); min-height: 32px; margin-bottom: 12px; line-height: 1.4; }
 /* Option-description stability: when a settings chip (format, difficulty,
    ...) swaps in one of several DIFFERENT-LENGTH description strings, sizing
@@ -820,15 +879,15 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
 .desc-line-stack .desc-line-option.active { visibility: visible; }
 .target-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .target-row input {
-  width: 95px; font-size: var(--text-lg); font-family: var(--font-sans); font-weight: 700; text-align: center;
+  width: 110px; font-size: var(--text-xl); font-family: var(--font-sans); font-weight: 800; text-align: center;
   padding: 6px; border: 2px solid var(--color-ink); border-radius: 4px; box-shadow: var(--shadow-sm);
   background: var(--color-background-primary); color: var(--color-text-primary);
 }
-label.small { font-family: var(--font-sans); font-size: var(--text-sm); color: var(--color-text-secondary); }
+label.small { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--color-text-secondary); }
 
 #rules-box { font-family: var(--font-sans); font-size: var(--text-sm); line-height: 1.6; color: var(--color-text-secondary); }
 #rules-box strong { color: var(--color-text-primary); }
-#how-link { display: block; text-align: center; font-family: var(--font-sans); text-transform: none; letter-spacing: normal; font-weight: 500; font-size: var(--text-sm); color: var(--color-text-tertiary); margin-top: 10px; background: none; border: none; box-shadow: none; text-decoration: underline; padding: 4px; }
+#how-link { display: block; text-align: center; font-family: var(--font-sans); text-transform: none; letter-spacing: normal; font-weight: 500; font-size: var(--text-sm); color: var(--color-text-tertiary); margin-top: var(--space-xs); background: none; border: none; box-shadow: none; text-decoration: underline; padding: 4px; }
 #how-link:active { transform: none; }
 
 /* ---------- avatars ----------
@@ -839,7 +898,12 @@ label.small { font-family: var(--font-sans); font-size: var(--text-sm); color: v
    for it. Picker (settings screen) uses the larger .avatar-slot tiles;
    .avatar-badge is the small inline thumbnail reused in the top bar and
    the scoreboard header. */
-.avatar-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 10px; }
+/* Strict 4-up grid, never arbitrary wrapping — the handoff's alignment
+   point. NOTE: the picker itself lives in a MODAL behind "Choose avatar"
+   (see initSettingsChrome), not inline in the settings card, so it has no
+   settings column to align its outer edge against; equal columns inside
+   the modal is what that instruction actually amounts to here. */
+.avatar-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-xs); margin: 4px 0 var(--space-xs); justify-items: center; }
 .avatar-col { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .avatar-slot {
   width: 52px; height: 52px; border: 3px solid var(--color-ink); border-radius: 6px;
@@ -920,7 +984,7 @@ label.small { font-family: var(--font-sans); font-size: var(--text-sm); color: v
 .answer-row { display: flex; justify-content: center; align-items: center; gap: var(--space-xs); margin-bottom: var(--space-xs); flex-wrap: wrap; }
 .answer-row label { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 600; color: var(--color-text-secondary); }
 .answer-input {
-  width: 120px; font-size: var(--text-lg); text-align: center; font-family: var(--font-sans); font-weight: 800;
+  width: 130px; font-size: var(--text-xl); text-align: center; font-family: var(--font-sans); font-weight: 800;
   padding: 8px; border: 2px solid var(--color-ink); border-radius: 4px; box-shadow: var(--shadow-sm);
   background: var(--color-background-primary); color: var(--color-text-primary);
 }
@@ -1132,3 +1196,94 @@ label.small { font-family: var(--font-sans); font-size: var(--text-sm); color: v
   color: var(--color-text-secondary); line-height: 1.5;
 }
 .skill-games { margin-top: 3px; }
+
+/* ---------- trailing margin ----------
+   The LAST card on a page has nothing under it, so its bottom margin is
+   pure dead space — and at the 600px floor that margin alone was the
+   difference between fitting and not on all four Pop games. */
+/* NOTE `:last-child` alone does NOT work here: a game's hidden
+   #screen-compute / #screen-reveal are still the literal last children, so
+   the rule landed on an invisible card while the visible one kept its
+   margin. Target the play frames themselves. */
+#app > .card:last-child,
+.play-main > .card,
+.play-frame { margin-bottom: 0; }
+
+/* ==========================================================================
+   SHORT-VIEWPORT TIERS — these live at the END of the file on purpose.
+   They override ordinary rules by source order, not specificity: a
+   single-class rule like `.feedback-msg { margin: 8px 0 }` defined LATER in
+   the file was silently beating the identical-specificity override inside
+   these media queries, so several of the trims below were doing nothing at
+   all until this block moved down here. Anything added to them must stay
+   below every rule it intends to override.
+   ========================================================================== */
+
+@media (max-height: 940px) {
+  .hud-primary { padding: var(--space-xs) var(--space-sm); margin-bottom: var(--space-xs); }
+  .hud-primary-value { font-size: var(--text-2xl); }
+  .hud-primary-value.is-text { font-size: var(--text-lg); }
+  .kicker-wrap { margin-top: 4px; margin-bottom: 4px; }
+  .tagline { margin-bottom: var(--space-xs); }
+  #top-bar { margin-bottom: var(--space-xs); }
+  #variant-card { margin-bottom: var(--space-xs); }
+}
+
+@media (max-height: 640px) {
+  :root { --nav-height: 44px; }
+  /* The title, kicker and tagline collapse from three stacked lines into
+     one row — recovers a full line without hiding the variant name. */
+  .page-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-sm); }
+  /* The tier-1 block becomes a compact inline strip rather than a banner:
+     same information, same warn colouring, a third of the height. It stays
+     tier 1 — it is still the only thing on the row and still the largest
+     type in the header — it just stops paying for a stacked layout. */
+  .hud-primary.hud-primary-band {
+    display: inline-flex; align-items: baseline; gap: var(--space-xs);
+    max-width: none; width: max-content;
+  }
+  .hud-primary.hud-primary-band .hud-primary-label { margin-bottom: 0; }
+  /* The variant picker's own card costs ~113px for a single row of chips:
+     a label, the row, two lots of padding and a 4px border. At this height
+     that's a sixth of the whole budget, so the label goes inline with the
+     chips and the card collapses to just the row. It keeps its separate
+     card (variant is still a high-impact choice) — it just stops paying
+     for a stacked layout it doesn't need. */
+  #variant-card { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) var(--space-sm); }
+  #variant-card .section-label { margin-bottom: 0; white-space: nowrap; }
+  /* flex-basis 0, not auto: with `auto` the grid's max-content (one
+     84px column) became the flex base size and the row collapsed to a
+     single stacked column of variants. */
+  #variant-card .chip-row { flex: 1 1 0; min-width: 0; margin: 0; }
+  .section-label { margin-bottom: 2px; }
+  .desc-line-stack, .desc-line { margin-bottom: var(--space-xs); }
+  /* The target input and its helper wrapped onto two lines once the input
+     went up to --text-xl. Keep them on one. */
+  .target-row { margin-bottom: var(--space-xs); flex-wrap: nowrap; }
+  .target-row input { width: 92px; padding: 2px 4px; }
+  .target-row label.small { line-height: 1.25; }
+  /* Controls keep their full font size — only the air inside them goes. */
+  .chip-row button, .chip-row a.chip, .chip-row span.chip,
+  .settings-footer button { padding-top: 0.4rem; padding-bottom: 0.4rem; }
+  .avatar-choose-btn { margin: 0; }
+  .avatar-choose-btn img { width: 22px; height: 22px; }
+  /* The kicker names the current variant — which, on the settings screen,
+     the highlighted variant chip right below it already says. Redundant
+     only THERE, so it's scoped to settings rather than hidden outright:
+     in play it's the only thing naming the variant. */
+  body.settings-active .kicker-wrap { display: none; }
+  .settings-footer { margin-top: var(--space-xs); padding-top: var(--space-xs); gap: var(--space-xs); }
+  .btn-row { margin-top: var(--space-xs); }
+  .action-stack { margin-top: var(--space-xs); }
+  .feedback-msg { margin: 2px 0; }
+  .legend { margin-bottom: 4px; }
+  .settings-grid { gap: var(--space-xs) var(--space-md); }
+  .hud-primary-value { font-size: var(--text-lg); }
+  .hud-primary-value.is-text { font-size: var(--text-md); }
+  .hud-primary { padding: 4px var(--space-xs); border-width: 2px; }
+  .hud-primary-label { font-size: var(--text-xs); margin-bottom: 0; }
+  .hud-primary-sub { display: none; }
+  h1 { font-size: var(--text-lg); }
+  .kicker { padding: 3px 10px; }
+  .tagline { display: none; }
+}

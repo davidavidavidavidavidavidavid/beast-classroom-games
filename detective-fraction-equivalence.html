@@ -37,7 +37,7 @@
        — no LEVELS entry ever exceeds 2 digits per part, maxAns <= 99 always
        — not a guess) that nothing below #input-wrap can ever jump, rather
        than a fix for a jump that was empirically happening. */
-    min-height: 108px;
+    min-height: clamp(80px, 14vh, 108px);
   }
   /* Input-left / history-right layout — see this file's own HTML comment
      above .game-columns for the full reasoning. Side by side above
