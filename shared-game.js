@@ -478,6 +478,72 @@ function renderStatsLauncher(){
   });
 }
 
+/* ---------------- rules launcher ----------------------------------------
+   Real design direction: the inline "How does this game work?" text link
+   was getting lost at the bottom of the settings card, and it was only
+   reachable THERE — a student mid-round who forgot the rule had to leave
+   the game to read it. It becomes a persistent corner button instead,
+   mirroring #stats-launcher on the opposite side, and opens the game's own
+   #rules-box in a modal so the current layout is never disturbed.
+
+   The rules text itself is NOT duplicated: #rules-box stays exactly where
+   each game already wrote it, and this MOVES that node into the modal the
+   first time the button is used. One copy, each game still owns its own
+   wording, nothing to keep in sync. Games with no #rules-box (the hub, the
+   sub-menus, stats-demo) get no button at all. */
+function rulesModalEl(rulesBox){
+  const backdrop = document.createElement('div');
+  backdrop.id = 'rules-modal-backdrop';
+  backdrop.className = 'explain-modal-backdrop hidden';
+  const modal = document.createElement('div');
+  modal.className = 'explain-modal';
+  const title = document.createElement('div');
+  title.className = 'explain-modal-title';
+  title.textContent = 'How does this game work?';
+  modal.appendChild(title);
+
+  // Move, don't copy — see the header comment.
+  rulesBox.classList.remove('hidden');
+  modal.appendChild(rulesBox);
+
+  const close = document.createElement('button');
+  close.className = 'primary explain-modal-continue-btn';
+  close.id = 'rules-modal-close-btn';
+  close.textContent = 'Got it';
+  close.addEventListener('click', () => backdrop.classList.add('hidden'));
+  modal.appendChild(close);
+
+  backdrop.appendChild(modal);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.classList.add('hidden'); });
+  return backdrop;
+}
+
+function renderRulesLauncher(){
+  if (document.getElementById('rules-launcher')) return;
+  const rulesBox = document.getElementById('rules-box');
+  if (!rulesBox) return;
+  const btn = document.createElement('button');
+  btn.id = 'rules-launcher';
+  btn.type = 'button';
+  btn.title = 'How does this game work?';
+  btn.setAttribute('aria-label', 'How does this game work?');
+  // Inline SVG, not a text "?" — a glyph in the button's own uppercase
+  // font would inherit the button type styling and sit off-centre.
+  btn.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.4"></circle>' +
+    '<path d="M9.2 9.3a2.9 2.9 0 1 1 3.6 2.8c-.6.2-.9.7-.9 1.3v.6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>' +
+    '<circle cx="12" cy="17.4" r="1.4" fill="currentColor"></circle></svg>';
+  document.body.appendChild(btn);
+  btn.addEventListener('click', () => {
+    let backdrop = document.getElementById('rules-modal-backdrop');
+    if (!backdrop){
+      backdrop = rulesModalEl(rulesBox);
+      document.body.appendChild(backdrop);
+    }
+    backdrop.classList.remove('hidden');
+  });
+}
+
 /* ---------------- menu sections ----------------------------------------
    Splits any .variant-list into "Playable now" / "Coming soon" instead of
    running both tiers together and leaving a footnote at the bottom as the
@@ -1337,6 +1403,7 @@ function renderGlobalNav(currentKey){
 
   document.body.insertBefore(nav, document.body.firstChild);
   renderStatsLauncher(); // corner stats glyph, on every page
+  renderRulesLauncher(); // corner rules glyph, on every page that has rules
 }
 
 // `renderVariantSwitcher(containerId, currentKey, currentHref)` — the

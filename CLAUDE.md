@@ -2682,6 +2682,59 @@ from the 940px tightening — "the header banner is too small" was the
 feedback that made it bigger, and clawing it back on the commonest screen
 size would undo exactly that.
 
+## Settings screen: capped, centred, and the rules launcher
+
+**Cards capped at 820px and CENTRED.** Uncapped on a large monitor the
+chips stretch into distorted bars — a settings form has a natural maximum
+useful width. Centring rather than left-aligning is what stops the cap
+simply moving the void to the right-hand side.
+
+This is the third position this cap has been in, so the reasoning matters:
+it was 820px left-aligned, then removed entirely (it was leaving a void),
+now 820px centred. What makes centred work where left-aligned didn't is
+that **the header block centres with it** (`body.settings-active` only) —
+the "two different left edges" problem was never the cap, it was capping
+the cards while the header stayed left. In PLAY everything remains
+left-aligned and full-width.
+
+**Capped card means capped padding — they are one decision.** `.card`'s
+horizontal padding grows to `3vw`, sized for a card that can be 1600px
+wide. Left at that inside an 820px card it ate ~77px of a fixed width and
+squeezed the variant chips until "Addition & Subtraction" wrapped to a
+second line, pushing the settings screen back into scrolling at 1280x800 —
+a constraint set two passes earlier. If you ever cap a container's width,
+cap its fluid padding in the same edit.
+
+**Header rhythm** comes from the spacing scale: `--space-xs` under the h1,
+`--space-sm` under the kicker, `--space-md` under the tagline (that last
+gap separates two regions, not two lines of one block). The kicker is
+`inline-flex` with `align-self: flex-start` — without the `align-self` a
+flex child stretches, and the badge becomes a full-width bar.
+
+### Persistent rules launcher
+
+The inline "How does this game work?" link was reachable only from the
+settings card, so a student who forgot a rule mid-round had to leave the
+game. It is now `#rules-launcher`, a fixed bottom-LEFT button mirroring
+`#stats-launcher` bottom-right — they share one rule set in
+design-system.css, differing only in side and glyph.
+
+**The rules text is MOVED into the modal, not copied.** Each game still
+owns its own `#rules-box` wording exactly where it wrote it; the modal
+takes that node on first open. One copy, nothing to keep in sync — the
+test asserts `copies === 1`.
+
+`#how-link` was deleted from all 19 files: the markup, its click handler
+(which existed in three different syntactic forms across the files), and
+its now-dead CSS. A page with no `#rules-box` (the hub, the sub-menus)
+gets no button at all.
+
+**Injected from `renderGlobalNav()`, not `DOMContentLoaded`** — same as
+`renderStatsLauncher()`, and for the same reason: every page calls
+`renderGlobalNav` inline, whereas `DOMContentLoaded` fires too late for
+the jsdom harness to see the button (see the loader note in Testing
+methodology).
+
 ## Information hierarchy — three tiers, on every game's status area
 
 Real design feedback: the status row gave the number that DEFINES the win

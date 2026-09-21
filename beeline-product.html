@@ -91,7 +91,6 @@
       <button class="chip" data-diff="hard">Hard</button>
     </div>
     <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
-    <button id="how-link">How does this game work?</button>
     <div id="rules-box" class="hidden" style="margin-top:8px;">
       You go first. On your first turn, place <strong>both</strong> tokens anywhere on the 1–9 row below
       (they can both go on the same number) — that's your product, so mark it on the grid above. From then
@@ -473,7 +472,6 @@ function renderDiffChips(){
 document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
 });
-el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
 el('start-btn').addEventListener('click', ()=>{
   st.score = { human:0, bot:0, ties:0 };
   updateScorePills();

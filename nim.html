@@ -69,7 +69,6 @@
       <button class="chip" data-diff="hard">Hard</button>
     </div>
     <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
-    <button id="how-link">How does this game work?</button>
     <div id="rules-box" class="hidden" style="margin-top:8px;">
       The total starts at 0. Taking turns, each player adds <strong>1 or 2</strong> to the total —
       your choice, no dice involved. The instant the total reaches <strong>10 or more</strong>, whoever
@@ -273,7 +272,6 @@ function renderDiffChips(){
 document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
 });
-el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
 el('start-btn').addEventListener('click', ()=>{
   st.score = { human:0, bot:0 };
   updateScorePills(st.score);

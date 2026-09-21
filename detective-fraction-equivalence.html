@@ -100,7 +100,6 @@
     </div>
   </div>
 
-  <button id="how-link">How does this game work?</button>
   <div id="rules-box" class="hidden" style="margin-bottom:8px;">
     A target fraction is hidden. Build <strong>any equivalent fraction</strong> — same value, different-looking
     — one digit at a time. Each guess must actually be a true equation (cross-multiply to check), and each
@@ -369,7 +368,6 @@ function showScreen(name) {
   });
 }
 
-el('how-link').addEventListener('click', () => { el('rules-box').classList.toggle('hidden'); });
 
 /* ---------------- rendering ---------------- */
 function renderInputSlots() {

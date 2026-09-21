@@ -92,7 +92,6 @@
       <button id="random-target-btn">Random target</button>
       <button class="primary" id="start-btn">Start game</button>
     </div>
-    <button id="how-link">How does this game work?</button>
     <div id="rules-box" class="hidden" style="margin-top:8px;">
       Each round, roll three digits and arrange them into a 3-digit number — you choose which digit goes in the
       hundreds, tens, and ones place. (The hundreds place can't be a 0, unless every digit you rolled is a 0.)
@@ -369,9 +368,6 @@ document.querySelectorAll('.chip-row [data-diff]').forEach(btn=>{
 });
 el('random-target-btn').addEventListener('click', ()=>{
   el('target-input').value = 100 + randInt(900);
-});
-el('how-link').addEventListener('click', ()=>{
-  el('rules-box').classList.toggle('hidden');
 });
 el('start-btn').addEventListener('click', ()=>{
   const t = parseInt(el('target-input').value, 10);

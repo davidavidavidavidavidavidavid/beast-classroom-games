@@ -571,12 +571,102 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   check('type scale: no raw px font sizes outside the :root scale (use var(--text-*))',
     offenders.length === 0, offenders.join(' | '));
 
-  // The floor was 10px. Nothing should be able to go below 13px again.
+  // The floor was 10px. Nothing may go below 13px again — and the steps
+  // are CSS locks now, so read the clamp() floor/ceiling rather than a
+  // bare px value. Two things matter: the floor (what renders at the
+  // 1024x600 tablet floor) and MONOTONICITY (a step whose ceiling
+  // overtakes the next step's would invert the hierarchy on wide screens
+  // — exactly what would have happened had only the four steps the
+  // handoff named been made fluid).
   const ds = fs2.readFileSync(path2.join(root, 'design-system.css'), 'utf8');
-  const xs = ds.match(/--text-xs:\s*(\d+)px/);
+  const STEPS = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl'];
+  const range = (name) => {
+    const m = ds.match(new RegExp('--text-' + name.replace('2xl', '2xl') + ':\\s*([^;]+);'));
+    if (!m) return null;
+    // Greedy middle on purpose: a clamp's centre term can contain its own
+    // commas — min(1vw, 1.5vh) — and a [^,]+ middle matches none of them,
+    // reporting every step "unparseable" while the ordering check below
+    // silently passes on an empty set. A parser bug that disables the
+    // assertion it feeds is worse than no assertion.
+    const c = m[1].match(/clamp\(\s*([0-9.]+)px\s*,.+,\s*([0-9.]+)px\s*\)/);
+    if (c) return { min: Number(c[1]), max: Number(c[2]) };
+    const plain = m[1].match(/^\s*([0-9.]+)px\s*$/);
+    return plain ? { min: Number(plain[1]), max: Number(plain[1]) } : null;
+  };
+  const ranges = STEPS.map(n => ({ n, r: range(n) }));
+  const missing = ranges.filter(x => !x.r).map(x => x.n);
+  check('type scale: every step parses as a px value or a clamp() lock',
+    missing.length === 0, 'unparseable: ' + missing.join(', '));
+  const xs = ranges[0].r;
   check('type scale: the smallest step is at least 13px ("too much font is too small")',
-    !!xs && Number(xs[1]) >= 13, xs ? xs[1] + 'px' : 'missing');
+    !!xs && xs.min >= 13, xs ? xs.min + 'px' : 'missing');
+  const inversions = [];
+  for (let i = 1; i < ranges.length; i++) {
+    const a = ranges[i - 1].r, b = ranges[i].r;
+    if (!a || !b) continue;
+    if (!(b.min > a.min && b.max > a.max)) inversions.push(`${ranges[i - 1].n} -> ${ranges[i].n}`);
+  }
+  check('type scale: steps stay strictly ordered at BOTH ends of their fluid range (no inversion on wide screens)',
+    inversions.length === 0, inversions.join(', '));
 }
+
+/* ---------------- persistent rules launcher ------------------------------
+   The inline "How does this game work?" link was only reachable from the
+   settings card; it is now a corner button reachable at any point, opening
+   the game's own #rules-box in a modal. Two things worth pinning: that the
+   rules text is MOVED rather than duplicated (one copy, each game still
+   owns its own wording), and that it opens MID-GAME, which is the whole
+   point of the change. */
+['scuttle-addition-subtraction.html', 'pop-addition.html', 'beeline-product.html', 'nim.html', 'detective-fraction-equivalence.html'].forEach(file => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => {
+    const btn = document.getElementById('rules-launcher');
+    if (!btn) return { hasLauncher: false };
+    const before = {
+      // The old inline link must be gone everywhere.
+      howLink: !!document.getElementById('how-link'),
+      rulesInCard: !!document.querySelector('#screen-settings #rules-box'),
+      modal: !!document.getElementById('rules-modal-backdrop'),
+    };
+    btn.click();
+    const bd = document.getElementById('rules-modal-backdrop');
+    const boxes = document.querySelectorAll('#rules-box');
+    return {
+      hasLauncher: true, before,
+      opened: !!bd && !bd.classList.contains('hidden'),
+      rulesInModal: !!document.querySelector('#rules-modal-backdrop #rules-box'),
+      copies: boxes.length,
+      textLen: boxes.length ? boxes[0].textContent.trim().length : 0,
+    };
+  });
+  check(`${file}: has a persistent rules launcher and no inline "how does this work" link`,
+    r.hasLauncher === true && r.before.howLink === false, JSON.stringify(r));
+  check(`${file}: clicking it opens the game's own rules, moved (not copied) into the modal`,
+    r.opened === true && r.rulesInModal === true && r.copies === 1 && r.textLen > 80, JSON.stringify(r));
+});
+
+// Reachable mid-game, not just from settings — the reason it moved.
+{
+  const dom = loadGame('scuttle-addition-subtraction.html');
+  const r = runInPage(dom, () => {
+    el('start-btn').click();
+    document.getElementById('rules-launcher').click();
+    const bd = document.getElementById('rules-modal-backdrop');
+    const open = !!bd && !bd.classList.contains('hidden');
+    document.getElementById('rules-modal-close-btn').click();
+    return { open, closed: bd.classList.contains('hidden'), stillOnRound: !document.getElementById('screen-round').classList.contains('hidden') };
+  });
+  check('rules launcher: opens mid-game and closes again without disturbing the current screen',
+    r.open === true && r.closed === true && r.stillOnRound === true, JSON.stringify(r));
+}
+
+// Pages with no rules of their own must not get an empty button.
+['index.html', 'pop-menu.html'].forEach(file => {
+  const dom = loadGame(file);
+  const r = runInPage(dom, () => ({ launcher: !!document.getElementById('rules-launcher'), box: !!document.getElementById('rules-box') }));
+  check(`${file}: no rules launcher (this page has no #rules-box to show)`,
+    r.launcher === false && r.box === false, JSON.stringify(r));
+});
 
 /* ---------------- settings in two columns --------------------------------
    Real feedback: "pop settings page is too cluttered - lots of rows of

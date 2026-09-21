@@ -72,7 +72,6 @@
     </div>
   </div>
 
-  <button id="how-link">Where would this data actually come from?</button>
   <div id="rules-box" class="hidden card" style="margin-top:8px;">
     Nothing yet — this page renders the fixed sample rows below, hardcoded in its
     own script, so the layout/visual design can be reviewed before any real
@@ -119,9 +118,6 @@ function renderStatRows() {
 }
 renderStatRows();
 
-document.getElementById('how-link').addEventListener('click', () => {
-  document.getElementById('rules-box').classList.toggle('hidden');
-});
 </script>
 </body>
 </html>

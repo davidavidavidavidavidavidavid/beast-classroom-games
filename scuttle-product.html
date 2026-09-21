@@ -109,7 +109,6 @@
       <label class="small">smallest sum over this number wins</label>
     </div>
     <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
-    <button id="how-link">How does this game work?</button>
     <div id="rules-box" class="hidden" style="margin-top:8px;">
       Each round, roll the dice and split the digits into <strong>two numbers</strong> — you choose which digits go
       where, and in what order. (No number can start with a 0 unless every digit you rolled is a 0.) Multiply your
@@ -412,7 +411,6 @@ document.querySelectorAll('#avatar-row [data-avatar]').forEach(node=>{
   node.addEventListener('click', ()=>{ st.avatar = node.dataset.avatar; renderAvatarPicker(); renderAvatarBadges(); });
 });
 renderAvatarPicker();
-el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
 el('start-btn').addEventListener('click', ()=>{
   const t = parseInt(el('target-input').value, 10);
   st.target = isNaN(t) ? FORMATS[st.format].target : Math.max(0, t);

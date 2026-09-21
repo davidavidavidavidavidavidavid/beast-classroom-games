@@ -84,7 +84,6 @@
       <label class="small">land as close as you can without going over</label>
     </div>
     <div class="btn-row"><button class="primary" id="start-btn">Start game</button></div>
-    <button id="how-link">How does this game work?</button>
     <div id="rules-box" class="hidden" style="margin-top:8px;">
       The die is rolled one digit at a time — everyone sees the same digit at once. Each time a digit
       comes up, write it into one of <strong>your own</strong> remaining blanks: an inside blank (it
@@ -455,7 +454,6 @@ function renderDiffChips(){
 document.querySelectorAll('#diff-row [data-diff]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ st.difficulty = btn.dataset.diff; renderDiffChips(); });
 });
-el('how-link').addEventListener('click', ()=>{ el('rules-box').classList.toggle('hidden'); });
 el('start-btn').addEventListener('click', ()=>{
   const fmt = FORMATS[st.format];
   const t = parseInt(el('target-input').value, 10);

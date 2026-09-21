@@ -73,7 +73,7 @@ function checkDesignSystemCss() {
    reservation's floor and ceiling both cover the thing being reserved for. */
 function lengthRange(decl) {
   if (!decl) return null;
-  const clamp = decl.match(/clamp\(\s*([0-9.]+)px\s*,[^,]+,\s*([0-9.]+)px\s*\)/);
+  const clamp = decl.match(/clamp\(\s*([0-9.]+)px\s*,.+,\s*([0-9.]+)px\s*\)/);
   if (clamp) return { min: Number(clamp[1]), max: Number(clamp[2]) };
   const plain = decl.match(/^\s*([0-9.]+)px\s*$/);
   return plain ? { min: Number(plain[1]), max: Number(plain[1]) } : null;
