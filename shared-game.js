@@ -478,6 +478,67 @@ function renderStatsLauncher(){
   });
 }
 
+/* ---------------- generic info modal ------------------------------------
+   A one-sentence explanation that doesn't earn permanent space on screen.
+   Reuses the .explain-modal shell, same as the rules modal. */
+function openInfoModal(title, text){
+  let backdrop = document.getElementById('info-modal-backdrop');
+  if (!backdrop){
+    backdrop = document.createElement('div');
+    backdrop.id = 'info-modal-backdrop';
+    backdrop.className = 'explain-modal-backdrop hidden';
+    const modal = document.createElement('div');
+    modal.className = 'explain-modal';
+    const h = document.createElement('div');
+    h.className = 'explain-modal-title';
+    h.id = 'info-modal-title';
+    const body = document.createElement('div');
+    body.className = 'info-modal-body';
+    body.id = 'info-modal-body';
+    const close = document.createElement('button');
+    close.className = 'primary explain-modal-continue-btn';
+    close.id = 'info-modal-close-btn';
+    close.textContent = 'Got it';
+    close.addEventListener('click', () => backdrop.classList.add('hidden'));
+    modal.appendChild(h); modal.appendChild(body); modal.appendChild(close);
+    backdrop.appendChild(modal);
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.classList.add('hidden'); });
+    document.body.appendChild(backdrop);
+  }
+  document.getElementById('info-modal-title').textContent = title;
+  document.getElementById('info-modal-body').textContent = text;
+  backdrop.classList.remove('hidden');
+}
+
+/* The tiny grey "the number to land closest to" next to a target input was
+   clutter that also broke the row's grid alignment — it wrapped under the
+   field and made that cell taller than its neighbours. It becomes an info
+   button beside the input instead.
+
+   The helper TEXT is read off the label each game already wrote, then the
+   label is removed — so no wording is duplicated into shared code and each
+   game keeps saying its own thing (Pop's "without going over" is not
+   Scuttle's "land closest to"). Runtime, so no game markup changed. */
+function initTargetInfo(){
+  const probe = document.createElement && document.createElement('div');
+  if (!probe || !probe.children || !document.body) return;
+  document.querySelectorAll('.target-row').forEach(row => {
+    if (row.querySelector('.info-btn')) return;
+    const label = row.querySelector('label.small');
+    if (!label) return;
+    const text = (label.textContent || '').trim();
+    label.remove();
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'icon-btn info-btn';
+    btn.textContent = 'i';
+    btn.setAttribute('aria-label', 'More info');
+    btn.title = text;
+    btn.addEventListener('click', () => openInfoModal('Target number', text));
+    row.appendChild(btn);
+  });
+}
+
 /* ---------------- rules launcher ----------------------------------------
    Real design direction: the inline "How does this game work?" text link
    was getting lost at the bottom of the settings card, and it was only
@@ -529,10 +590,13 @@ function renderRulesLauncher(){
   btn.setAttribute('aria-label', 'How does this game work?');
   // Inline SVG, not a text "?" — a glyph in the button's own uppercase
   // font would inherit the button type styling and sit off-centre.
+  // An open book, not a "?" — a question mark universally reads as
+  // "help/support", and this is the game's own manual. Same viewBox,
+  // stroke weight and currentColor handling as the stats glyph opposite.
   btn.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">' +
-    '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.4"></circle>' +
-    '<path d="M9.2 9.3a2.9 2.9 0 1 1 3.6 2.8c-.6.2-.9.7-.9 1.3v.6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>' +
-    '<circle cx="12" cy="17.4" r="1.4" fill="currentColor"></circle></svg>';
+    '<path d="M3 5.2h5.4c1.5 0 2.7.6 3.6 1.6.9-1 2.1-1.6 3.6-1.6H21v12.1h-5.4c-1.5 0-2.7.6-3.6 1.6-.9-1-2.1-1.6-3.6-1.6H3z" ' +
+    'fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>' +
+    '<path d="M12 6.8v12.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>';
   document.body.appendChild(btn);
   btn.addEventListener('click', () => {
     let backdrop = document.getElementById('rules-modal-backdrop');
@@ -1404,6 +1468,7 @@ function renderGlobalNav(currentKey){
   document.body.insertBefore(nav, document.body.firstChild);
   renderStatsLauncher(); // corner stats glyph, on every page
   renderRulesLauncher(); // corner rules glyph, on every page that has rules
+  initTargetInfo();      // target helper text -> an info button + modal
 }
 
 // `renderVariantSwitcher(containerId, currentKey, currentHref)` — the

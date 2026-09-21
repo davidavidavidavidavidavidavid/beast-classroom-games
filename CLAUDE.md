@@ -2735,6 +2735,63 @@ gets no button at all.
 the jsdom harness to see the button (see the loader note in Testing
 methodology).
 
+## Control language: buttons vs text fields
+
+**An outset pixel shadow is this project's "press me" signal.** A text
+input wearing one reads as a broken button, which is exactly what happened.
+Fields are ENGRAVED instead — `box-shadow: inset 3px 3px 0 rgba(0,0,0,0.08)`
+on a recessed `--color-input-bg` ground (tokenised, with a dark-mode
+value). No new colour was invented for it.
+
+**Matching an input's height to a button's cannot be done with padding.**
+An input carries a 2px border against a button's 4px AND a much larger font
+(`--text-xl` vs `--text-md`), so equal padding gives unequal boxes and every
+settings row's baseline goes ragged. `--control-h`
+(`calc(8px + 2.5 * var(--text-md))` — the button's own geometry: 2x4px
+border + 2x0.65em padding + 1.2 line-height) is applied as `min-height` to
+both. Measured identical at 57.5px. Use this token for any future control
+that has to sit in a row with a button.
+
+`.icon-btn` is a small circular affordance (the target field's info
+button) deliberately OUTSIDE the pixel-shadow language: it sits beside a
+field and explains it, rather than being an action in its own right.
+
+**Helper text moved into an info modal.** The grey "the number to land
+closest to" beside a target input was clutter that also broke the row's
+grid alignment by wrapping under the field. `initTargetInfo()` READS that
+text off the label each game already wrote, removes the label, and wires an
+info button to a modal — so no wording is duplicated into shared code and
+Pop still says "without going over" while Scuttle says "land closest to".
+Same move-don't-copy discipline as the rules modal.
+
+**The kicker is a label, not a button** — flat, tinted
+(`--color-beast-blue-bg`), 1px tertiary border, no shadow. It names the
+variant and does nothing; the button language was miscommunication. The
+tagline is `--text-lg` in primary ink: it states the objective, which is
+the second most important thing on the page after the game's name.
+
+### The recurring cost of header changes
+
+Three passes running, a design change has added a few px of chrome and
+landed in the 600-800px-tall band. Making the tagline a true subtitle cost
+~14px of header (6px of type + an 8px margin-top) and pushed Beeline's play
+screen 9px into scrolling at 1280x800.
+
+**The fix is always the same shape: tighten the GAPS in the
+`max-height: 940px` tier, never the type.** The cascade's ORDER is
+preserved there (title-gap < kicker-gap < tagline-gap) so the hierarchy
+still reads; only the absolute spacing gives. Re-run the viewport sweep
+after any header change — a locally correct change is not automatically a
+globally safe one.
+
+**A process note worth keeping:** two edits in this pass used
+string-replacements that silently matched nothing, so `--control-h` was
+never defined — and `min-height: var(--undefined)` falls back to `auto`,
+meaning the height-matching quietly did nothing while looking right in the
+diff. It was only caught by reading COMPUTED values in a real browser.
+Assert every scripted replacement, and verify a new token is both defined
+and referenced before believing a measurement.
+
 ## Information hierarchy — three tiers, on every game's status area
 
 Real design feedback: the status row gave the number that DEFINES the win

@@ -14,6 +14,8 @@
 
   --color-background-primary: #ffffff;
   --color-background-secondary: #eef3f8;
+  /* Recessed ground for text fields — see .answer-input's engraved note. */
+  --color-input-bg: #f8f9fa;
   --color-text-primary: #202020;
   --color-text-secondary: #5a6470;
   --color-text-tertiary: #8b96a1;
@@ -144,6 +146,7 @@
 
     --color-background-primary: #1b2530;
     --color-background-secondary: #10161e;
+    --color-input-bg: #16202b;
     --color-text-primary: #eef3f8;
     --color-text-secondary: #a7b3bf;
     --color-text-tertiary: #78838e;
@@ -190,7 +193,15 @@ p, .tagline, .desc-line, .desc-line-option, .variant-desc, #rules-box,
    which is why the old narrow-viewport collapse rules further down are now
    scoped to menu/listing pages (plain content that genuinely still reads
    fine on a phone) rather than to the game layouts. */
-:root { --min-page-width: 768px; }
+:root {
+  --min-page-width: 768px;
+  /* A button's own height, expressed so an INPUT can match it: 2x4px
+     border + 2x0.65em padding + 1.2 line-height, all against --text-md.
+     Inputs carry a thinner border and a much larger font, so they can
+     never match by copying the button's padding — they have to be told
+     the target height directly, or the row's baselines go ragged. */
+  --control-h: calc(8px + 2.5 * var(--text-md));
+}
 
 /* ZERO-SCROLL ARCHITECTURE (1024x600 floor).
    html keeps the horizontal scrollbar for the sub-768px case; the VERTICAL
@@ -616,13 +627,16 @@ h1 { margin-bottom: var(--space-xs); }
 /* inline-flex + align-self so it shrinks to its own text: .kicker-wrap is
    a flex container, and a stretched kicker would read as a full-width bar
    rather than a badge. */
+/* A LABEL, not a button. With an ink border and a pixel shadow it wore
+   the project's "press me" language and competed with the real controls
+   below it — it names the variant, it does nothing. */
 .kicker {
   display: inline-flex; align-items: center; align-self: flex-start;
-  background: var(--color-background-primary);
-  border: 2px solid var(--color-ink);
+  background: var(--color-beast-blue-bg);
+  border: 1px solid var(--color-border-tertiary);
   border-radius: 4px;
-  box-shadow: var(--shadow-sm);
-  padding: 5px 14px;
+  box-shadow: none;
+  padding: 3px 10px;
   font-family: var(--font-sans);
   font-weight: 800;
   font-size: var(--text-sm);
@@ -630,7 +644,9 @@ h1 { margin-bottom: var(--space-xs); }
   text-transform: uppercase;
   color: var(--color-beast-blue);
 }
-.tagline { font-family: var(--font-sans); font-size: var(--text-md); font-weight: 500; color: var(--color-text-secondary); text-align: left; margin-top: 0; }
+/* A true subtitle, not a footnote: it states the game's objective, which
+   is the second most important thing on the page after its name. */
+.tagline { font-family: var(--font-sans); font-size: var(--text-lg); font-weight: 500; color: var(--color-text-primary); text-align: left; margin-top: var(--space-xs); }
 .tagline b { color: var(--color-text-primary); }
 
 /* ---------- buttons ---------- */
@@ -647,6 +663,7 @@ button {
   /* em, not rem: a button's box has to grow with its own (now fluid)
      label, or the type inflates inside a fixed-size control. */
   padding: 0.65em 1em;
+  min-height: var(--control-h);
   font-size: var(--text-md);
   box-shadow: var(--shadow-btn);
   transition: transform 0.1s, box-shadow 0.1s;
@@ -676,6 +693,26 @@ a.chip:active { transform: translate(4px,4px); box-shadow: 0 0 0 var(--color-ink
 span.chip.active { background: var(--color-beast-blue); color: #fff; border-color: var(--color-beast-blue); cursor: default; }
 button.small { font-size: var(--text-md); padding: 0.35rem 0.6rem; text-transform: none; letter-spacing: 0; box-shadow: var(--shadow-sm); }
 button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 0 0 0 var(--color-ink); }
+
+/* A small circular icon control — used for the target field's info
+   affordance. Deliberately NOT the pixel-shadow button language: it is a
+   secondary affordance beside a field, not an action in its own right. */
+.icon-btn {
+  width: 1.9em; height: 1.9em; min-height: 0; padding: 0; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 2px solid var(--color-beast-blue); border-radius: 50%;
+  background: var(--color-beast-blue-bg); color: var(--color-beast-blue);
+  font-family: var(--font-sans); font-weight: 800; font-size: var(--text-sm);
+  font-style: italic; text-transform: none; letter-spacing: 0;
+  box-shadow: none; cursor: pointer;
+}
+.icon-btn:active { transform: none; box-shadow: none; background: var(--color-beast-blue); color: #fff; }
+.icon-btn:hover { background: var(--color-beast-blue); color: #fff; }
+.info-modal-body {
+  font-family: var(--font-sans); font-size: var(--text-md);
+  color: var(--color-text-secondary); text-align: center;
+  margin-bottom: var(--space-md); line-height: 1.5;
+}
 
 /* ---------- HUD: a 3-tier information hierarchy ----------
    Built at runtime by shared-game.js's initHud(). Every game's status area
@@ -970,10 +1007,14 @@ button.small:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 
 .target-row input {
   width: clamp(95px, 10vw, 160px); font-size: var(--text-xl);
   font-family: var(--font-sans); font-weight: 800; text-align: center;
-  /* em, not px: the box height then scales with the fluid font inside it,
-     instead of the text outgrowing a fixed-height box. */
-  padding: 0.35em 0.5em; border: 2px solid var(--color-ink); border-radius: 4px; box-shadow: var(--shadow-sm);
-  background: var(--color-background-primary); color: var(--color-text-primary);
+  padding: 0.2em 0.5em; min-height: var(--control-h);
+  border: 2px solid var(--color-ink); border-radius: 4px;
+  /* ENGRAVED, not raised. An outset pixel shadow is this project's
+     language for "press me" — wearing it, a text field read as a broken
+     button. Inset + a slightly recessed ground says "type here" instead,
+     without inventing any new colour. */
+  box-shadow: inset 3px 3px 0 rgba(0,0,0,0.08);
+  background: var(--color-input-bg); color: var(--color-text-primary);
 }
 label.small { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--color-text-secondary); }
 
@@ -1083,8 +1124,10 @@ label.small { font-family: var(--font-sans); font-size: var(--text-xs); color: v
 .answer-input {
   width: clamp(130px, 12vw, 200px); font-size: var(--text-xl); text-align: center;
   font-family: var(--font-sans); font-weight: 800;
-  padding: 0.35em 0.5em; border: 2px solid var(--color-ink); border-radius: 4px; box-shadow: var(--shadow-sm);
-  background: var(--color-background-primary); color: var(--color-text-primary);
+  padding: 0.2em 0.5em; min-height: var(--control-h);
+  border: 2px solid var(--color-ink); border-radius: 4px;
+  box-shadow: inset 3px 3px 0 rgba(0,0,0,0.08);
+  background: var(--color-input-bg); color: var(--color-text-primary);
 }
 .answer-input.shake { animation: shake 0.35s; border-color: var(--color-error); }
 @keyframes shake { 0%,100%{transform:translateX(0);} 25%{transform:translateX(-6px);} 75%{transform:translateX(6px);} }
@@ -1330,8 +1373,14 @@ label.small { font-family: var(--font-sans); font-size: var(--text-xs); color: v
   .hud-primary { padding: var(--space-xs) var(--space-sm); margin-bottom: var(--space-xs); }
   .hud-primary-value { font-size: var(--text-2xl); }
   .hud-primary-value.is-text { font-size: var(--text-lg); }
-  .kicker-wrap { margin-top: 4px; margin-bottom: 4px; }
-  .tagline { margin-bottom: var(--space-xs); }
+  /* The header CASCADE tightens on a short window, but the cascade's
+     ORDER is preserved (title-gap < kicker-gap < tagline-gap) so the
+     hierarchy still reads — only the absolute gaps shrink. The tagline
+     keeps its --text-lg subtitle size; it is the gaps that give, not the
+     type. */
+  h1 { margin-bottom: 3px; }
+  .kicker-wrap { margin-top: 3px; margin-bottom: 3px; }
+  .tagline { margin-top: 2px; margin-bottom: var(--space-xs); }
   #top-bar { margin-bottom: var(--space-xs); }
   #variant-card { margin-bottom: var(--space-xs); }
   /* Only the VERTICAL padding tightens on a short window. Trimming the
