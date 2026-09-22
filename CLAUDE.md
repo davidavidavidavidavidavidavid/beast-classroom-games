@@ -569,7 +569,12 @@ index.html                  <- Hub page (the project's actual landing page — s
                                <game>-menu.html sub-menus (scuttle-menu.html,
                                pop-menu.html, nim-menu.html) are each a single
                                game family's own variant picker, not the hub.
-design/                      <- Mockups + the catalog CSV, reference material only
+design/                      <- Mockups, the catalog CSV, the rules index and the
+                               fluency-tracking design plan. Reference material,
+                               with ONE exception: BC_Logo_Whiteoutline.png is a
+                               real production asset (the global nav's wordmark).
+                               Referenced from here rather than copied elsewhere,
+                               so there is only ever one copy of the artwork.
 ```
 
 **Why this matters:** we deliberately refactored out of "each game has its own
@@ -2956,6 +2961,23 @@ viewport made the grid taller than the room under the header and the page
 picked up a stray scrollbar. Capping the width in `vh` is what bounds the
 height, and it scales instead of being a number that only works at one size.
 
+## Global nav: brand bar
+
+The bar is **brand blue** (`--color-beast-blue`) carrying exactly two
+things: the **BC logo** on the left (`design/BC_Logo_Whiteoutline.png`,
+height-driven since the art is ~1:1.17) and the **Games dropdown on the
+right**. Everything sitting on the blue is white.
+
+**The current game's name was removed from it.** The bar sat directly above
+that game's own H1 and kicker, so it was repeating what the page said one
+line further down. What survives from that block is the
+`CURRENT_PAGE_HREF` assignment, which is load-bearing — it is how the stats
+panel knows which page it is on — so removing the label means removing the
+label only.
+
+The dropdown anchors `right: 0`, not `left: 0`: its trigger now sits at the
+right end of the bar, so a left-anchored panel would hang off the viewport.
+
 ## PILOT MODE + the fluency views (reversible)
 
 A hardcoded UI demonstration of `design/fluency-tracking-design-plan.md`'s
@@ -3018,6 +3040,30 @@ says nothing about single-operation addition or subtraction, and the view
 must not imply otherwise. The badge is on the row, not in a tooltip,
 because that distinction is the single most important thing the view
 communicates.
+
+**The panel lists only the two skills this pilot demonstrates**
+(`PILOT_SKILL_IDS`, reversed by the same flag). `visibleSkills()` is the
+single source both the panel and the tests read, and `skillForHref()`
+searches only those — otherwise a page could "expand" a row that was never
+rendered.
+
+**The highlight is CONTEXTUAL, and this was a real bug worth naming.** The
+sub-skill originally carried `evidence: true`, a property of the DATA — so
+the row was highlighted no matter how you reached the panel, which said
+"this row is special" rather than "this is where your numbers from THIS
+game went". It is now `evidenceFrom: [hrefs]`, and the highlight is derived
+from the page you opened the panel from:
+
+| Opened from | Expanded | Marked |
+|---|---|---|
+| the hub or a sub-menu | nothing | nothing |
+| Product Beeline | Multiplication Facts | that skill row |
+| Scuttle Add/Sub | Addition & Subtraction of Larger Numbers | that skill row + the Multi-step sub-row |
+
+The **"From this game" badge was removed** — it stated a claim the data
+could not back up once the highlight became conditional. The highlight
+alone carries it now (a heavier left rule plus the tint), and the
+explanatory note only renders when something actually is highlighted.
 
 **Both headline scores are DERIVED, never stored beside the detail they
 summarise** (`skillOverall()`): the facts headline is the mean of graded

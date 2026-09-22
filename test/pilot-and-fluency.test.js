@@ -256,12 +256,13 @@ NAV_PAGES.forEach(page => {
   check('scuttle add/sub: exactly three sub-skill rows, in taxonomy order',
     JSON.stringify(r.names) === JSON.stringify(['Addition', 'Subtraction', 'Multi-step problems']),
     JSON.stringify(r.names));
-  // The single most important thing this view communicates.
-  check('scuttle add/sub: EXACTLY ONE row is marked as this game\'s evidence, and it is Multi-step',
-    r.evidence.length === 1 && r.evidence[0] === 'Multi-step problems' && r.badges === 1,
-    JSON.stringify(r));
-  check('scuttle add/sub: the mark is a visible badge on the row, not just a tooltip',
-    r.badges === 1, JSON.stringify(r));
+  // The single most important thing this view communicates. The "From this
+  // game" BADGE was removed — it asserted something the data could not
+  // back up — so the highlight alone now carries it.
+  check('scuttle add/sub: EXACTLY ONE row is highlighted as this game\'s evidence, and it is Multi-step',
+    r.evidence.length === 1 && r.evidence[0] === 'Multi-step problems', JSON.stringify(r));
+  check('scuttle add/sub: the highlight is the only marker (no evidence badge)',
+    r.badges === 0, JSON.stringify(r));
   check('scuttle add/sub: each sub-skill carries its own distinct score',
     new Set(r.scores).size === 3, JSON.stringify(r.scores));
   // A procedures skill must not render a facts grid — different bucket,
@@ -274,6 +275,61 @@ NAV_PAGES.forEach(page => {
     (r.attempts[0] + r.attempts[1] + r.attempts[2]));
   check('scuttle add/sub: the headline is the attempts-weighted mean of its sub-skills',
     r.headline === expected + '%', `headline ${r.headline}, expected ${expected}%`);
+}
+
+/* ---------------- 6. The highlight is CONTEXTUAL ----------------------
+   It must depend on the page you opened the panel FROM, not on a flag
+   baked into the data. A hardcoded `evidence: true` highlighted the row no
+   matter how you got there, which said "this row is special" rather than
+   "this is where your numbers from THIS game went". */
+{
+  const probe = (file) => {
+    const dom = loadGame(file);
+    return runInPage(dom, () => {
+      document.getElementById('stats-launcher').click();
+      return {
+        expanded: Array.from(document.querySelectorAll('.skill-row.open')).map(x => x.dataset.skill),
+        markedSkills: Array.from(document.querySelectorAll('.skill-row.is-current')).map(x => x.dataset.skill),
+        highlightedSubs: Array.from(document.querySelectorAll('.subskill-row.has-evidence')).map(x => x.dataset.subskill),
+        badges: document.querySelectorAll('.subskill-evidence-badge').length,
+      };
+    });
+  };
+  // Opened "normally" — from the hub, with no game in context.
+  const hub = probe('index.html');
+  check('stats from the hub: nothing expanded, nothing highlighted',
+    hub.expanded.length === 0 && hub.markedSkills.length === 0 && hub.highlightedSubs.length === 0,
+    JSON.stringify(hub));
+  // Opened from a game: that game's skill is expanded AND marked.
+  const scuttle = probe('scuttle-addition-subtraction.html');
+  check('stats from Scuttle Add/Sub: its skill is expanded AND marked, and its sub-skill highlighted',
+    JSON.stringify(scuttle.expanded) === '["add-sub-large"]' &&
+    JSON.stringify(scuttle.markedSkills) === '["add-sub-large"]' &&
+    JSON.stringify(scuttle.highlightedSubs) === '["Multi-step problems"]', JSON.stringify(scuttle));
+  const beeline = probe('beeline-product.html');
+  check('stats from Product Beeline: its skill is expanded AND marked',
+    JSON.stringify(beeline.expanded) === '["mult-facts"]' &&
+    JSON.stringify(beeline.markedSkills) === '["mult-facts"]', JSON.stringify(beeline));
+  check('no "From this game" badge survives anywhere',
+    hub.badges === 0 && scuttle.badges === 0 && beeline.badges === 0,
+    JSON.stringify({ hub: hub.badges, scuttle: scuttle.badges, beeline: beeline.badges }));
+}
+
+/* ---------------- 7. Only the demonstrated skills are listed ----------- */
+{
+  const dom = loadGame('beeline-product.html');
+  const r = runInPage(dom, () => ({
+    visible: visibleSkillIds(),
+    rendered: (document.getElementById('stats-launcher').click(),
+      Array.from(document.querySelectorAll('.skill-row')).map(x => x.dataset.skill)),
+    total: SKILL_STATS.length,
+  }));
+  check('stats panel lists exactly the skills this pilot demonstrates',
+    JSON.stringify(r.rendered) === JSON.stringify(r.visible), JSON.stringify(r));
+  if (PILOT.on) {
+    check('stats panel: the other skills are locked out while the pilot is on',
+      r.visible.length === 2 && r.total > r.visible.length, JSON.stringify(r));
+  }
 }
 
 if (failures > 0) {

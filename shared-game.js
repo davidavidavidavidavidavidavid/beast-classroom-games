@@ -354,10 +354,18 @@ const SKILL_STATS = [
   { id: 'add-sub-large', name: 'Addition and Subtraction of Larger Numbers',
     type: 'procedures', games: ['scuttle-addition-subtraction.html'],
     totalTime: '1h 12m', lastPlayed: 'Just now',
+    /* `evidenceFrom` lists which GAMES feed each row. The highlight is then
+       derived from the page you opened the panel FROM — it is not a
+       property of the data. Opened from the hub, nothing is highlighted;
+       opened from Scuttle Add/Sub, that game's row is. A hardcoded
+       `evidence: true` highlighted the row no matter how you got there,
+       which said "this row is special" rather than "this row is where your
+       numbers from THIS game went". */
     subSkills: [
-      { name: 'Addition', score: 79, attempts: 132, evidence: false },
-      { name: 'Subtraction', score: 61, attempts: 104, evidence: false },
-      { name: 'Multi-step problems', score: 52, attempts: 47, evidence: true },
+      { name: 'Addition', score: 79, attempts: 132, evidenceFrom: [] },
+      { name: 'Subtraction', score: 61, attempts: 104, evidenceFrom: [] },
+      { name: 'Multi-step problems', score: 52, attempts: 47,
+        evidenceFrom: ['scuttle-addition-subtraction.html'] },
     ] },
   { id: 'mult-multi', name: 'Multi-digit multiplication', games: ['scuttle-product.html'],
     correct: 27, attempts: 40, totalTime: '48m', lastPlayed: '2 hours ago' },
@@ -421,9 +429,20 @@ function currentPageHref(){
   return null;
 }
 
+/* The single source of truth for which skills the panel lists — the panel
+   renders these and the tests derive their expectations from them, so the
+   two cannot disagree. */
+function visibleSkills(){
+  return PILOT_MODE ? SKILL_STATS.filter(s => PILOT_SKILL_IDS.indexOf(s.id) !== -1) : SKILL_STATS;
+}
+function visibleSkillIds(){ return visibleSkills().map(s => s.id); }
+
 function skillForHref(href){
   if (!href) return null;
-  return SKILL_STATS.find(s => s.games.indexOf(href) !== -1) || null;
+  // Searches only the VISIBLE skills: with the pilot on, a page whose skill
+  // isn't listed must open with nothing expanded rather than pointing at a
+  // row that was never rendered.
+  return visibleSkills().find(s => s.games.indexOf(href) !== -1) || null;
 }
 
 /* ---- FACTS view: every individual fact, shaded by mastery -------------
@@ -501,24 +520,22 @@ function factGridEl(skill){
    them. The mark is a visible badge on the row itself, not a tooltip,
    because "which of these is this game's evidence" is the single most
    important thing this view communicates. */
-function subSkillListEl(skill){
+function subSkillListEl(skill, currentHref){
   const list = document.createElement('div');
   list.className = 'subskill-list';
+  let anyHighlighted = false;
   skill.subSkills.forEach(sub => {
+    // Highlighted only when the panel was opened FROM a game that feeds
+    // this row. No current game (hub, sub-menu) means no highlight at all.
+    const fromHere = !!currentHref && (sub.evidenceFrom || []).indexOf(currentHref) !== -1;
+    if (fromHere) anyHighlighted = true;
     const row = document.createElement('div');
-    row.className = 'subskill-row' + (sub.evidence ? ' has-evidence' : '');
+    row.className = 'subskill-row' + (fromHere ? ' has-evidence' : '');
     row.dataset.subskill = sub.name;
 
     const nameWrap = document.createElement('div');
     nameWrap.className = 'subskill-name';
     nameWrap.appendChild(document.createTextNode(sub.name));
-    if (sub.evidence){
-      const badge = document.createElement('span');
-      badge.className = 'subskill-evidence-badge';
-      badge.textContent = 'From this game';
-      badge.title = 'This game\u2019s results feed this row';
-      nameWrap.appendChild(badge);
-    }
     row.appendChild(nameWrap);
 
     const bar = document.createElement('div');
@@ -541,10 +558,12 @@ function subSkillListEl(skill){
 
     list.appendChild(row);
   });
-  const note = document.createElement('div');
-  note.className = 'subskill-note';
-  note.textContent = 'Rows without a badge are part of this skill\u2019s taxonomy but get no evidence from this game.';
-  list.appendChild(note);
+  if (anyHighlighted){
+    const note = document.createElement('div');
+    note.className = 'subskill-note';
+    note.textContent = 'The highlighted row is where this game\u2019s results go. The others are part of the same skill but get no evidence from it.';
+    list.appendChild(note);
+  }
   return list;
 }
 
@@ -564,7 +583,10 @@ function statsPanelEl(currentHref){
   note.textContent = 'Sample data — not yet wired to real play';
   panel.appendChild(note);
 
-  SKILL_STATS.forEach(skill => {
+  /* Pilot mode shows only the two skills this demonstration actually
+     covers — the rest describe games that are locked, so listing them
+     would be eight rows of unreachable detail. Reverses with PILOT_MODE. */
+  visibleSkills().forEach(skill => {
     const row = document.createElement('div');
     row.className = 'skill-row';
     row.dataset.skill = skill.id;
@@ -607,7 +629,7 @@ function statsPanelEl(currentHref){
     }
     body.appendChild(stats);
     if (skill.type === 'facts') body.appendChild(factGridEl(skill));
-    if (skill.type === 'procedures') body.appendChild(subSkillListEl(skill));
+    if (skill.type === 'procedures') body.appendChild(subSkillListEl(skill, currentHref));
     const games = document.createElement('div');
     games.className = 'skill-games';
     games.textContent = 'Games: ' + skill.games.map(h => {
@@ -618,6 +640,10 @@ function statsPanelEl(currentHref){
     body.appendChild(games);
 
     const isOpen = !!openSkill && openSkill.id === skill.id;
+    // Same rule one tier up: the skill belonging to the game you opened
+    // the panel from is both expanded AND marked. From the hub there is no
+    // such skill, so nothing is expanded and nothing is marked.
+    row.classList.toggle('is-current', isOpen);
     row.classList.toggle('open', isOpen);
     body.classList.toggle('hidden', !isOpen);
     caret.textContent = isOpen ? '▾' : '▸';
@@ -1613,6 +1639,8 @@ const GLOBAL_GAMES = [
    which is exactly why a single documented transform on it is safer than
    four independent filters that could drift apart. */
 const PILOT_MODE = true;
+/* The stats panel is limited to the skills these two games demonstrate. */
+const PILOT_SKILL_IDS = ['mult-facts', 'add-sub-large'];
 const PILOT_UNLOCKED_HREFS = [
   'scuttle-addition-subtraction.html', // procedures-style stats view
   'beeline-product.html',              // facts-style stats view
@@ -1701,7 +1729,12 @@ function renderGlobalNav(currentKey){
   const wordmark = document.createElement('a');
   wordmark.id = 'global-nav-wordmark';
   wordmark.href = 'index.html';
-  wordmark.textContent = 'Beast Classroom';
+  wordmark.setAttribute('aria-label', 'Beast Classroom — home');
+  const logo = document.createElement('img');
+  logo.id = 'global-nav-logo';
+  logo.src = 'design/BC_Logo_Whiteoutline.png';
+  logo.alt = 'Beast Classroom';
+  wordmark.appendChild(logo);
   nav.appendChild(wordmark);
 
   const gamesWrap = document.createElement('div');
@@ -1742,10 +1775,10 @@ function renderGlobalNav(currentKey){
 
   const currentGame = GLOBAL_GAMES.find(g => g.key === currentKey);
   if (currentGame){
-    const label = document.createElement('span');
-    label.id = 'global-nav-current';
-    label.textContent = currentGame.name;
-    nav.appendChild(label);
+    // The right-aligned game-name label is gone — the page's own H1 and
+    // kicker already name the game directly below it, so the bar was
+    // repeating itself. Only the side effect below survives, and it is
+    // load-bearing: it is how the stats panel knows which page it is on.
     // A SINGLE-variant game's key already identifies its one file, so the
     // nav key is enough to know which page this is (used by the stats
     // panel to expand that game's skill). A multi-variant key deliberately

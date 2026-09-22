@@ -122,7 +122,7 @@ const TOTAL_CATALOGUED_GAMES = 8; // 6 playable + 2 locked (Pig, Math Match — 
 // other catalogued-but-unbuilt game was trimmed from GLOBAL_GAMES at the
 // user's explicit direction, 2026-09-15) — see shared-game.js GLOBAL_GAMES
 
-Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
+Object.keys(NAV_EXPECTED_CURRENT).forEach((file) => {
   const dom = loadGame(file);
   const nav = runInPage(dom, () => {
     const items = Array.from(document.querySelectorAll('.global-nav-item')).map(el => ({
@@ -131,10 +131,18 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
     return {
       isFirstChild: document.body.firstElementChild && document.body.firstElementChild.id === 'global-nav',
       wordmarkHref: document.getElementById('global-nav-wordmark').getAttribute('href'),
-      currentLabelText: document.getElementById('global-nav-current').textContent,
+      // The bar carries the brand LOGO now, not the words "Beast
+      // Classroom", and no longer repeats the current game's name (the
+      // page's own H1 and kicker say it directly underneath).
+      logoSrc: (document.getElementById('global-nav-logo') || {}).src || null,
+      logoAlt: (document.getElementById('global-nav-logo') || {}).alt || null,
+      wordmarkText: document.getElementById('global-nav-wordmark').textContent.trim(),
+      currentLabelExists: !!document.getElementById('global-nav-current'),
       dropdownHiddenInitially: document.getElementById('global-nav-dropdown').classList.contains('hidden'),
       itemCount: items.length,
       currentCount: items.filter(i => i.current).length,
+      // Games control must be the LAST thing in the bar (top-right).
+      gamesIsLast: document.getElementById('global-nav').lastElementChild.id === 'global-nav-games',
     };
   });
 
@@ -143,7 +151,13 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   check(`${file}: dropdown starts closed`, nav.dropdownHiddenInitially === true);
   check(`${file}: dropdown lists all ${TOTAL_CATALOGUED_GAMES} catalogued games (built + locked)`, nav.itemCount === TOTAL_CATALOGUED_GAMES, `got ${nav.itemCount}`);
   check(`${file}: exactly one dropdown item is marked current`, nav.currentCount === 1);
-  check(`${file}: right-aligned current-game label reads "${currentLabel}"`, nav.currentLabelText === currentLabel, `got "${nav.currentLabelText}"`);
+  check(`${file}: the wordmark is the brand logo image, with a text alternative`,
+    !!nav.logoSrc && /BC_Logo_Whiteoutline\.png$/.test(nav.logoSrc) && nav.logoAlt === 'Beast Classroom',
+    JSON.stringify({ src: nav.logoSrc, alt: nav.logoAlt }));
+  check(`${file}: the bar no longer repeats the current game's name`,
+    nav.currentLabelExists === false && nav.wordmarkText === '', JSON.stringify(nav));
+  check(`${file}: the Games control sits at the top right (last item in the bar)`,
+    nav.gamesIsLast === true, JSON.stringify(nav));
 });
 
 // Dropdown open/close behavior — checked once (mechanism is identical
@@ -170,7 +184,8 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
     currentLabelExists: !!document.getElementById('global-nav-current'),
     itemCount: document.querySelectorAll('.global-nav-item').length,
   }));
-  check('index.html: no right-aligned current-game label (this IS the hub)', hub.currentLabelExists === false);
+  // (The current-game label is gone from EVERY page now, asserted above —
+  // it is no longer a hub-specific property.)
   check(`index.html: nav dropdown still lists all ${TOTAL_CATALOGUED_GAMES} games`, hub.itemCount === TOTAL_CATALOGUED_GAMES);
 }
 
@@ -893,6 +908,8 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
       hasLauncher: true,
       panelOpened: !!backdrop && !backdrop.classList.contains('hidden'),
       rowCount: rows.length,
+      visibleSkills: visibleSkillIds().length,
+      visibleIds: visibleSkillIds(),
       openSkills: rows.filter(x => x.classList.contains('open')).map(x => x.dataset.skill),
       // Every non-open row's body must actually be collapsed, not just
       // missing the class — "a list of collapsed skills" is the ask.
@@ -901,7 +918,11 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
     };
   });
   check(`${file}: has the corner stats launcher`, r.hasLauncher === true, JSON.stringify(r));
-  check(`${file}: clicking it opens a panel of collapsed skills`, r.panelOpened === true && r.rowCount === 10 && r.collapsedBodiesHidden === true, JSON.stringify(r));
+  // Derived: pilot mode narrows the panel to the skills it demonstrates,
+  // so the expected row count comes from the page itself rather than a
+  // fixed 10 that only held before.
+  check(`${file}: clicking it opens a panel of collapsed skills`,
+    r.panelOpened === true && r.rowCount === r.visibleSkills && r.collapsedBodiesHidden === true, JSON.stringify(r));
   // A game's OWN page always knows which page it is, locked or not. That
   // briefly stopped being true: applyPilotLock() deletes `href` so no nav
   // surface can link to a locked game, and renderGlobalNav identified the
@@ -909,8 +930,12 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   // (Detective) opened directly showed a panel with nothing expanded. Fixed
   // at the source via `lockedHref`, not asserted around: being unlisted in
   // the nav and being unable to identify yourself are different things.
-  const expectedOpenSkill = namedSkill || null;
-  const why = 'no single game in context';
+  // Derived twice over: a skill is expanded only if the page HAS one and
+  // the panel is actually showing it. Pilot mode narrows the panel to two
+  // skills, so a game outside those two correctly opens with nothing
+  // expanded — and with PILOT_MODE off this reads exactly as before.
+  const expectedOpenSkill = (namedSkill && r.visibleIds.indexOf(namedSkill) !== -1) ? namedSkill : null;
+  const why = namedSkill ? 'its skill is not among the ones this pilot shows' : 'no single game in context';
   check(`${file}: opens with ${expectedOpenSkill ? `"${expectedOpenSkill}" expanded` : `nothing expanded (${why})`}`,
     JSON.stringify(r.openSkills) === JSON.stringify(expectedOpenSkill ? [expectedOpenSkill] : []), JSON.stringify(r.openSkills));
 });
@@ -922,10 +947,14 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
     document.getElementById('stats-launcher').click();
     const rowOf = id => document.querySelector(`.skill-row[data-skill="${id}"]`);
     const state = id => ({ open: rowOf(id).classList.contains('open'), bodyHidden: rowOf(id).querySelector('.skill-body').classList.contains('hidden') });
-    const before = { mult: state('mult-facts'), rounding: state('rounding') };
-    rowOf('rounding').querySelector('.skill-toggle').click();
+    // Pick the OTHER visible skill rather than naming one: pilot mode
+    // narrows the list, so a hardcoded second id ('rounding') is not
+    // guaranteed to be on screen.
+    const other = visibleSkillIds().find(id => id !== 'mult-facts');
+    const before = { mult: state('mult-facts'), rounding: state(other) };
+    rowOf(other).querySelector('.skill-toggle').click();
     rowOf('mult-facts').querySelector('.skill-toggle').click();
-    return { before, after: { mult: state('mult-facts'), rounding: state('rounding') } };
+    return { before, after: { mult: state('mult-facts'), rounding: state(other) } };
   });
   check('stats panel: a collapsed skill expands on click, and the pre-expanded one collapses',
     r.before.mult.open === true && r.before.rounding.open === false &&
