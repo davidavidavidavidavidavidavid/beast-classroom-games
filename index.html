@@ -140,7 +140,14 @@ function renderGameGrid(){
     h.textContent = text;
     grid.appendChild(h);
   };
-  GLOBAL_GAMES.forEach(g => {
+  // Partition before rendering, rather than relying on GLOBAL_GAMES being
+  // ordered playable-first. It happened to be, until pilot mode started
+  // locking families in the middle of the list — which put a still-playable
+  // Beeline underneath the "Coming soon" heading. Order within each group
+  // is preserved.
+  const ordered = GLOBAL_GAMES.filter(g => g.status !== 'locked')
+    .concat(GLOBAL_GAMES.filter(g => g.status === 'locked'));
+  ordered.forEach(g => {
     const isLocked = g.status === 'locked';
     if (!isLocked && !sectionsEmitted.playable){ emitHead('Playable now'); sectionsEmitted.playable = true; }
     if (isLocked && !sectionsEmitted.locked){ emitHead('Coming soon'); sectionsEmitted.locked = true; }
@@ -208,11 +215,21 @@ function renderGameGrid(){
         const link = document.createElement('a');
         // TEMPORARY per-variant DEMO chip — the card-level chip says
         // "something in this family is demo-ready", this says which ones.
-        const isDemo = isDemoReady(v.href);
-        link.className = 'variant-sublink' + (isDemo ? ' demo-framed' : '');
-        link.href = v.href;
+        const isDemo = isDemoReady(v.href) && !v.locked;
+        link.className = 'variant-sublink' + (isDemo ? ' demo-framed' : '') + (v.locked ? ' locked' : '');
+        // Pilot mode: a locked variant is still LISTED (so the family's
+        // full shape stays visible) but carries no href, so it cannot be
+        // reached by click or by keyboard.
+        if (!v.locked) link.href = v.href;
+        else link.setAttribute('aria-disabled', 'true');
         link.appendChild(document.createTextNode(v.name));
         if (isDemo) link.appendChild(demoBadgeEl());
+        if (v.locked){
+          const soon = document.createElement('span');
+          soon.className = 'badge soon';
+          soon.textContent = 'Soon';
+          link.appendChild(soon);
+        }
         list.appendChild(link);
       });
       card.appendChild(list);

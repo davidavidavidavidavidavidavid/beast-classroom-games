@@ -1347,6 +1347,117 @@ label.small { font-family: var(--font-sans); font-size: var(--text-xs); color: v
 }
 .skill-games { margin-top: 3px; }
 
+/* ---------------- fluency views (see design/fluency-tracking-design-plan.md)
+   TEMPORARY hardcoded demonstration of the two-bucket model, alongside the
+   rest of the stats experiment — remove together.
+
+   FACTS: a grid of every individual fact, shaded by mastery. The colour
+   IS the information — an unshaded grid of numbers is just the raw table
+   again — so the bands reuse the existing semantic tokens (correct / warn
+   / error) rather than introducing a palette. "Not practised yet" is its
+   own neutral state, deliberately not a low score: no evidence and bad
+   evidence are different claims. */
+.fact-grid-wrap { margin-top: var(--space-xs); }
+.fact-grid {
+  display: grid; grid-template-columns: repeat(var(--fact-cols), minmax(0, 1fr));
+  gap: 2px;
+}
+.fact-head {
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 800;
+  color: var(--color-text-tertiary); aspect-ratio: 1;
+}
+.fact-corner { color: var(--color-text-secondary); }
+.fact-cell {
+  display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 1; border-radius: 3px; min-width: 0;
+  font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 700;
+  color: #fff; cursor: default;
+}
+.fact-cell.band-strong { background: var(--color-correct); }
+.fact-cell.band-ok     { background: #7aa64f; }
+.fact-cell.band-weak   { background: var(--color-warn); }
+.fact-cell.band-poor   { background: var(--color-error); }
+.fact-cell.band-none {
+  background: var(--color-background-secondary);
+  color: var(--color-text-tertiary);
+  border: 1px dashed var(--color-text-tertiary);
+}
+.fact-key {
+  display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-top: var(--space-xs);
+  font-family: var(--font-sans); font-size: var(--text-xs); color: var(--color-text-secondary);
+}
+.fact-key span { display: inline-flex; align-items: center; gap: 4px; }
+.fact-key-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.fact-key-swatch.band-strong { background: var(--color-correct); }
+.fact-key-swatch.band-ok     { background: #7aa64f; }
+.fact-key-swatch.band-weak   { background: var(--color-warn); }
+.fact-key-swatch.band-poor   { background: var(--color-error); }
+.fact-key-swatch.band-none   { background: var(--color-background-secondary); border: 1px dashed var(--color-text-tertiary); }
+
+/* PROCEDURES: a taxonomy of sub-skills. Every row is listed, but only the
+   ones this game actually produces evidence for are badged — the rest are
+   present for completeness and the view must not imply the game says
+   anything about them. The badge is on the row, not in a tooltip: it is
+   the single most important thing this view communicates. */
+.subskill-list { margin-top: var(--space-xs); }
+.subskill-row {
+  display: grid; grid-template-columns: 1fr 90px auto auto;
+  align-items: center; gap: var(--space-xs);
+  padding: 6px 8px; border-radius: 4px;
+  border: 2px solid transparent;
+}
+.subskill-row.has-evidence {
+  border-color: var(--color-beast-blue);
+  background: var(--color-beast-blue-bg);
+}
+.subskill-name {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 700;
+  color: var(--color-text-primary);
+}
+.subskill-evidence-badge {
+  font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.3px;
+  background: var(--color-beast-blue); color: #fff;
+  border-radius: 3px; padding: 2px 6px; white-space: nowrap;
+}
+.subskill-bar-track {
+  height: 8px; background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-tertiary); border-radius: 3px; overflow: hidden;
+}
+.subskill-bar-fill { height: 100%; background: var(--color-beast-blue); }
+.subskill-row:not(.has-evidence) .subskill-bar-fill { background: var(--color-text-tertiary); }
+.subskill-score {
+  font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 800;
+  font-variant-numeric: tabular-nums; color: var(--color-text-primary);
+}
+.subskill-n {
+  font-family: var(--font-sans); font-size: var(--text-xs);
+  color: var(--color-text-tertiary); white-space: nowrap;
+}
+.subskill-note {
+  font-family: var(--font-sans); font-size: var(--text-xs);
+  color: var(--color-text-tertiary); margin-top: var(--space-xs); line-height: 1.5;
+}
+
+/* A 9x9 fact grid needs more room than a list of skill rows. */
+.stats-panel { max-width: 640px; }
+
+/* A locked variant chip in the in-game switcher (pilot mode) — present so
+   the family's shape is still visible, but visibly not a destination. */
+span.chip.locked {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-sans); font-weight: 800; letter-spacing: 0.3px;
+  text-transform: uppercase; padding: 0.65em 1em; font-size: var(--text-md);
+  border: var(--border-w) solid var(--color-text-tertiary); border-radius: 4px;
+  background: var(--color-background-secondary); color: var(--color-text-tertiary);
+  box-shadow: none; cursor: default; min-height: var(--control-h);
+}
+/* A locked variant in the hub's sublist: listed, not navigable. */
+.variant-sublink.locked { color: var(--color-text-tertiary); cursor: default; display: flex; align-items: center; gap: 8px; }
+.variant-sublink.locked:hover { background: none; text-decoration: none; }
+
 /* ---------- trailing margin ----------
    The LAST card on a page has nothing under it, so its bottom margin is
    pure dead space — and at the 600px floor that margin alone was the

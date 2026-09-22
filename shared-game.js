@@ -317,12 +317,50 @@ function stackAdvanceControls(screenId, wrapperIds){
    this project records real play yet. The skill->games mapping, though, is
    real and worth keeping accurate as games get built. */
 const SKILL_STATS = [
-  { id: 'mult-facts', name: 'Multiplication facts', games: ['beeline-product.html'],
-    correct: 33, attempts: 35, totalTime: '2h 05m', lastPlayed: 'Yesterday' },
+  /* FACTS bucket (design/fluency-tracking-design-plan.md): a finite,
+     enumerable set, so the lower tier is a grid of every individual fact.
+     Product Beeline's own token row is ROWMIN=1..ROWMAX=9, so the grid is
+     9x9 — the facts this game can actually produce, not a generic 10x10.
+     `overall` is COMPUTED from the cells rather than stored, so the
+     headline number can never contradict the grid underneath it.
+     Mock data, shaped like a real class: 1s/2s/5s land early and reliably,
+     the 6-8 square is the weak cluster, a handful of pairs have not come
+     up on this board yet (null = no evidence, which is NOT the same as
+     scoring zero). */
+  { id: 'mult-facts', name: 'Multiplication Facts', type: 'facts',
+    games: ['beeline-product.html'],
+    totalTime: '2h 05m', lastPlayed: 'Yesterday',
+    factGrid: {
+      min: 1, max: 9,
+      rows: [
+        [97, 94, 84, 69, 92, 85, 64, 76, 83],
+        [92, 89, 75, 75, 84, 70, 65, 81, 71],
+        [89, 79, 93, 69, 84, 65, 58, 53, 64],
+        [69, 72, 67, 66, 78, 58, 56, 58, 62],
+        [96, 86, 82, 78, 94, 72, 70, 64, 79],
+        [82, 79, 68, 57, 85, 45, 46, 48, null],
+        [73, 65, 68, 45, 70, 40, 43, null, 59],
+        [72, 66, 50, 58, 65, 48, null, 63, null],
+        [88, 67, 73, 68, 78, null, 61, 46, 62],
+      ],
+    } },
+  /* PROCEDURES bucket: not enumerable, so the lower tier is a taxonomy of
+     sub-skills rather than a grid. All three rows are shown for taxonomy
+     completeness; only the one this game actually generates evidence for
+     is marked. Addition & Subtraction Scuttle combines THREE numbers with
+     TWO operators (see design/game-rules-index.md), so its evidence is
+     genuinely multi-step — it says nothing about single-operation addition
+     or subtraction, and the view must not imply otherwise. */
+  { id: 'add-sub-large', name: 'Addition and Subtraction of Larger Numbers',
+    type: 'procedures', games: ['scuttle-addition-subtraction.html'],
+    totalTime: '1h 12m', lastPlayed: 'Just now',
+    subSkills: [
+      { name: 'Addition', score: 79, attempts: 132, evidence: false },
+      { name: 'Subtraction', score: 61, attempts: 104, evidence: false },
+      { name: 'Multi-step problems', score: 52, attempts: 47, evidence: true },
+    ] },
   { id: 'mult-multi', name: 'Multi-digit multiplication', games: ['scuttle-product.html'],
     correct: 27, attempts: 40, totalTime: '48m', lastPlayed: '2 hours ago' },
-  { id: 'add-sub', name: 'Addition & subtraction', games: ['scuttle-addition-subtraction.html', 'beeline-addition.html', 'pop-addition.html', 'pop-subtraction.html', 'pop-expression.html'],
-    correct: 42, attempts: 50, totalTime: '1h 12m', lastPlayed: 'Just now' },
   { id: 'sub-facts', name: 'Subtraction facts', games: ['beeline-difference.html', 'scuttle-difference.html'],
     correct: 24, attempts: 31, totalTime: '35m', lastPlayed: '4 hours ago' },
   { id: 'rounding', name: 'Rounding', games: ['beeline-rounding.html'],
@@ -338,6 +376,34 @@ const SKILL_STATS = [
   { id: 'strategy', name: 'Counting & strategy', games: ['nim.html', 'nim-nickeled-and-dimed.html', 'nim-subtraction.html'],
     correct: 30, attempts: 34, totalTime: '52m', lastPlayed: 'Yesterday' },
 ];
+
+/* The top-tier number is DERIVED, never stored alongside the detail it
+   summarises — a stored one drifts the moment a cell or a sub-skill is
+   edited, and this whole view exists to be edited and re-judged. */
+function skillOverall(skill){
+  if (skill.type === 'facts'){
+    const vals = skill.factGrid.rows.reduce((acc, r) => acc.concat(r.filter(v => v !== null)), []);
+    if (!vals.length) return null;
+    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  }
+  if (skill.type === 'procedures'){
+    // Weighted by attempts: a sub-skill with 132 attempts behind it should
+    // move the headline more than one with 47.
+    const tot = skill.subSkills.reduce((a, x) => a + x.attempts, 0);
+    if (!tot) return null;
+    return Math.round(skill.subSkills.reduce((a, x) => a + x.score * x.attempts, 0) / tot);
+  }
+  return Math.round((skill.correct / skill.attempts) * 100);
+}
+function skillAttemptCount(skill){
+  if (skill.type === 'facts'){
+    return skill.factGrid.rows.reduce((acc, r) => acc + r.filter(v => v !== null).length, 0);
+  }
+  if (skill.type === 'procedures'){
+    return skill.subSkills.reduce((a, x) => a + x.attempts, 0);
+  }
+  return skill.attempts;
+}
 
 // Which page are we on? Preferred source is the href a game already passes
 // to renderVariantSwitcher (explicit, and reliable in every harness — see
@@ -358,6 +424,128 @@ function currentPageHref(){
 function skillForHref(href){
   if (!href) return null;
   return SKILL_STATS.find(s => s.games.indexOf(href) !== -1) || null;
+}
+
+/* ---- FACTS view: every individual fact, shaded by mastery -------------
+   The whole point of a facts-style view is seeing WHICH facts are weak, so
+   the cell colour has to carry the value — a grid of identical squares
+   with numbers in them would just be the raw table. Four bands using the
+   existing semantic tokens (correct / warn / error) rather than a new
+   palette, plus a distinct "no evidence yet" state, because never having
+   met a fact is not the same as getting it wrong. */
+function factBand(v){
+  if (v === null || v === undefined) return 'none';
+  if (v >= 80) return 'strong';
+  if (v >= 65) return 'ok';
+  if (v >= 50) return 'weak';
+  return 'poor';
+}
+function factGridEl(skill){
+  const { min, max, rows } = skill.factGrid;
+  const wrap = document.createElement('div');
+  wrap.className = 'fact-grid-wrap';
+  const grid = document.createElement('div');
+  grid.className = 'fact-grid';
+  grid.style.setProperty('--fact-cols', String(max - min + 2));
+  // Corner + column headers.
+  const corner = document.createElement('div');
+  corner.className = 'fact-head fact-corner';
+  corner.textContent = '×';
+  grid.appendChild(corner);
+  for (let b = min; b <= max; b++){
+    const h = document.createElement('div');
+    h.className = 'fact-head';
+    h.textContent = b;
+    grid.appendChild(h);
+  }
+  for (let a = min; a <= max; a++){
+    const rh = document.createElement('div');
+    rh.className = 'fact-head';
+    rh.textContent = a;
+    grid.appendChild(rh);
+    for (let b = min; b <= max; b++){
+      const v = rows[a - min][b - min];
+      const cell = document.createElement('div');
+      cell.className = 'fact-cell band-' + factBand(v);
+      cell.dataset.fact = a + 'x' + b;
+      if (v === null || v === undefined){
+        cell.textContent = '–';
+        cell.title = `${a} × ${b} — not practised yet`;
+      } else {
+        cell.textContent = v;
+        cell.title = `${a} × ${b} — ${v}% mastery`;
+      }
+      grid.appendChild(cell);
+    }
+  }
+  wrap.appendChild(grid);
+  const key = document.createElement('div');
+  key.className = 'fact-key';
+  [['strong', '80+'], ['ok', '65-79'], ['weak', '50-64'], ['poor', 'under 50'], ['none', 'not yet']]
+    .forEach(([band, label]) => {
+      const item = document.createElement('span');
+      const sw = document.createElement('span');
+      sw.className = 'fact-key-swatch band-' + band;
+      item.appendChild(sw);
+      item.appendChild(document.createTextNode(label));
+      key.appendChild(item);
+    });
+  wrap.appendChild(key);
+  return wrap;
+}
+
+/* ---- PROCEDURES view: a taxonomy of sub-skills -----------------------
+   Every row in the taxonomy is listed, but only the rows this game
+   actually generates evidence for are marked — the others are here for
+   completeness, and the view must not imply the game says anything about
+   them. The mark is a visible badge on the row itself, not a tooltip,
+   because "which of these is this game's evidence" is the single most
+   important thing this view communicates. */
+function subSkillListEl(skill){
+  const list = document.createElement('div');
+  list.className = 'subskill-list';
+  skill.subSkills.forEach(sub => {
+    const row = document.createElement('div');
+    row.className = 'subskill-row' + (sub.evidence ? ' has-evidence' : '');
+    row.dataset.subskill = sub.name;
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'subskill-name';
+    nameWrap.appendChild(document.createTextNode(sub.name));
+    if (sub.evidence){
+      const badge = document.createElement('span');
+      badge.className = 'subskill-evidence-badge';
+      badge.textContent = 'From this game';
+      badge.title = 'This game\u2019s results feed this row';
+      nameWrap.appendChild(badge);
+    }
+    row.appendChild(nameWrap);
+
+    const bar = document.createElement('div');
+    bar.className = 'subskill-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'subskill-bar-fill';
+    fill.style.width = sub.score + '%';
+    bar.appendChild(fill);
+    row.appendChild(bar);
+
+    const val = document.createElement('div');
+    val.className = 'subskill-score';
+    val.textContent = sub.score + '%';
+    row.appendChild(val);
+
+    const n = document.createElement('div');
+    n.className = 'subskill-n';
+    n.textContent = sub.attempts + ' problems';
+    row.appendChild(n);
+
+    list.appendChild(row);
+  });
+  const note = document.createElement('div');
+  note.className = 'subskill-note';
+  note.textContent = 'Rows without a badge are part of this skill\u2019s taxonomy but get no evidence from this game.';
+  list.appendChild(note);
+  return list;
 }
 
 function statsPanelEl(currentHref){
@@ -384,7 +572,7 @@ function statsPanelEl(currentHref){
     const toggle = document.createElement('button');
     toggle.className = 'skill-toggle';
     toggle.type = 'button';
-    const pct = Math.round((skill.correct / skill.attempts) * 100);
+    const pct = skillOverall(skill);
     const caret = document.createElement('span');
     caret.className = 'skill-caret';
     const nameEl = document.createElement('span');
@@ -408,8 +596,18 @@ function statsPanelEl(currentHref){
     body.appendChild(bar);
     const stats = document.createElement('div');
     stats.className = 'skill-stats';
-    stats.textContent = `${skill.correct} of ${skill.attempts} correct · ${skill.totalTime} played · last ${skill.lastPlayed.toLowerCase()}`;
+    if (skill.type === 'facts'){
+      const total = (skill.factGrid.max - skill.factGrid.min + 1) ** 2;
+      const seen = skillAttemptCount(skill);
+      stats.textContent = `${seen} of ${total} facts practised · ${skill.totalTime} played · last ${skill.lastPlayed.toLowerCase()}`;
+    } else if (skill.type === 'procedures'){
+      stats.textContent = `${skillAttemptCount(skill)} problems · ${skill.totalTime} played · last ${skill.lastPlayed.toLowerCase()}`;
+    } else {
+      stats.textContent = `${skill.correct} of ${skill.attempts} correct · ${skill.totalTime} played · last ${skill.lastPlayed.toLowerCase()}`;
+    }
     body.appendChild(stats);
+    if (skill.type === 'facts') body.appendChild(factGridEl(skill));
+    if (skill.type === 'procedures') body.appendChild(subSkillListEl(skill));
     const games = document.createElement('div');
     games.className = 'skill-games';
     games.textContent = 'Games: ' + skill.games.map(h => {
@@ -1399,6 +1597,97 @@ const GLOBAL_GAMES = [
   { key: 'pig', name: 'Pig', status: 'locked', desc: 'Roll repeatedly to build up points — bust and lose the round’s points, or bank them anytime.' },
 ];
 
+/* ---------------- PILOT MODE (reversible) --------------------------------
+   A hardcoded UI demonstration of design/fluency-tracking-design-plan.md's
+   two-bucket model, run on exactly two games so the stats views can be
+   evaluated without the rest of the catalogue in the way.
+
+   TO REVERSE THIS ENTIRELY: set PILOT_MODE to false. Nothing is deleted
+   and no file is removed — every game, variant, menu card and nav entry
+   comes straight back.
+
+   It works by transforming GLOBAL_GAMES ONCE, here, rather than by
+   teaching each of the four nav surfaces (the hub grid, the nav dropdown,
+   the in-game variant switcher, the static sub-menu pages) its own rule.
+   GLOBAL_GAMES stays the single canonical list — see "Global navigation" —
+   which is exactly why a single documented transform on it is safer than
+   four independent filters that could drift apart. */
+const PILOT_MODE = true;
+const PILOT_UNLOCKED_HREFS = [
+  'scuttle-addition-subtraction.html', // procedures-style stats view
+  'beeline-product.html',              // facts-style stats view
+];
+function isPilotUnlocked(href){
+  return !PILOT_MODE || PILOT_UNLOCKED_HREFS.indexOf(href) !== -1;
+}
+/* Accessors, because a top-level `const` is NOT readable off a loaded page
+   (see CLAUDE.md's Known Trap about nim.html's TARGET) and the tests must
+   be able to derive their expectations from the live flag. That is what
+   makes flipping PILOT_MODE back a one-line change instead of a one-line
+   change plus 68 test edits. */
+function pilotModeOn(){ return PILOT_MODE; }
+function pilotUnlockedHrefs(){ return PILOT_UNLOCKED_HREFS.slice(); }
+
+function applyPilotLock(){
+  if (!PILOT_MODE) return;
+  GLOBAL_GAMES.forEach(g => {
+    if (g.status !== 'playable') return;
+    if (Array.isArray(g.variants)){
+      g.variants.forEach(v => { v.locked = !isPilotUnlocked(v.href); });
+      const open = g.variants.filter(v => !v.locked);
+      if (!open.length){
+        // No variant of this family survives — the whole family locks.
+        g.status = 'locked';
+        g.lockedHref = g.href;   // see the note on lockedHref below
+        delete g.href;
+        delete g.multiVariant;
+      } else {
+        // "Play" must land on a variant that actually opens, not on
+        // whatever happened to be listed first.
+        g.href = open[0].href;
+      }
+    } else if (!isPilotUnlocked(g.href)){
+      g.status = 'locked';
+      /* `href` is deleted so no nav surface can accidentally render a link
+         to a locked game — but the file still EXISTS and can be opened
+         directly, and when it is, the page should still know which page it
+         is. Without this, a locked single-variant game (Detective is the
+         only one today) opened directly showed a stats panel with nothing
+         expanded, because renderGlobalNav sets CURRENT_PAGE_HREF only when
+         the game has an href. Keep the original under a name no renderer
+         reads, purely for self-identification. */
+      g.lockedHref = g.href;
+      delete g.href;
+    }
+  });
+}
+applyPilotLock();
+
+/* The four *-menu.html sub-menus hand-write their cards, so they are the
+   one nav surface the GLOBAL_GAMES transform above cannot reach. This
+   converts any card pointing at a locked variant into the same
+   locked/"coming soon" treatment those pages already use for unbuilt
+   variants — so e.g. Product Scuttle becomes locked inside
+   scuttle-menu.html without that file being edited. */
+function applyPilotLockToMenu(){
+  if (!PILOT_MODE) return;
+  const probe = document.createElement && document.createElement('div');
+  if (!probe || !probe.children || !document.body) return;
+  document.querySelectorAll('a.variant-card[href]').forEach(card => {
+    const href = card.getAttribute('href');
+    if (!href || isPilotUnlocked(href)) return;
+    const locked = document.createElement('div');
+    locked.className = card.className.replace(/\bactive\b/, 'locked').replace(/\bdemo-framed\b/, '').trim();
+    locked.setAttribute('aria-disabled', 'true');
+    locked.innerHTML = card.innerHTML;
+    const badge = locked.querySelector('.badge');
+    if (badge){ badge.className = 'badge soon'; badge.textContent = 'Coming soon'; }
+    const chip = locked.querySelector('.badge.demo');
+    if (chip) chip.remove();
+    card.parentNode.replaceChild(locked, card);
+  });
+}
+
 // `currentKey` is this page's own game key (one of GLOBAL_GAMES' `key`
 // values) — omit/pass null on index.html itself, where no single game is
 // "current." Idempotent (checks for its own id first) so calling it twice
@@ -1462,10 +1751,11 @@ function renderGlobalNav(currentKey){
     // panel to expand that game's skill). A multi-variant key deliberately
     // isn't — it names a family, not a file — so those pages wait for
     // renderVariantSwitcher's explicit href instead of guessing a default.
-    if (!currentGame.multiVariant && currentGame.href) CURRENT_PAGE_HREF = currentGame.href;
+    if (!currentGame.multiVariant) CURRENT_PAGE_HREF = currentGame.href || currentGame.lockedHref || CURRENT_PAGE_HREF;
   }
 
   document.body.insertBefore(nav, document.body.firstChild);
+  applyPilotLockToMenu(); // pilot: lock hand-written sub-menu cards
   renderStatsLauncher(); // corner stats glyph, on every page
   renderRulesLauncher(); // corner rules glyph, on every page that has rules
   initTargetInfo();      // target helper text -> an info button + modal
@@ -1520,6 +1810,14 @@ function renderVariantSwitcher(containerId, currentKey, currentHref){
       const chip = document.createElement('span');
       chip.className = 'chip active';
       chip.textContent = v.name;
+      container.appendChild(chip);
+    } else if (v.locked){
+      // Pilot mode: shown for completeness, but not navigable.
+      const chip = document.createElement('span');
+      chip.className = 'chip locked';
+      chip.textContent = v.name;
+      chip.setAttribute('aria-disabled', 'true');
+      chip.title = 'Coming soon';
       container.appendChild(chip);
     } else {
       const chip = document.createElement('a');

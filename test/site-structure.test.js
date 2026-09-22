@@ -24,6 +24,25 @@ const DEMO_READY_HREFS = [
   'beeline-rounding.html',
 ];
 
+/* ---------------- PILOT MODE awareness ----------------------------------
+   shared-game.js's PILOT_MODE (see its own block) locks every game and
+   variant except a short allow-list, which changes what a lot of the
+   assertions below should EXPECT — which card is a link, which variant
+   still carries an href, which family even has a "Play" badge.
+
+   Those expectations are DERIVED from the live flag here, never hardcoded,
+   because the whole point of the flag is that flipping it back is a
+   one-line change: with PILOT_MODE off, `pilotUnlocked()` is true for
+   everything and every assertion below reads exactly as it did before
+   pilot mode existed. The flag is read through shared-game.js's two
+   accessor FUNCTIONS rather than its `const`s, for the reason CLAUDE.md's
+   Known Traps already documents for nim.html's TARGET. */
+const PILOT = (() => {
+  const dom = loadGame('index.html');
+  return runInPage(dom, () => ({ on: pilotModeOn(), hrefs: pilotUnlockedHrefs() }));
+})();
+const pilotUnlocked = href => !PILOT.on || PILOT.hrefs.indexOf(href) !== -1;
+
 let failures = 0;
 function check(label, pass, detail) {
   if (!pass) failures++;
@@ -272,15 +291,44 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
     ]],
   ].forEach(([key, defaultHref, count, expectedSublinks]) => {
     const c = hub[key];
+    // Pilot-aware (see the PILOT block at the top): the family's variant
+    // NAMES and ORDER never change — what changes is which of them can
+    // still be reached. `open` is derived from the live flag, so with
+    // PILOT_MODE off it is simply every variant and `playHref` is the
+    // family's own default, exactly as before.
+    const open = expectedSublinks.filter(([, href]) => pilotUnlocked(href));
+    const playHref = open.length ? open[0][1] : null;
+    // Whichever shape the card takes, it is never one big enclosing <a>.
     check(`index.html: ${key} card is multi-variant — a plain DIV (not one big link)`, !!c && c.tag === 'DIV', JSON.stringify(c));
-    check(`index.html: ${key} card's "Play →" badge is its own <a> straight to the default variant (${defaultHref})`, !!c && c.badgeTag === 'A' && c.badgeHref === defaultHref && c.badge === 'Play →', JSON.stringify(c));
-    check(`index.html: ${key} card's expand toggle starts collapsed and labeled "▾ ${count} variants"`, !!c && c.toggleText === `▾ ${count} variants` && c.sublistHiddenInitially === true, JSON.stringify(c));
-    check(`index.html: ${key} card's sublist links every variant by name+href, in family order`, !!c && JSON.stringify(c.sublinks) === JSON.stringify(expectedSublinks.map(([text, href]) => ({ text, href }))), JSON.stringify(c && c.sublinks));
-    // TEMPORARY (answer-explanation experiment): the DEMO chip has to land
-    // on the specific VARIANTS being demoed, not just the family card — the
-    // card-level badge alone can't say which of Beeline's six it means.
-    const expectedDemo = expectedSublinks.map(([, href]) => href).filter(h => DEMO_READY_HREFS.indexOf(h) !== -1);
-    check(`index.html: ${key} card marks exactly the demo-ready variants with a DEMO chip`, !!c && JSON.stringify(c.demoSublinkHrefs) === JSON.stringify(expectedDemo), JSON.stringify(c && c.demoSublinkHrefs) + ' expected ' + JSON.stringify(expectedDemo));
+    if (open.length) {
+      // "Play" must land on a variant that actually opens — the first
+      // UNLOCKED one, which IS the first-listed one (${defaultHref})
+      // whenever nothing is locked.
+      check(`index.html: ${key} card's "Play →" badge is its own <a> straight to the default playable variant (${playHref})`, !!c && c.badgeTag === 'A' && c.badgeHref === playHref && c.badge === 'Play →', JSON.stringify(c));
+      check(`index.html: ${key} card's expand toggle starts collapsed and labeled "▾ ${count} variants"`, !!c && c.toggleText === `▾ ${count} variants` && c.sublistHiddenInitially === true, JSON.stringify(c));
+      // A pilot-locked variant is still LISTED, in the same place, so the
+      // family's full shape stays visible — it just carries no href, so it
+      // can't be reached by click or by keyboard.
+      const expectedSublist = expectedSublinks.map(([text, href]) => ({ text, href: pilotUnlocked(href) ? href : null }));
+      check(`index.html: ${key} card's sublist links every variant by name+href, in family order (href present iff unlocked)`, !!c && JSON.stringify(c.sublinks) === JSON.stringify(expectedSublist), JSON.stringify(c && c.sublinks));
+      // TEMPORARY (answer-explanation experiment): the DEMO chip has to land
+      // on the specific VARIANTS being demoed, not just the family card — the
+      // card-level badge alone can't say which of Beeline's six it means. A
+      // chip only belongs on a variant that is BOTH demo-ready and actually
+      // openable, since a chip on a locked variant advertises a demo nobody
+      // can click through to.
+      const expectedDemo = expectedSublinks.map(([, href]) => href).filter(h => DEMO_READY_HREFS.indexOf(h) !== -1 && pilotUnlocked(h));
+      check(`index.html: ${key} card marks exactly the demo-ready, reachable variants with a DEMO chip`, !!c && JSON.stringify(c.demoSublinkHrefs) === JSON.stringify(expectedDemo), JSON.stringify(c && c.demoSublinkHrefs) + ' expected ' + JSON.stringify(expectedDemo));
+    } else {
+      // Every variant is pilot-locked, so the whole family locks. Same
+      // intent as the three assertions above — "the card points at
+      // something you can actually play, and discloses what's behind it" —
+      // in the form that claim takes when there is nothing playable behind
+      // it at all: no Play link to follow, and no disclosure to open.
+      check(`index.html: ${key} card is fully pilot-locked (no variant survives) — "Coming soon", no Play link, aria-disabled`, !!c && c.badge === 'Coming soon' && c.badgeTag === 'SPAN' && c.badgeHref === null && c.href === null && c.ariaDisabled === 'true', JSON.stringify(c));
+      check(`index.html: ${key} card offers no expand toggle and no variant sublist while it's locked`, !!c && c.toggleText === null && c.sublistHiddenInitially === null && c.sublinks.length === 0, JSON.stringify(c));
+      check(`index.html: ${key} card advertises no DEMO chip while nothing in it is reachable`, !!c && c.demoSublinkHrefs.length === 0, JSON.stringify(c && c.demoSublinkHrefs));
+    }
   });
 
   [
@@ -288,7 +336,14 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
     ['detective', 'detective-fraction-equivalence.html'],
   ].forEach(([key, href]) => {
     const c = hub[key];
-    check(`index.html: ${key} card is single-variant — one big <a> link to ${href}`, !!c && c.tag === 'A' && c.href === href && c.badge === 'Play →', JSON.stringify(c));
+    if (pilotUnlocked(href)) {
+      check(`index.html: ${key} card is single-variant — one big <a> link to ${href}`, !!c && c.tag === 'A' && c.href === href && c.badge === 'Play →', JSON.stringify(c));
+    } else {
+      // Pilot-aware: a single-variant game has no sibling to fall back to,
+      // so locking its one file locks the card outright — same shape a
+      // never-built game's card has (asserted just below for Pig).
+      check(`index.html: ${key} card is pilot-locked — a DIV with no href, marked "Coming soon"`, !!c && c.tag === 'DIV' && c.href === null && c.ariaDisabled === 'true' && c.badge === 'Coming soon', JSON.stringify(c));
+    }
   });
 
   check('index.html: a locked (not-yet-built) game card has no href and is marked aria-disabled', !!hub.lockedSample && hub.lockedSample.tag === 'DIV' && hub.lockedSample.href === null && hub.lockedSample.ariaDisabled === 'true' && hub.lockedSample.badge === 'Coming soon', JSON.stringify(hub.lockedSample));
@@ -298,17 +353,26 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
 {
   const dom = loadGame('index.html');
   const result = runInPage(dom, () => {
-    const card = Array.from(document.querySelectorAll('#game-grid .variant-card')).find(c => c.querySelector('.variant-name').textContent === 'Scuttle');
+    // Pilot-aware: drive whichever family still HAS a disclosure rather
+    // than naming one, since pilot mode can lock a whole family (and with
+    // it its toggle) out of existence. The mechanism under test is
+    // renderGameGrid()'s single shared toggle handler, so any card that
+    // has one exercises it — and the label is read against that card's own
+    // variant count rather than a hardcoded number.
+    const card = Array.from(document.querySelectorAll('#game-grid .variant-card')).find(c => c.querySelector('.variant-expand-toggle'));
+    if (!card) return { name: null, n: 0, afterOpen: {}, afterClose: {} };
+    const name = card.querySelector('.variant-name').textContent;
     const toggle = card.querySelector('.variant-expand-toggle');
     const list = card.querySelector('.variant-sublist');
+    const n = list.querySelectorAll('.variant-sublink').length;
     toggle.click();
     const afterOpen = { hidden: list.classList.contains('hidden'), label: toggle.textContent };
     toggle.click();
     const afterClose = { hidden: list.classList.contains('hidden'), label: toggle.textContent };
-    return { afterOpen, afterClose };
+    return { name, n, afterOpen, afterClose };
   });
-  check('index.html: clicking a card\'s expand toggle reveals the variant sublist', result.afterOpen.hidden === false && result.afterOpen.label === '▴ 3 variants', JSON.stringify(result.afterOpen));
-  check('index.html: clicking it again collapses the sublist back', result.afterClose.hidden === true && result.afterClose.label === '▾ 3 variants', JSON.stringify(result.afterClose));
+  check('index.html: clicking a card\'s expand toggle reveals the variant sublist', !!result.name && result.afterOpen.hidden === false && result.afterOpen.label === `▴ ${result.n} variants`, JSON.stringify(result));
+  check('index.html: clicking it again collapses the sublist back', !!result.name && result.afterClose.hidden === true && result.afterClose.label === `▾ ${result.n} variants`, JSON.stringify(result));
 }
 
 /* ---------------- in-game variant switcher (renderVariantSwitcher) ----------------
@@ -316,35 +380,54 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
    player who already landed on one variant can jump to a sibling without
    going back to the hub — see CLAUDE.md's navigation redesign note. */
 {
+  // Each sibling is listed as [name, href] rather than name alone, because
+  // the expected chip SHAPE now depends on whether that sibling's own file
+  // is pilot-unlocked (see the PILOT block at the top) — with PILOT_MODE
+  // off every href resolves as unlocked and every sibling is a plain link,
+  // exactly as before.
   const CASES = [
-    ['scuttle-addition-subtraction.html', 'Addition & Subtraction', ['Product', 'Difference']],
-    ['scuttle-product.html', 'Product', ['Addition & Subtraction', 'Difference']],
-    ['scuttle-difference.html', 'Difference', ['Addition & Subtraction', 'Product']],
-    ['pop-addition.html', 'Addition', ['Subtraction', 'Expression', 'Perimeter']],
-    ['pop-subtraction.html', 'Subtraction', ['Addition', 'Expression', 'Perimeter']],
-    ['pop-expression.html', 'Expression', ['Addition', 'Subtraction', 'Perimeter']],
-    ['pop-perimeter.html', 'Perimeter', ['Addition', 'Subtraction', 'Expression']],
-    ['nim.html', 'Race to 10', ['Nickeled & Dimed', 'Subtraction Nim']],
-    ['nim-nickeled-and-dimed.html', 'Nickeled & Dimed', ['Race to 10', 'Subtraction Nim']],
-    ['nim-subtraction.html', 'Subtraction Nim', ['Race to 10', 'Nickeled & Dimed']],
-    ['beeline-product.html', 'Product', ['Difference', 'Addition', 'Decimal', 'Rounding', 'Equivalent Fraction']],
-    ['beeline-difference.html', 'Difference', ['Product', 'Addition', 'Decimal', 'Rounding', 'Equivalent Fraction']],
-    ['beeline-addition.html', 'Addition', ['Product', 'Difference', 'Decimal', 'Rounding', 'Equivalent Fraction']],
-    ['beeline-decimal.html', 'Decimal', ['Product', 'Difference', 'Addition', 'Rounding', 'Equivalent Fraction']],
-    ['beeline-rounding.html', 'Rounding', ['Product', 'Difference', 'Addition', 'Decimal', 'Equivalent Fraction']],
-    ['beeline-equivalent-fraction.html', 'Equivalent Fraction', ['Product', 'Difference', 'Addition', 'Decimal', 'Rounding']],
+    ['scuttle-addition-subtraction.html', 'Addition & Subtraction', [['Product', 'scuttle-product.html'], ['Difference', 'scuttle-difference.html']]],
+    ['scuttle-product.html', 'Product', [['Addition & Subtraction', 'scuttle-addition-subtraction.html'], ['Difference', 'scuttle-difference.html']]],
+    ['scuttle-difference.html', 'Difference', [['Addition & Subtraction', 'scuttle-addition-subtraction.html'], ['Product', 'scuttle-product.html']]],
+    ['pop-addition.html', 'Addition', [['Subtraction', 'pop-subtraction.html'], ['Expression', 'pop-expression.html'], ['Perimeter', 'pop-perimeter.html']]],
+    ['pop-subtraction.html', 'Subtraction', [['Addition', 'pop-addition.html'], ['Expression', 'pop-expression.html'], ['Perimeter', 'pop-perimeter.html']]],
+    ['pop-expression.html', 'Expression', [['Addition', 'pop-addition.html'], ['Subtraction', 'pop-subtraction.html'], ['Perimeter', 'pop-perimeter.html']]],
+    ['pop-perimeter.html', 'Perimeter', [['Addition', 'pop-addition.html'], ['Subtraction', 'pop-subtraction.html'], ['Expression', 'pop-expression.html']]],
+    ['nim.html', 'Race to 10', [['Nickeled & Dimed', 'nim-nickeled-and-dimed.html'], ['Subtraction Nim', 'nim-subtraction.html']]],
+    ['nim-nickeled-and-dimed.html', 'Nickeled & Dimed', [['Race to 10', 'nim.html'], ['Subtraction Nim', 'nim-subtraction.html']]],
+    ['nim-subtraction.html', 'Subtraction Nim', [['Race to 10', 'nim.html'], ['Nickeled & Dimed', 'nim-nickeled-and-dimed.html']]],
+    ['beeline-product.html', 'Product', [['Difference', 'beeline-difference.html'], ['Addition', 'beeline-addition.html'], ['Decimal', 'beeline-decimal.html'], ['Rounding', 'beeline-rounding.html'], ['Equivalent Fraction', 'beeline-equivalent-fraction.html']]],
+    ['beeline-difference.html', 'Difference', [['Product', 'beeline-product.html'], ['Addition', 'beeline-addition.html'], ['Decimal', 'beeline-decimal.html'], ['Rounding', 'beeline-rounding.html'], ['Equivalent Fraction', 'beeline-equivalent-fraction.html']]],
+    ['beeline-addition.html', 'Addition', [['Product', 'beeline-product.html'], ['Difference', 'beeline-difference.html'], ['Decimal', 'beeline-decimal.html'], ['Rounding', 'beeline-rounding.html'], ['Equivalent Fraction', 'beeline-equivalent-fraction.html']]],
+    ['beeline-decimal.html', 'Decimal', [['Product', 'beeline-product.html'], ['Difference', 'beeline-difference.html'], ['Addition', 'beeline-addition.html'], ['Rounding', 'beeline-rounding.html'], ['Equivalent Fraction', 'beeline-equivalent-fraction.html']]],
+    ['beeline-rounding.html', 'Rounding', [['Product', 'beeline-product.html'], ['Difference', 'beeline-difference.html'], ['Addition', 'beeline-addition.html'], ['Decimal', 'beeline-decimal.html'], ['Equivalent Fraction', 'beeline-equivalent-fraction.html']]],
+    ['beeline-equivalent-fraction.html', 'Equivalent Fraction', [['Product', 'beeline-product.html'], ['Difference', 'beeline-difference.html'], ['Addition', 'beeline-addition.html'], ['Decimal', 'beeline-decimal.html'], ['Rounding', 'beeline-rounding.html']]],
   ];
-  CASES.forEach(([file, currentName, siblingNames]) => {
+  CASES.forEach(([file, currentName, siblings]) => {
     const dom = loadGame(file);
     const info = runInPage(dom, () => {
       const chips = Array.from(document.querySelectorAll('#variant-row .chip'));
-      return chips.map(c => ({ tag: c.tagName, text: c.textContent, active: c.classList.contains('active'), href: c.getAttribute('href') }));
+      return chips.map(c => ({
+        tag: c.tagName, text: c.textContent, active: c.classList.contains('active'),
+        // Pilot mode renders an unreachable sibling as a non-navigating
+        // chip, so the locked marker/aria state is part of the snapshot now.
+        locked: c.classList.contains('locked'), ariaDisabled: c.getAttribute('aria-disabled'),
+        href: c.getAttribute('href'),
+      }));
     });
     const current = info.find(c => c.text === currentName);
     check(`${file}: variant switcher marks "${currentName}" as the current, non-navigating chip`, !!current && current.tag === 'SPAN' && current.active === true && current.href === null, JSON.stringify(info));
-    siblingNames.forEach(name => {
+    siblings.forEach(([name, href]) => {
       const sib = info.find(c => c.text === name);
-      check(`${file}: variant switcher links to sibling "${name}"`, !!sib && sib.tag === 'A' && !!sib.href, JSON.stringify(info));
+      if (pilotUnlocked(href)) {
+        check(`${file}: variant switcher links to sibling "${name}"`, !!sib && sib.tag === 'A' && !!sib.href, JSON.stringify(info));
+      } else {
+        // Same intent — every sibling is still SHOWN, so the family's shape
+        // stays visible from inside any one variant — but a pilot-locked
+        // one must not be reachable: a <span> with no href, marked
+        // aria-disabled rather than silently unclickable.
+        check(`${file}: variant switcher shows pilot-locked sibling "${name}", but not as a link`, !!sib && sib.tag === 'SPAN' && sib.locked === true && sib.active === false && sib.ariaDisabled === 'true' && sib.href === null, JSON.stringify(info));
+      }
     });
   });
 }
@@ -475,9 +558,21 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
     const nodes = Array.from(document.querySelectorAll('.menu-section-head, .variant-card'));
     const firstCardIdx = nodes.findIndex(n => n.classList.contains('variant-card'));
     const firstHeadIdx = nodes.findIndex(n => n.classList.contains('menu-section-head'));
-    return { heads, headComesFirst: firstHeadIdx !== -1 && firstHeadIdx < firstCardIdx };
+    // Which TIERS this page actually renders — pilot mode can empty the
+    // playable tier of a whole family's sub-menu, and a heading for a tier
+    // with no cards under it would be worse than no heading at all.
+    const cards = Array.from(document.querySelectorAll('.variant-card'));
+    return {
+      heads, headComesFirst: firstHeadIdx !== -1 && firstHeadIdx < firstCardIdx,
+      hasPlayable: cards.some(c => !c.classList.contains('locked')),
+      hasLocked: cards.some(c => c.classList.contains('locked')),
+    };
   });
-  check(`${file}: cards are grouped under "Playable now" / "Coming soon" headings`, r.heads.length === 2 && r.heads[0] === 'Playable now' && r.heads[1] === 'Coming soon', JSON.stringify(r.heads));
+  // Derived, not fixed: exactly one heading per tier that has cards, in
+  // playable-then-locked order. With PILOT_MODE off every one of these five
+  // pages has both tiers, so this is the same two-heading assertion as before.
+  const expectedHeads = [].concat(r.hasPlayable ? ['Playable now'] : [], r.hasLocked ? ['Coming soon'] : []);
+  check(`${file}: cards are grouped under "${expectedHeads.join('" / "')}" heading(s) — one per tier it actually has`, JSON.stringify(r.heads) === JSON.stringify(expectedHeads), JSON.stringify(r.heads));
   check(`${file}: no card sits above the first section heading`, r.headComesFirst === true, JSON.stringify(r));
 });
 
@@ -487,12 +582,29 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
    item CARRIES a chip and the legend explains it. Counted as
    cards + variant sublinks + the legend's own sample chip, rather than a
    magic total, so this stays readable if the demo list changes. */
+/* Pilot-aware: a pilot-locked variant can't be opened, so it loses its
+   marker (index.html leaves the chip off the sublink; applyPilotLockToMenu
+   strips it off a sub-menu card) — so the counts are DERIVED from
+   DEMO_READY_HREFS + the live flag instead of being fixed numbers. With
+   PILOT_MODE off these come back to the original 2/4, 2/0, 2/0. */
 [
-  // [file, demo-marked cards, demo-marked variant sublinks]
-  ['index.html', 2, 4],
-  ['scuttle-menu.html', 2, 0],
-  ['beeline-menu.html', 2, 0],
-].forEach(([file, expectedCards, expectedSublinks]) => {
+  // [file, the demo-ready hrefs this page can mark, and how it marks them:
+  //  'family' = the hub (one card per FAMILY + one sublink per variant),
+  //  'cards'  = a sub-menu (one card per VARIANT, no sublinks)]
+  ['index.html', DEMO_READY_HREFS, 'family'],
+  ['scuttle-menu.html', DEMO_READY_HREFS.filter(h => h.startsWith('scuttle-')), 'cards'],
+  ['beeline-menu.html', DEMO_READY_HREFS.filter(h => h.startsWith('beeline-')), 'cards'],
+].forEach(([file, demoHrefs, mode]) => {
+  const reachable = demoHrefs.filter(pilotUnlocked);
+  const expectedSublinks = mode === 'family' ? reachable.length : 0;
+  // On the hub a family card is marked once however many of its variants
+  // are demo-ready, so count distinct families (the filename prefix).
+  const expectedCards = mode === 'family'
+    ? new Set(reachable.map(h => h.split('-')[0])).size
+    : reachable.length;
+  // The hub always prints the legend; a sub-menu only does so once it has
+  // actually marked something.
+  const expectedLegends = (mode === 'family' || expectedCards + expectedSublinks > 0) ? 1 : 0;
   const dom = loadGame(file);
   const r = runInPage(dom, () => ({
     framed: document.querySelectorAll('.demo-framed').length,
@@ -503,10 +615,10 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
     badges: document.querySelectorAll('.badge.demo').length,
     legends: document.querySelectorAll('.demo-legend').length,
   }));
-  check(`${file}: ${expectedCards} demo-marked cards + ${expectedSublinks} demo-marked variants, each carrying a chip`,
+  check(`${file}: ${expectedCards} demo-marked cards + ${expectedSublinks} demo-marked variants (reachable ones only), each carrying a chip`,
     r.framed === expectedCards + expectedSublinks && r.framedSublinks === expectedSublinks && r.allFramedChipped === true, JSON.stringify(r));
-  // +1 for the legend's own sample chip.
-  check(`${file}: a legend explains what the chip means`, r.legends === 1 && r.badges === expectedCards + expectedSublinks + 1, JSON.stringify(r));
+  // +1 for the legend's own sample chip, where a legend is printed at all.
+  check(`${file}: a legend explains what the chip means`, r.legends === expectedLegends && r.badges === expectedCards + expectedSublinks + expectedLegends, JSON.stringify(r));
 });
 // Pages with nothing demo-ready must stay completely clean of demo furniture.
 ['pop-menu.html', 'nim-menu.html'].forEach(file => {
@@ -753,14 +865,23 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
    AFTER renderGlobalNav, so capturing the href at launcher-render time
    would always come back null on a multi-variant game). */
 [
-  // [file, the skill that must open expanded, or null for a listing page]
-  ['beeline-product.html', 'mult-facts'],
-  ['scuttle-addition-subtraction.html', 'add-sub'],
-  ['nim.html', 'strategy'],
-  ['detective-fraction-equivalence.html', 'fractions'],
-  ['index.html', null],
-  ['pop-menu.html', null],
-].forEach(([file, expectedOpenSkill]) => {
+  // [file, the skill that must open expanded (null for a listing page),
+  //  the page's own href, whether the page belongs to a multi-variant
+  //  family]. The last two exist because HOW the panel learns which file
+  //  it was opened from differs: a family member's own
+  //  renderVariantSwitcher call states it outright, while a single-variant
+  //  game is identified through its GLOBAL_GAMES entry's `href` — which
+  //  pilot mode removes when it locks that game, leaving nothing to expand.
+  ['beeline-product.html', 'mult-facts', 'beeline-product.html', true],
+  // 'add-sub-large', not 'add-sub': this game combines THREE numbers with
+  // TWO operators, so its SKILL_STATS entry is the larger-numbers/multi-step
+  // procedure, not single-operation addition (see shared-game.js's own note).
+  ['scuttle-addition-subtraction.html', 'add-sub-large', 'scuttle-addition-subtraction.html', true],
+  ['nim.html', 'strategy', 'nim.html', true],
+  ['detective-fraction-equivalence.html', 'fractions', 'detective-fraction-equivalence.html', false],
+  ['index.html', null, null, false],
+  ['pop-menu.html', null, null, false],
+].forEach(([file, namedSkill, selfHref, inFamily]) => {
   const dom = loadGame(file);
   const r = runInPage(dom, () => {
     const btn = document.getElementById('stats-launcher');
@@ -781,7 +902,16 @@ Object.entries(NAV_EXPECTED_CURRENT).forEach(([file, currentLabel]) => {
   });
   check(`${file}: has the corner stats launcher`, r.hasLauncher === true, JSON.stringify(r));
   check(`${file}: clicking it opens a panel of collapsed skills`, r.panelOpened === true && r.rowCount === 10 && r.collapsedBodiesHidden === true, JSON.stringify(r));
-  check(`${file}: opens with ${expectedOpenSkill ? `"${expectedOpenSkill}" expanded` : 'nothing expanded (no single game in context)'}`,
+  // A game's OWN page always knows which page it is, locked or not. That
+  // briefly stopped being true: applyPilotLock() deletes `href` so no nav
+  // surface can link to a locked game, and renderGlobalNav identified the
+  // current page by that same href — so a locked single-variant game
+  // (Detective) opened directly showed a panel with nothing expanded. Fixed
+  // at the source via `lockedHref`, not asserted around: being unlisted in
+  // the nav and being unable to identify yourself are different things.
+  const expectedOpenSkill = namedSkill || null;
+  const why = 'no single game in context';
+  check(`${file}: opens with ${expectedOpenSkill ? `"${expectedOpenSkill}" expanded` : `nothing expanded (${why})`}`,
     JSON.stringify(r.openSkills) === JSON.stringify(expectedOpenSkill ? [expectedOpenSkill] : []), JSON.stringify(r.openSkills));
 });
 

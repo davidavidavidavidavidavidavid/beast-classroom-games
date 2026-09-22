@@ -2956,6 +2956,83 @@ viewport made the grid taller than the room under the header and the page
 picked up a stray scrollbar. Capping the width in `vh` is what bounds the
 height, and it scales instead of being a number that only works at one size.
 
+## PILOT MODE + the fluency views (reversible)
+
+A hardcoded UI demonstration of `design/fluency-tracking-design-plan.md`'s
+two-bucket model, run on two games so the views can be judged without the
+rest of the catalogue in the way. **No gameplay data is collected, no
+taxonomy is classified, nothing persists** — this validates the UI/UX
+direction before the real tracking engine is built.
+
+### Reversing it
+
+`const PILOT_MODE = true;` in `shared-game.js`. **Set it to `false` and
+everything comes back.** Nothing is deleted and no file is removed.
+
+It works by transforming `GLOBAL_GAMES` ONCE, in `applyPilotLock()`, rather
+than teaching each nav surface its own rule. There are FOUR surfaces — the
+hub grid, the nav dropdown, the in-game variant switcher, and the
+hand-written `*-menu.html` cards — and GLOBAL_GAMES is documented as the
+single canonical list, which is exactly why one documented transform on it
+beats four filters that could drift. The static sub-menu cards are the one
+surface the transform can't reach, so `applyPilotLockToMenu()` converts
+them at runtime.
+
+**The tests derive their expectations from the flag** (`pilotModeOn()` /
+`pilotUnlockedHrefs()` — accessors, because a top-level `const` isn't
+readable off a loaded page). The full suite passes in BOTH states, verified
+by round-tripping the flag. If flipping it back required editing tests, it
+would not actually be reversible.
+
+**Two bugs this surfaced, both fixed at the source:**
+1. Locking families in the MIDDLE of the list left a still-playable Beeline
+   under the "Coming soon" heading — `renderGameGrid` emitted section heads
+   inline, assuming the list was ordered playable-first. It now partitions.
+2. `applyPilotLock()` deletes `href` so nothing can link to a locked game —
+   but `renderGlobalNav` identified the CURRENT PAGE by that same href, so a
+   locked single-variant game opened directly showed a stats panel with
+   nothing expanded. Being unlisted in the nav and being unable to identify
+   yourself are different things: the original is kept as `lockedHref`, a
+   key no renderer reads.
+
+### The two views
+
+Both hang off the existing `#stats-launcher` (the corner chart glyph),
+which was already the stats entry point — extended, not replaced.
+
+**FACTS (Product Beeline).** Finite and enumerable, so the lower tier is a
+grid of every individual fact. Sized **9x9 from the game's own
+`ROWMIN`/`ROWMAX`**, not a generic 10x10 — these are the facts that board
+can actually produce. Cells are shaded by mastery in four bands using the
+existing semantic tokens, because the colour IS the information; an
+unshaded grid of numbers is just the raw table. **"Not practised yet" is
+its own neutral state, deliberately not a low score** — no evidence and bad
+evidence are different claims.
+
+**PROCEDURES (Addition & Subtraction Scuttle).** Not enumerable, so the
+lower tier is a taxonomy: Addition / Subtraction / Multi-step problems.
+All three are listed for completeness, but only **Multi-step** carries a
+visible "From this game" badge — this game combines three numbers with two
+operators (see `design/game-rules-index.md`), so its evidence genuinely
+says nothing about single-operation addition or subtraction, and the view
+must not imply otherwise. The badge is on the row, not in a tooltip,
+because that distinction is the single most important thing the view
+communicates.
+
+**Both headline scores are DERIVED, never stored beside the detail they
+summarise** (`skillOverall()`): the facts headline is the mean of graded
+cells, the procedures headline is the attempts-weighted mean of sub-skills.
+A stored headline drifts the moment a cell is edited, and this view exists
+to be edited and re-judged. Tests assert both relationships.
+
+**Mock data is shaped, not sprinkled.** Two earlier drafts were rejected:
+one averaged 78% with a single cell under 60 (too flat to show anything),
+the next produced `1x5 = 69` (a learner who knows x1 knows all of x1). The
+shipped table uses heteroscedastic noise — variance shrinks at the easy end
+and widens at the hard end, which is how mastery actually distributes —
+giving a visible weak cluster at 6-8 x 6-8 (mean 47.6) against 1/2/5 rows
+at 80.3, and five never-attempted pairs.
+
 ## Bot AI philosophy — read this before writing any bot logic
 
 - Bots must **always compute arithmetic correctly** regardless of difficulty.
@@ -3692,7 +3769,19 @@ For every new game, before considering it done:
   a regression from that session's changes (which never touched Scuttle
   Product's own game file). No fix attempted, per the same reasoning as
   above; noted here only as a second confirmed sighting.
-  **Third sighting, and the first with an identified TRIGGER — worth
+  **A THIRD FILE now shows the identical signature:**
+  `test/smoke-scuttle-difference.test.js` failed one full-suite run with
+  the same `TypeError: Cannot read properties of null (reading 'length')`
+  inside a `runInPage` callback, then passed 5/5 in isolation immediately
+  after. It has exactly the shape the other two share — a loop over
+  format x difficulty combinations, each opening its own `loadGame()`
+  window that is never closed — which is the common factor across all
+  three affected files and remains the best available explanation. Treat
+  "a looping smoke test threw a null-length TypeError once" as this flake
+  until proven otherwise, and confirm by re-running that file ALONE before
+  investigating further.
+
+    **Third sighting, and the first with an identified TRIGGER — worth
   remembering before diagnosing this file again:** running a Playwright
   check (`test/layout-density.playwright.js`) concurrently with `npm test`
   reliably produced a DIFFERENT failure in `smoke-product.test.js` —
