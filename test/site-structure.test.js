@@ -117,8 +117,10 @@ const NAV_EXPECTED_CURRENT = {
   'nim-menu.html': 'Nim',
   'numbo-operations.html': 'Numbo',
   'detective-fraction-equivalence.html': 'Detective',
+  'lightning-multiplication.html': 'Lightning',
+  'lightning-multi-step.html': 'Lightning',
 };
-const TOTAL_CATALOGUED_GAMES = 8; // 6 playable + 2 locked (Pig, Math Match — every
+const TOTAL_CATALOGUED_GAMES = 9; // 7 playable + 2 locked (Pig, Math Match — every
 // other catalogued-but-unbuilt game was trimmed from GLOBAL_GAMES at the
 // user's explicit direction, 2026-09-15) — see shared-game.js GLOBAL_GAMES
 

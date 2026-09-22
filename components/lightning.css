@@ -1,0 +1,65 @@
+/* ==========================================================================
+   COMPONENT: lightning
+   The drill family's own furniture — a big single question, a run of
+   progress dots, and a round summary. Shared by every Lightning variant
+   (multiplication facts, multi-step add/sub) because the loop is identical
+   and only the question generator differs; see shared-game.js's Lightning
+   engine and design/fluency-tracking-design-plan.md's strategy/forcing
+   matrix for why this game exists at all.
+   Requires design-system.css first (uses its tokens).
+   ========================================================================== */
+
+/* The question is the entire screen here — there is no board competing
+   with it — so it takes the top of the type scale. */
+.lightning-question {
+  font-family: var(--font-sans);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.2;
+  margin: var(--space-md) 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+/* One dot per question. Reserved in full from the first render (all ten
+   exist immediately, only their state changes) so the row can never change
+   height mid-round — see CLAUDE.md "Layout stability". */
+.lightning-progress {
+  display: flex; justify-content: center; gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+.lq-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--color-text-tertiary);
+  background: var(--color-background-primary);
+  display: inline-block; flex: 0 0 auto;
+}
+.lq-dot.right { background: var(--color-correct); border-color: var(--color-correct); }
+.lq-dot.wrong { background: var(--color-error); border-color: var(--color-error); }
+.lq-dot.current { border-color: var(--color-beast-blue); border-width: 3px; }
+
+.lightning-score {
+  font-family: var(--font-sans); font-size: var(--text-3xl); font-weight: 800;
+  text-align: center; color: var(--color-beast-blue);
+  font-variant-numeric: tabular-nums;
+}
+.lightning-verdict {
+  font-family: var(--font-sans); font-size: var(--text-md);
+  text-align: center; color: var(--color-text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+/* Missed questions are shown with their ANSWER, not just the prompt — the
+   point of the list is the thing you didn't know, not a re-test. */
+.lightning-missed {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+.lightning-missed-row {
+  font-family: var(--font-sans); font-size: var(--text-md); font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border: 2px solid var(--color-error); border-radius: 4px;
+  background: var(--color-beast-red-bg); color: var(--color-text-primary);
+  padding: 4px var(--space-xs);
+}

@@ -36,6 +36,7 @@ const ALL_GAME_FILES = [
   'beeline-decimal.html', 'beeline-rounding.html', 'beeline-equivalent-fraction.html',
   'nim.html', 'nim-nickeled-and-dimed.html', 'nim-subtraction.html',
   'numbo-operations.html', 'detective-fraction-equivalence.html',
+  'lightning-multiplication.html', 'lightning-multi-step.html',
 ];
 
 const flagDom = loadGame('index.html');

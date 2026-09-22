@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lightning: Multi-step Add &amp; Subtract</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="components/lightning.css">
+</head>
+<body>
+<div id="app">
+
+  <h1>LIGHTNING</h1>
+  <div class="kicker-wrap"><span class="kicker">Multi-step Add &amp; Subtract</span></div>
+  <div id="tagline" class="tagline">Ten two-step problems on three 3-digit numbers. No board, no opponent — just the answer.</div>
+
+  <div id="top-bar">
+    <div class="pill-group">
+      <div class="stat-pill">Question <b id="s-qnum">1</b>/10</div>
+      <div class="stat-pill">Correct <b id="s-correct">0</b></div>
+    </div>
+    <div class="top-bar-actions">
+      <button id="print-btn" disabled>Print</button>
+      <button id="settings-btn">Settings</button>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card" id="screen-settings">
+    <div class="section-label">Game variant</div>
+    <div class="chip-row" id="variant-row"></div>
+
+    <div class="section-label">Problem shape</div>
+    <div class="chip-row" id="range-row">
+      <button class="chip" data-range="mixed">Mixed</button>
+      <button class="chip" data-range="addonly">Add only</button>
+      <button class="chip" data-range="subonly">Subtract only</button>
+    </div>
+    <div class="desc-line-stack" id="range-desc"></div>
+
+    <div class="btn-row"><button class="primary" id="start-btn">Start round</button></div>
+    <div id="rules-box" class="hidden">
+      Ten two-step problems, asked one at a time — three 3-digit numbers joined by two
+      operators, worked left to right. Type the total and press Check. A wrong answer
+      tells you the right one and moves on; nothing is retried mid-round, because the
+      point is to see which problems are quick and which aren't. At the end you get your
+      score and a list of any you missed. Running totals never go below zero.
+      <strong>This is a drill, not a strategy game</strong> — it exists so every fact can
+      be asked directly, which the board games deliberately can't do.
+    </div>
+  </div>
+
+  <!-- ROUND -->
+  <div class="card hidden" id="screen-round">
+    <div class="lightning-progress" id="progress-dots"></div>
+    <div class="lightning-question" id="question">—</div>
+    <div class="answer-row">
+      <label for="answer-input">Answer:</label>
+      <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?"/>
+      <button class="primary" id="check-btn">Check</button>
+    </div>
+    <div id="msg" class="feedback-msg"></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="card hidden" id="screen-results">
+    <div class="lightning-score" id="final-score">—</div>
+    <div class="lightning-verdict" id="verdict"></div>
+    <div id="missed-wrap" class="hidden">
+      <div class="section-label">Worth another look</div>
+      <div class="lightning-missed" id="missed-list"></div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" id="again-btn">Another round</button>
+      <button id="change-settings-btn">Change settings</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="shared-game.js"></script>
+<script>
+const el = id => document.getElementById(id);
+renderGlobalNav('lightning');
+renderVariantSwitcher('variant-row', 'lightning', 'lightning-multi-step.html');
+
+/* The shapes Scuttle Add/Sub actually produces: three numbers combined by
+   two operators. `allowNegative:false` rejects any problem whose running
+   total dips below zero, so the drill stays inside what a 3rd/4th grader
+   is expected to handle — Scuttle itself permits negatives, but it shows
+   its working on screen, and a bare drill question does not. */
+const SHAPES = {
+  'mixed':  { ops: ['+', '\u2212'], desc: 'Both operators, mixed \u2014 the shape Scuttle Add & Subtract produces.' },
+  'addonly':{ ops: ['+'],            desc: 'Addition only: a + b + c, three 3-digit numbers.' },
+  'subonly':{ ops: ['\u2212'],      desc: 'Subtraction only: a \u2212 b \u2212 c, never dropping below zero.' },
+};
+
+const st = {
+  shape: 'mixed',
+  questions: [],
+  idx: 0,
+  correct: 0,
+  missed: [],
+  answered: false,
+};
+
+/* The one thing this file supplies to the shared drill engine: how to make
+   a question, what its answer is, and how to show it. */
+const LIGHTNING_SPEC = {
+  generate(){
+    const ops = SHAPES[st.shape].ops;
+    const d3 = () => 100 + randInt(900);          // a genuine 3-digit number
+    const pick = () => ops[randInt(ops.length)];
+    // Rejection-sample rather than clamp: clamping would bias the operands
+    // toward particular values, and a drill's numbers should look drawn at
+    // random. Bounded attempts so a pathological op-set can't spin.
+    for (let tries = 0; tries < 200; tries++){
+      const a = d3(), b = d3(), c = d3();
+      const op1 = pick(), op2 = pick();
+      const step1 = op1 === '+' ? a + b : a - b;
+      if (step1 < 0) continue;
+      const answer = op2 === '+' ? step1 + c : step1 - c;
+      if (answer < 0) continue;
+      return { prompt: `${a} ${op1} ${b} ${op2} ${c}`, answer };
+    }
+    // Only reachable if 200 draws all went negative — take the one shape
+    // that cannot.
+    const a = d3(), b = d3(), c = d3();
+    return { prompt: `${a} + ${b} + ${c}`, answer: a + b + c };
+  },
+};
+
+function renderShapeDesc(){
+  const wrap = el('range-desc');
+  wrap.innerHTML = '';
+  Object.keys(SHAPES).forEach(key => {
+    const d = document.createElement('div');
+    d.className = 'desc-line-option' + (key === st.shape ? ' active' : '');
+    d.textContent = SHAPES[key].desc;
+    wrap.appendChild(d);
+  });
+}
+function renderShapeChips(){
+  document.querySelectorAll('#range-row [data-range]').forEach(b => {
+    b.classList.toggle('active', b.dataset.range === st.shape);
+  });
+  renderShapeDesc();
+}
+document.querySelectorAll('#range-row [data-range]').forEach(b => {
+  b.addEventListener('click', () => { st.shape = b.dataset.range; renderShapeChips(); });
+});
+renderShapeChips();
+
+function showScreen(name){
+  ['screen-settings', 'screen-round', 'screen-results'].forEach(id => {
+    el(id).classList.toggle('hidden', id !== name);
+  });
+  fadeIn(el(name));
+}
+
+function renderProgress(){
+  const wrap = el('progress-dots');
+  wrap.innerHTML = '';
+  for (let i = 0; i < LIGHTNING_QUESTIONS_PER_ROUND; i++){
+    const d = document.createElement('span');
+    let cls = 'lq-dot';
+    // `i < st.idx` alone leaves the LAST question's dot uncoloured:
+    // renderProgress runs from checkAnswer() before st.idx increments, and
+    // after question 10 the round ends without another render. Count the
+    // current question too, once it has actually been answered.
+    const done = i < st.idx || (i === st.idx && st.answered);
+    if (done) cls += st.missed.some(m => m.i === i) ? ' wrong' : ' right';
+    else if (i === st.idx) cls += ' current';
+    d.className = cls;
+    wrap.appendChild(d);
+  }
+  el('s-qnum').textContent = Math.min(st.idx + 1, LIGHTNING_QUESTIONS_PER_ROUND);
+  el('s-correct').textContent = st.correct;
+}
+
+function renderQuestion(){
+  const q = st.questions[st.idx];
+  el('question').textContent = q ? q.prompt + ' =' : '—';
+  el('answer-input').value = '';
+  el('answer-input').disabled = false;
+  el('check-btn').disabled = false;
+  el('msg').textContent = '';
+  el('msg').className = 'feedback-msg';
+  st.answered = false;
+  renderProgress();
+}
+
+function startRound(){
+  st.questions = lightningBuildRound(LIGHTNING_SPEC, LIGHTNING_QUESTIONS_PER_ROUND);
+  st.idx = 0;
+  st.correct = 0;
+  st.missed = [];
+  showScreen('screen-round');
+  renderQuestion();
+}
+function startMatch(){ startRound(); }
+
+function checkAnswer(){
+  if (st.answered) return;
+  const raw = el('answer-input').value.trim();
+  if (raw === '') return;
+  const given = Number(raw);
+  const q = st.questions[st.idx];
+  st.answered = true;
+  el('answer-input').disabled = true;
+  el('check-btn').disabled = true;
+
+  if (given === q.answer){
+    st.correct++;
+    el('msg').textContent = 'Correct.';
+    el('msg').className = 'feedback-msg success';
+  } else {
+    st.missed.push({ i: st.idx, prompt: q.prompt, answer: q.answer, given });
+    el('msg').textContent = `${q.prompt} = ${q.answer}`;
+    el('msg').className = 'feedback-msg error';
+    el('answer-input').classList.remove('shake');
+    void el('answer-input').offsetWidth;
+    el('answer-input').classList.add('shake');
+  }
+  renderProgress();
+  // A short beat so the answer is readable before the next question
+  // replaces it — the only pause in the loop, deliberately brief.
+  setTimeout(() => {
+    st.idx++;
+    if (st.idx >= LIGHTNING_QUESTIONS_PER_ROUND) endRound();
+    else renderQuestion();
+  }, 900);
+}
+
+function endRound(){
+  el('final-score').textContent = `${st.correct} / ${LIGHTNING_QUESTIONS_PER_ROUND}`;
+  el('verdict').textContent = lightningSummary(st.correct, LIGHTNING_QUESTIONS_PER_ROUND);
+  const wrap = el('missed-list');
+  wrap.innerHTML = '';
+  st.missed.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'lightning-missed-row';
+    row.textContent = `${m.prompt} = ${m.answer}`;
+    wrap.appendChild(row);
+  });
+  el('missed-wrap').classList.toggle('hidden', st.missed.length === 0);
+  showScreen('screen-results');
+}
+
+el('check-btn').addEventListener('click', checkAnswer);
+el('answer-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkAnswer(); });
+el('start-btn').addEventListener('click', startMatch);
+el('again-btn').addEventListener('click', startRound);
+el('change-settings-btn').addEventListener('click', () => showScreen('screen-settings'));
+el('settings-btn').addEventListener('click', () => showScreen('screen-settings'));
+
+initSettingsChrome();
+showScreen('screen-settings');
+</script>
+</body>
+</html>

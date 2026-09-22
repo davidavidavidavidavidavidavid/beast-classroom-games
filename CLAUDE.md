@@ -218,6 +218,17 @@ dependencies beyond Google Fonts), sharing a common design system.
 - `nim-menu.html` — Nim's own sub-menu, same shape/purpose as `scuttle-menu.html`/`pop-menu.html` (built the moment Nim turned out to ALSO have a second built variant — Nickeled & Dimed — not "exactly one" the way Beeline/Numbo/Detective genuinely still do; see the "Pop needed its own sub-menu" design note below, which generalizes the same way). 6 cards: 3 built (Race to 10, Nickeled & Dimed, Subtraction Nim) + 3 catalogued-unbuilt (Division Nim, Hexagon Nim, Place Value Nim). `index.html`'s Nim card and the global nav dropdown both now point at this page (`multiVariant: true`, `href: 'nim-menu.html'` in `GLOBAL_GAMES`) instead of straight at `nim.html` — see the corrections to the design notes below, which were written before Nim had a second variant and said the opposite.
 - `numbo-operations.html` — a genuinely new engine shape for this project: no fixed arrangement to fill, an OPEN expression-construction problem (the classic "24 game"). Roll 4d10; the active player (alternates) sets a target under 100; everyone builds one expression from all four rolled digits (each used exactly once, `+ - * /` and parentheses, no concatenating digits into multi-digit numbers) as close to the target as possible; closest scores a point, **a tie scores BOTH players a point** (the real rule — see the design note below, a genuine deviation from every other game's tie handling); first to 5 points wins the match. Needed two wholly new pieces of engineering: a real recursive-descent expression parser/evaluator for the human's typed input (never `eval()`/`Function()` on raw text) that validates syntax, precedence, and that the typed expression's digit multiset exactly matches what was rolled; and an exhaustive "24-game" solver bot (every ordering × all 5 binary-tree parenthesizations × every operator triple = up to 7680 candidate expressions, evaluated to find the true closest-to-target value) — see Bot AI philosophy below for why this makes "Hard never loses" an *exact*, not statistical, claim, closer to Nim's solved-game guarantee than to Beeline's turn-based one, despite Numbo not being adversarial/turn-based at all. "Numbo" itself has no standalone win condition — only its named variants do (a correction in the same spirit as "Big Number Pop is NOT this engine at all," see Suggested next steps) — so this file is named for its variant, `numbo-operations.html`, not a bare `numbo.html` the way `nim.html` could be. First of three named Numbo variants; the other two (Equivalent Fraction Numbo, Fractions of Amounts Numbo) both depend on a physical "game board" this project doesn't have — see the design note below for the placeholder specs written up (not built) for them, at the user's explicit direction, pending the real boards. Has the avatar picker/top-bar badges now too (see "Avatars" above — this reverses an earlier version of this note, which grouped avatars in with the reasons below; that grouping no longer holds now that avatars are project-wide, see the Avatars section's own note on this), but still no persistent scorecard, no `#s-ties` pill (same reasoning as Nim's design note, extended below). Post-playtest: free typing into `#expr-input` replaced with a clickable keyboard (digits/operators/parens/backspace/clear), and the round's own sub-phase blocks were switched from `.phase-hidden` to `.hidden` (they're mutually exclusive, not within-round phase content — reserving all five's space at once was producing real dead blank space) — see "Post-playtest navigation & UX fixes".
 - `detective-fraction-equivalence.html` — a genuinely different SOURCE and SHAPE from every other game: ported from `design/legacy/fraction-detective-original.html`, a complete working game from a prior (non-Beast-Classroom) project, not from the curriculum catalog at all (it isn't in `design/game-catalog.csv`). **Single-player** — no bot, no opponent, no `decideWinner`, no avatar picker, no You/Bot scoreboard; see the design note below for which two-player conventions genuinely don't apply here and which single-player ones take their place. A Wordle-style equivalence puzzle: given a hidden target fraction, build any *equivalent-but-different-looking* fraction one digit at a time, six guesses per puzzle, with Wordle digit feedback (right digit/right slot, right digit/wrong slot, absent) accumulating on an on-screen keyboard across guesses. Difficulty auto-progresses by round number via a `LEVELS` table and `getRoundLevel()`; after round 10, "endurance mode" replaces round-based progression with a shared 50-guess budget across unlimited puzzles. The original's game logic — the `LEVELS` table, `generatePuzzle()`'s rejection-sampling (retries up to 2000 times per puzzle), the flattened-digit Wordle-coloring algorithm, the endurance trigger/mechanics, the flipped-equation win rule, and the hint-at-2-misses pattern — is preserved EXACTLY, per explicit instruction; only its throwaway CSS was replaced (with a new shared component, `components/wordle-slot.css`) and its state/rendering reorganized around this project's conventions (`st`, `el()`, `showScreen()`, `.phase-hidden`/`.hidden`) — including renaming the original's `init()`/`fullReset()` to this project's fixed `startRound()`/`startMatch()` (a new puzzle within the same running round/streak counts IS "start a round"; a full reset back to round 1 IS "start a match" — a clean, exact mapping, and a pure rename with zero behavior change, unlike the preserved logic itself). The one change to the preserved logic itself: `Math.floor(Math.random() * X)` calls became `shared-game.js`'s `randInt(X)` — the identical formula, so the actual puzzle distribution is untouched; this is the same "check shared-game.js first" discipline as every other game, not a rewrite. `generatePuzzle()` now returns a GENERIC puzzle contract (`parts`, `equivalentOrderings()`, `isValidGuess()`, `hintText`, `displayText`) that the rest of the game loop consumes without knowing it's a fraction — see the design note below for why, and for how much of "Detective" is actually meant to be a family. First of a NEW single-player test-file naming pattern (`puzzle-logic.*`, not `decide-winner.*` — see Code conventions and Testing methodology). Post-playtest: input now sits in its own column to the left, guess history in its own column to the right (`.game-columns`/`.game-input-col`/`.game-history-col`, stacking below ~560px) instead of history stacking above the input and pushing the keyboard down the page; the fraction bar (`.fbar`) is thicker, nudged down, and extended past the digit boxes so it no longer blends into a digit box's own drop shadow — see "Post-playtest navigation & UX fixes".
+- `lightning-multiplication.html`, `lightning-multi-step.html` — the drill
+  family: ten questions a round, one at a time, no board and no opponent.
+  Single-player (Detective's precedent — no `decideWinner`, no bot tiers,
+  no avatars). Both share `shared-game.js`'s Lightning engine and supply
+  only their own question generator; new shared component
+  `components/lightning.css`. Multiplication covers 1-9 (the same facts
+  Product Beeline's board produces, in ranges 1-9 / 2-9 / 6-9); multi-step
+  chains three 3-digit numbers with two operators (mixed / add-only /
+  sub-only), rejection-sampled so nothing goes negative. **Read the
+  "Lightning" section below before changing anything about it** — the
+  absence of strategy is the point, not an unfinished game.
 - `index.html` — the project's actual landing page (was `scuttle-menu.html`, until this restructuring — see below). Hosts the boot sequence (see "Boot sequence"). Below it: one card per GAME, never per variant (see "File naming convention") — the H1 reads the umbrella brand "BEAST 64" (`.logo`, its own bigger pixel-font treatment, scoped to this one page — renamed from plain "BEAST" on 2026-09-15, see "Print button, BEAST 64 rebrand, and a trimmed 'Coming Soon' catalog" below), not a single game's name, since this page isn't any one game. Cards render dynamically from `shared-game.js`'s `GLOBAL_GAMES` — the SAME list `renderGlobalNav()`'s dropdown reads — laid out 2-up in `.game-grid` (1 column below 480px). Originally every catalogued-but-unbuilt game (43 of them, everything in `design/game-catalog.csv` besides the 6 built games) got its own locked "Coming soon" card too, at the user's explicit direction, for a genuinely comprehensive roadmap view — **as of 2026-09-15, only 2 of those locked cards remain (Pig, Math Match)**, every other catalogued-but-unbuilt game trimmed from `GLOBAL_GAMES` itself at the user's later, explicit direction — see that same section below for the full reasoning. **Redesigned after real playtesting — see "Post-playtest navigation & UX fixes" for the full story:** every playable game's card now has a real "Play →" link straight into an actual game file (never a "choose one" menu page in between). A single-variant game (Beeline, Numbo, Detective) is still one big clickable `<a>`, unchanged. A multi-variant game (`multiVariant: true` — Scuttle, Pop, Nim, each genuinely more than one shipped file) is now a plain `<div>` (its "Play →" badge is its own `<a>`, straight to that family's DEFAULT/first-listed variant) with a small expandable "▾ N variants" disclosure underneath, listing every sibling as its own direct link — replacing the old "See variants →" link into that family's own sub-menu page.
 - `scuttle-menu.html` — Scuttle's own sub-menu now (no longer the whole-project hub, no boot sequence) — one card per Scuttle variant: 3 built (Addition & Subtraction, Product, Difference) + 4 catalogued-but-unbuilt (Remainder, Decimal, Super Product, Super Decimal), the same 7 this family has always listed. `<h1>SCUTTLE</h1>`, kicker "Choose your variant" — matches the same Kicker Chip Pattern every actual game page uses, since this page names one specific game family, unlike `index.html`.
 - `pop-menu.html` — Pop's own sub-menu, same shape as `scuttle-menu.html` (built the moment Pop turned out to ALSO have multiple built variants — addition/subtraction/expression — not "exactly one" the way Beeline/Numbo/Detective genuinely do; see "Global navigation"'s note on why Pop needed this and Beeline/Numbo/Detective don't). 11 cards: 4 built (Addition, Subtraction, Expression, Perimeter) + 7 catalogued-unbuilt (Big Number, Powers of Ten, Multiplication, Fraction Multiplication, Fraction Addition & Subtraction, Mixed Number Multiplication, Mixed Number Addition & Subtraction — the same "~8 more" Suggested next steps already tracked, now visible in the UI as locked cards instead of only living in this doc).
@@ -512,11 +523,15 @@ shared-game.js              <- The JS equivalent of design-system.css — pure m
                                beelineDecideWinner/etc. — see "Beeline
                                anti-stalemate fix, board randomization, and
                                5 new variants" and each two-row variant's own
-                               "Where things stand" entry), game-shell
+                               "Where things stand" entry), the Lightning drill
+                               engine (LIGHTNING_QUESTIONS_PER_ROUND/
+                               lightningBuildRound/lightningAccuracy/
+                               lightningSummary — see "Lightning" below),
+                               game-shell
                                scaffolding (showScreen, score pills, the
-                               persistent scorecard), the global navigation bar
+                               persistent scorecard), the global navigation rail
                                (renderGlobalNav()/GLOBAL_GAMES — see "Global
-                               navigation"), and pointer-drag plumbing
+                               nav: sticky left rail"), and pointer-drag plumbing
                                (makeDraggable, the FLIP helpers — see "Drag
                                interactions" below) that's identical in *shape*
                                across games, parameterized by each game's own
@@ -557,6 +572,12 @@ components/
                                5s instead of 1s — see its own "Where things
                                stand" entry), and Subtraction Nim / Place Value
                                Nim can still reuse it as-is once built.
+  lightning.css              <- Shared by the Lightning drill family (one big
+                               question, a row of ten progress dots, a round
+                               summary). Written generically from the start
+                               since both variants shipped together — the
+                               only per-variant difference is the question
+                               generator, which is JS, not CSS.
   (future: risk-meter.css, flip-card.css — one per new engine family,
    extracted from the /design/ mockups when first built for real)
 <game>-<variant>.html       <- Each game: a couple of <link> tags to the shared
@@ -651,14 +672,20 @@ the next game built.)
 
 ## Global navigation — required on every page, hub included
 
-A persistent thin bar (`#global-nav`), fixed to the very top of the
-viewport on every single page in this project — every game, `index.html`
-itself, and each game family's own sub-menu (`scuttle-menu.html`, and any
-future one). It sits ABOVE a game's own existing round/difficulty/score top
-bar; it never replaces it. Three parts, left to right: a "Beast Classroom"
-wordmark (links to `index.html`), a "Games ▾" dropdown listing every known
-game with its status, and a quiet, right-aligned label naming the CURRENT
-page's own game.
+A persistent strip (`#global-nav`), fixed on every single page in this
+project — every game, `index.html` itself, and each game family's own
+sub-menu (`scuttle-menu.html`, and any future one). It is separate from a
+game's own round/difficulty/score top bar and never replaces it.
+
+**It is now a vertical rail down the left edge, carrying the BC logo and a
+Games dropdown — see "Global nav: sticky left rail" for its current shape
+and why it moved.** What follows in this section is the mechanism, which is
+unchanged: the nav is JS-injected from one implementation, reads
+`GLOBAL_GAMES`, and every page compensates for it with one padding rule.
+(For history: it began as a thin bar across the top carrying a "Beast
+Classroom" wordmark, a "Games ▾" dropdown and a right-aligned label naming
+the current page's game. The wordmark became the logo, the label was
+removed as a duplicate of the page's own H1, and the bar became a rail.)
 
 **Implementation is entirely JS-injected, not per-file markup** —
 `renderGlobalNav(currentKey)` in `shared-game.js` builds the whole bar and
@@ -708,13 +735,15 @@ just name/status).
 since every page needs it identically): `#global-nav` is `position:fixed`
 with `z-index:40` — deliberately BELOW the boot screen's `z-index:100`
 (see "Boot sequence" below), so the boot overlay still fully covers it
-during the intro on `index.html`, and the nav bar is simply revealed
-underneath once the boot screen fades. **Every page needs a top-padding
-equal to the bar's height** so real content doesn't render underneath the
-fixed bar — done once, universally, via `--nav-height` (a CSS variable,
-so the bar's own height and the compensating padding can never drift
-apart) folded into `body`'s existing padding rule, not as a per-game
-`margin-top` some future game could forget to add.
+during the intro on `index.html`, and the nav is simply revealed
+underneath once the boot screen fades. **Every page needs padding equal to
+the nav's own size** so real content doesn't render underneath it — done
+once, universally, via a CSS variable (so the nav's size and the
+compensating padding can never drift apart) folded into `body`'s existing
+padding rule, not as a per-game margin some future game could forget to
+add. That variable is now `--nav-width` and the padding is on the LEFT —
+see "Global nav: sticky left rail" for why the nav moved and what else
+moved with it.
 
 Currently wired into every built game file (`scuttle-addition-
 subtraction.html`, `scuttle-product.html`, `scuttle-difference.html`,
@@ -2961,30 +2990,120 @@ viewport made the grid taller than the room under the header and the page
 picked up a stray scrollbar. Capping the width in `vh` is what bounds the
 height, and it scales instead of being a number that only works at one size.
 
-## Global nav: brand bar
+## Global nav: sticky left rail
 
-The bar is **brand blue** (`--color-beast-blue`) carrying exactly two
-things: the **BC logo** on the left (`design/BC_Logo_Whiteoutline.png`,
-height-driven since the art is ~1:1.17) and the **Games dropdown on the
-right**. Everything sitting on the blue is white.
+**It is a vertical rail down the left edge now, not a bar across the top**
+(`position: fixed; top/left/bottom: 0; width: var(--nav-width)`, 76px).
+Brand blue (`--color-beast-blue`), everything on it white, carrying exactly
+two things stacked: the **BC logo** (`design/BC_Logo_Whiteoutline.png`,
+width-driven since the art is ~1:1.17) and the **Games** control under it.
 
-**The current game's name was removed from it.** The bar sat directly above
-that game's own H1 and kicker, so it was repeating what the page said one
-line further down. What survives from that block is the
-`CURRENT_PAGE_HREF` assignment, which is load-bearing — it is how the stats
-panel knows which page it is on — so removing the label means removing the
-label only.
+**The reason is the height budget, and it's the same argument as "1024×600
+zero-scroll architecture".** Height is the scarce axis on the tablets these
+games target; width is not — at 1024×600 a page has more horizontal room
+than it can use and none to spare vertically. A top bar spent the scarce
+one. The rail spends the plentiful one: `body`'s reserving padding moved
+from `padding-top` to `padding-left`, which handed every page back the
+bar's full height for free.
 
-The dropdown anchors `right: 0`, not `left: 0`: its trigger now sits at the
-right end of the bar, so a left-anchored panel would hang off the viewport.
+Consequences worth knowing before touching this:
+- `--nav-height` is gone, replaced by `--nav-width`. The sticky scorecard's
+  `top` no longer subtracts a nav height, and the `max-height: 640px` tier's
+  old `--nav-height: 44px` squeeze was deleted rather than translated —
+  shrinking the rail's WIDTH to save vertical space would do nothing.
+- **The dropdown opens sideways** (`left: calc(100% + var(--space-xs))`),
+  not downward. There is no "below" on a full-height rail.
+- `#rules-launcher` (bottom-left) sits at `left: calc(var(--nav-width) +
+  16px)` so it clears the rail; `#stats-launcher` (bottom-right) is
+  unaffected. The two corner launchers still mirror each other.
+- The Games toggle is a grid glyph with the word "Games" stacked under it.
+  A 76px rail has no room for them side by side, and an unlabelled icon is
+  a guess.
+
+**The current game's name was removed from the nav** (during the earlier
+brand-bar pass, kept here because it still holds): it sat directly above
+that game's own H1 and kicker, repeating what the page said one line down.
+What survives from that block is the `CURRENT_PAGE_HREF` assignment, which
+is load-bearing — it is how the stats panel knows which page it is on — so
+removing the label means removing the label only.
+
+## Lightning — the drill game, and why a drill exists at all
+
+`lightning-multiplication.html` and `lightning-multi-step.html`. A bare
+question-and-answer drill: ten questions a round, one on screen at a time,
+type the answer and press Check. No board, no bot, no dice, no choices.
+
+**This is a deliberate instrument, not a lesser game**, and
+`design/fluency-tracking-design-plan.md` is the reason: its
+strategy/forcing matrix says every tracked skill needs at least one game at
+the top of the *forcing* axis — somewhere we can put a specific fact in
+front of a student directly — even though maximum forcing means near-zero
+strategy. The board games are the opposite end by design: Product Beeline
+can't be made to ask 7×8, it can only offer positions from which 7×8 might
+be reachable. The doc is explicit that the drill belongs "alongside the
+strategy games, not a compromise we settle for". If a future pass is
+tempted to add strategy to Lightning, that would remove the only reason it
+exists.
+
+The two variants are exactly the two skills the fluency pilot demonstrates:
+multiplication facts (Product Beeline's skill) and multi-step 3-digit
+addition/subtraction (Addition & Subtraction Scuttle's). Both feed the same
+`SKILL_STATS` entries those games do.
+
+**Single-player, so the Detective precedent applies** (see its design
+note): no `decideWinner`, no `botChooseRound`, no difficulty tiers, no
+avatar picker, no You/Bot pills — there is nothing to compare a result
+against. Its pure-logic test is `test/puzzle-logic.lightning.test.js`, per
+the naming convention that exists for exactly this case.
+
+**The engine is shared from the start** (`shared-game.js`:
+`LIGHTNING_QUESTIONS_PER_ROUND`, `lightningBuildRound`,
+`lightningAccuracy`, `lightningSummary`) because there were two real
+consumers on day one — the same bar the Beeline two-row engine met, not a
+preemptive extraction. Each file supplies only a `LIGHTNING_SPEC` object
+with a `generate()` returning `{prompt, answer}`; everything else — the
+round loop, the progress dots, the results screen — is identical code.
+
+Design decisions in it worth not re-litigating:
+- **A wrong answer is not retried.** Every other game in this project gates
+  progress behind retry-until-correct; Lightning states the real answer and
+  moves on after a short beat. The point of a drill is finding out which
+  facts are quick, which retrying destroys — you cannot measure recall you
+  have just supplied. The missed list at the end is the output.
+- **No adjacent repeats.** `lightningBuildRound` redraws rather than serve
+  the same prompt twice in a row, which reads as a bug even when it is a
+  legitimate draw. Bounded guard, with a fallback so a pathological
+  generator can't hang the loop.
+- **All ten progress dots exist from the first render**, only their state
+  changes — the row can never change height mid-round ("Layout stability").
+  A real bug here: the last dot never coloured, because `renderProgress()`
+  runs from `checkAnswer()` *before* `st.idx++` and isn't called again
+  after question 10. The fix counts the current question once it has
+  actually been answered (`i === st.idx && st.answered`), rather than
+  adding an eleventh render.
+- **The summary is about the work, not praise** (`lightningSummary`) —
+  a student running several rounds should get information back, not
+  applause.
+- The multi-step generator **rejection-samples** three 3-digit numbers and
+  two operators until no intermediate *or* final value is negative. Scuttle
+  Add/Sub can legitimately go negative and shows "No score"; a drill
+  answer box cannot ask a student for a negative running total at this
+  grade level, so the generator excludes them rather than the UI handling
+  them.
 
 ## PILOT MODE + the fluency views (reversible)
 
 A hardcoded UI demonstration of `design/fluency-tracking-design-plan.md`'s
-two-bucket model, run on two games so the views can be judged without the
-rest of the catalogue in the way. **No gameplay data is collected, no
-taxonomy is classified, nothing persists** — this validates the UI/UX
-direction before the real tracking engine is built.
+two-bucket model, run on a small set of games so the views can be judged
+without the rest of the catalogue in the way. **No gameplay data is
+collected, no taxonomy is classified, nothing persists** — this validates
+the UI/UX direction before the real tracking engine is built.
+
+`PILOT_UNLOCKED_HREFS` is that set, and it is **four files covering two
+skills**, not four skills: Product Beeline and Scuttle Add/Sub are the two
+demo games, and both Lightning variants were added because they drill those
+same two skills from the opposite end of the forcing axis (see "Lightning"
+above). Anything not in that list is locked at every nav surface.
 
 ### Reversing it
 
@@ -4001,7 +4120,18 @@ For every new game, before considering it done:
    (only one variant exists) — revisit once a second one actually needs
    the same generic-contract shape, the same "don't just extract shared
    CSS/JS preemptively" discipline as everywhere else in this project.
-6. **Remainder Scuttle** — near-identical engine to Product Scuttle, swap
+6. **More Lightning variants** — two are built (multiplication facts,
+   multi-step 3-digit add/sub), and they exist because those are the two
+   skills the fluency pilot demonstrates. A third is warranted the moment a
+   third skill needs a forcing-end instrument (see "Lightning" and
+   `design/fluency-tracking-design-plan.md`'s strategy/forcing matrix) —
+   **not** as a way to add more games. A new variant is a `LIGHTNING_SPEC`
+   with a `generate()` and a copy of the same shell; nothing in the engine
+   should need touching, and if it does, that's a sign the new skill wants
+   a different instrument rather than a Lightning variant. Resist adding
+   strategy, scoring pressure, or a bot to any of them — a drill with
+   choices in it stops being the thing the matrix says is missing.
+7. **Remainder Scuttle** — near-identical engine to Product Scuttle, swap
    the operator to division-with-remainder. Flagged in the catalog as
    needing real bot-tuning attention ("tiny score range needs bot
    redesign") — take that seriously rather than assuming it's a drop-in
@@ -4014,7 +4144,7 @@ For every new game, before considering it done:
    value range against its own target before assuming either the original
    Product heuristics OR Difference's fix transfers unmodified. Difference
    Scuttle itself is now built — see "Where things stand".
-7. Extract `components/risk-meter.css`, `components/flip-card.css` from
+8. Extract `components/risk-meter.css`, `components/flip-card.css` from
    the mockups the first time each engine family actually gets built,
    following the `dice-slot.css`/`claim-grid.css` pattern.
 

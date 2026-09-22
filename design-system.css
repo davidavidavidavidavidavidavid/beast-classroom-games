@@ -133,9 +133,12 @@
   --shadow-btn: 4px 4px 0 var(--color-ink);
   --shadow-sm: 3px 3px 0 var(--color-ink);
 
-  /* Global nav bar height — referenced by both the bar itself and the
-     body's compensating top-padding below, so they can never drift apart. */
-  --nav-height: 56px;
+  /* Global nav rail width — referenced by both the rail itself and the
+     body's compensating left-padding below, so they can never drift apart.
+     The nav is a fixed LEFT rail now, not a top bar: width instead of
+     height, because it costs horizontal room (plentiful) and gives the
+     vertical budget (which the 1024x600 floor is tight on) its 56px back. */
+  --nav-width: 76px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -224,10 +227,12 @@ body {
   min-width: var(--min-page-width);
   display: flex;
   justify-content: center;
-  /* Top padding reserves space for #global-nav (position:fixed, so it
-     doesn't naturally push content down on its own) — see CLAUDE.md
-     "Global navigation". Required on every page, hub included. */
-  padding: calc(var(--nav-height) + var(--space-sm)) var(--space-sm) var(--space-sm);
+  /* LEFT padding reserves the rail's width for #global-nav (position:fixed,
+     so it doesn't displace anything on its own) — see CLAUDE.md "Global
+     nav: sticky left rail". Required on every page, hub included. It costs
+     width, not height, which is the whole reason the rail replaced a top
+     bar. */
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) calc(var(--nav-width) + var(--space-sm));
   /* `stretch` (the default) so #app can FILL the viewport height — that's
      what lets the play area grow with the screen and keep a stable height.
      Content is still top-anchored: the ~190px gap under the nav bar that
@@ -261,48 +266,53 @@ body {
   min-height: 0; overflow-y: auto;
 }
 
-/* ---------- global navigation bar ----------
+/* ---------- global navigation rail ----------
    Injected by shared-game.js's renderGlobalNav() — see CLAUDE.md "Global
-   navigation" and that function's own header comment. Required on every
-   page; this is the ONLY styling for it (no per-game overrides). Sits
-   above a game's own top bar, never replaces it — a completely separate,
-   thinner strip fixed to the very top of the viewport. */
+   nav: sticky left rail" and that function's own header comment. Required
+   on every page; this is the ONLY styling for it (no per-game overrides).
+   A fixed, full-height vertical strip down the LEFT edge, never a
+   replacement for a game's own #top-bar. It takes width instead of height
+   because height is the scarce axis here (see "1024x600 zero-scroll
+   architecture") — the rail costs nothing a game needs. */
 #global-nav {
-  position: fixed; top: 0; left: 0; right: 0; height: var(--nav-height);
+  position: fixed; top: 0; left: 0; bottom: 0; width: var(--nav-width);
   z-index: 40; /* below #boot-screen's z-index:100, so the boot overlay still covers it during the intro */
-  display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm);
-  padding: 0 var(--space-sm);
-  /* Brand blue, with the logo and the Games control the only two things in
-     it — logo left, dropdown right, nothing between them. The bar used to
-     also carry the current game's name on the right, which just repeated
-     the H1 and kicker directly underneath it. */
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-md);
+  padding: var(--space-sm) var(--space-xs);
+  /* Brand blue, carrying exactly two things: the BC logo at the top and
+     the Games control under it. The bar used to also carry the current
+     game's name, which just repeated the H1 and kicker underneath it. */
   background: var(--color-beast-blue);
-  border-bottom: var(--border-w) solid var(--color-ink);
+  border-right: var(--border-w) solid var(--color-ink);
   font-family: var(--font-sans);
 }
 #global-nav-logo {
-  /* The source art is ~1:1.17, so height drives it and width follows. */
-  height: calc(var(--nav-height) - 16px); width: auto; display: block;
+  /* The source art is ~1:1.17, so width drives it and height follows. */
+  width: calc(var(--nav-width) - 28px); height: auto; display: block;
 }
-#global-nav-wordmark { display: inline-flex; align-items: center; }
 #global-nav-wordmark {
+  display: inline-flex; align-items: center;
   font-weight: 800; font-size: var(--text-md); letter-spacing: 0.2px;
   color: #fff; text-decoration: none; white-space: nowrap;
 }
 #global-nav-wordmark:focus-visible { outline: 2px solid var(--color-beast-blue); outline-offset: 2px; }
-#global-nav-games { position: relative; }
+#global-nav-games { position: relative; width: 100%; }
 #global-nav-toggle {
-  font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 700;
+  /* Glyph over label, stacked — a rail this narrow has no room for them
+     side by side, and an unlabelled icon is a guess. */
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 700;
   background: none; border: none; box-shadow: none; color: #fff;
   padding: 6px 4px; text-transform: none; letter-spacing: normal; cursor: pointer;
   min-height: 0;
 }
+#global-nav-toggle svg { fill: currentColor; display: block; }
 #global-nav-toggle:hover { text-decoration: underline; }
 #global-nav-toggle:active { transform: none; }
 #global-nav-dropdown {
-  /* right:0, not left:0 — the Games control sits at the right end of the
-     bar now, so a left-anchored panel would hang off the viewport edge. */
-  position: absolute; top: calc(100% + 4px); right: 0; left: auto;
+  /* Opens SIDEWAYS out of the rail, not below it — there is no "below"
+     on a full-height vertical bar. */
+  position: absolute; top: 0; left: calc(100% + var(--space-xs)); right: auto;
   display: flex; flex-direction: column; min-width: 190px;
   background: var(--color-background-primary); border: 2px solid var(--color-ink); border-radius: 4px;
   box-shadow: var(--shadow-sm); z-index: 41;
@@ -1289,7 +1299,7 @@ label.small { font-family: var(--font-sans); font-size: var(--text-xs); color: v
   color: var(--color-beast-blue); cursor: pointer;
 }
 #stats-launcher { right: 16px; }
-#rules-launcher { left: 16px; }
+#rules-launcher { left: calc(var(--nav-width) + 16px); }
 #stats-launcher svg { fill: currentColor; display: block; }
 #rules-launcher svg { display: block; }
 #stats-launcher:active, #rules-launcher:active {
@@ -1513,7 +1523,6 @@ span.chip.locked {
 }
 
 @media (max-height: 640px) {
-  :root { --nav-height: 44px; }
   /* The title, kicker and tagline collapse from three stacked lines into
      one row — recovers a full line without hiding the variant name. */
   .page-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-sm); }

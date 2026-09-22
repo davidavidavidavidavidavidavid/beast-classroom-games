@@ -328,7 +328,7 @@ const SKILL_STATS = [
      up on this board yet (null = no evidence, which is NOT the same as
      scoring zero). */
   { id: 'mult-facts', name: 'Multiplication Facts', type: 'facts',
-    games: ['beeline-product.html'],
+    games: ['beeline-product.html', 'lightning-multiplication.html'],
     totalTime: '2h 05m', lastPlayed: 'Yesterday',
     factGrid: {
       min: 1, max: 9,
@@ -352,7 +352,7 @@ const SKILL_STATS = [
      genuinely multi-step — it says nothing about single-operation addition
      or subtraction, and the view must not imply otherwise. */
   { id: 'add-sub-large', name: 'Addition and Subtraction of Larger Numbers',
-    type: 'procedures', games: ['scuttle-addition-subtraction.html'],
+    type: 'procedures', games: ['scuttle-addition-subtraction.html', 'lightning-multi-step.html'],
     totalTime: '1h 12m', lastPlayed: 'Just now',
     /* `evidenceFrom` lists which GAMES feed each row. The highlight is then
        derived from the page you opened the panel FROM — it is not a
@@ -365,7 +365,7 @@ const SKILL_STATS = [
       { name: 'Addition', score: 79, attempts: 132, evidenceFrom: [] },
       { name: 'Subtraction', score: 61, attempts: 104, evidenceFrom: [] },
       { name: 'Multi-step problems', score: 52, attempts: 47,
-        evidenceFrom: ['scuttle-addition-subtraction.html'] },
+        evidenceFrom: ['scuttle-addition-subtraction.html', 'lightning-multi-step.html'] },
     ] },
   { id: 'mult-multi', name: 'Multi-digit multiplication', games: ['scuttle-product.html'],
     correct: 27, attempts: 40, totalTime: '48m', lastPlayed: '2 hours ago' },
@@ -1599,6 +1599,12 @@ const GLOBAL_GAMES = [
       { name: 'Equivalent Fraction', href: 'beeline-equivalent-fraction.html' },
     ],
     desc: 'Move your token(s) along a number row, mark the value on the board, and connect four in a row before the bot does.' },
+  { key: 'lightning', name: 'Lightning', status: 'playable', href: 'lightning-multiplication.html', multiVariant: true,
+    variants: [
+      { name: 'Multiplication Facts', href: 'lightning-multiplication.html' },
+      { name: 'Multi-step Add & Subtract', href: 'lightning-multi-step.html' },
+    ],
+    desc: 'Straight question-and-answer drill \u2014 ten at a time, no board and no opponent. The one place a specific fact can be asked directly.' },
   { key: 'nim',       name: 'Nim',       status: 'playable', href: 'nim.html', multiVariant: true,
     variants: [
       { name: 'Race to 10', href: 'nim.html' },
@@ -1623,10 +1629,62 @@ const GLOBAL_GAMES = [
   { key: 'pig', name: 'Pig', status: 'locked', desc: 'Roll repeatedly to build up points — bust and lose the round’s points, or bank them anytime.' },
 ];
 
+/* ---------------- Lightning: the drill engine ---------------------------
+   design/fluency-tracking-design-plan.md's strategy/forcing matrix says
+   every skill needs at least one game at the TOP of the forcing axis —
+   where we can assign specific numbers directly — even though that means
+   near-zero strategy for that game. The doc is explicit that this is "a
+   deliberate instrument alongside the strategy games, not a compromise we
+   settle for". Lightning is that instrument: no board, no bot, no choice,
+   just the question in front of you.
+
+   Single-player, so per CLAUDE.md's Detective precedent there is no
+   decideWinner, no bot tiers and no avatar picker — none of those
+   conventions have anything to compare against here.
+
+   Shared because both Lightning variants are the same loop over different
+   question generators: each file supplies only `LIGHTNING_SPEC`
+   (a generator, an answer, and how to display the question). Extracted up
+   front because there are two real consumers from the start — the same
+   bar the Beeline two-row engine met. */
+const LIGHTNING_QUESTIONS_PER_ROUND = 10;
+
+/* Draws without immediate repeats, so a 10-question round can't serve the
+   same fact twice in a row — which reads as a bug even when it isn't. */
+function lightningBuildRound(spec, n){
+  const out = [];
+  let guard = 0;
+  while (out.length < n && guard++ < n * 50){
+    const q = spec.generate();
+    if (out.length && out[out.length - 1].prompt === q.prompt) continue;
+    out.push(q);
+  }
+  while (out.length < n) out.push(spec.generate()); // pathological generator
+  return out;
+}
+
+function lightningAccuracy(correct, answered){
+  return answered ? Math.round((correct / answered) * 100) : 0;
+}
+
+/* The round summary's message. Deliberately about the WORK, not praise —
+   these are drills, and a student running several rounds should get
+   information back rather than applause. */
+function lightningSummary(correct, total){
+  const pct = lightningAccuracy(correct, total);
+  if (pct === 100) return 'Every one correct.';
+  if (pct >= 80) return 'Strong round — a couple to look at below.';
+  if (pct >= 50) return 'Worth another round on these.';
+  return 'These need some work — try the same set again.';
+}
+
 /* ---------------- PILOT MODE (reversible) --------------------------------
    A hardcoded UI demonstration of design/fluency-tracking-design-plan.md's
-   two-bucket model, run on exactly two games so the stats views can be
-   evaluated without the rest of the catalogue in the way.
+   two-bucket model, run on exactly two SKILLS so the stats views can be
+   evaluated without the rest of the catalogue in the way. Four files are
+   unlocked, not two: the two strategy games the views are built around,
+   plus both Lightning drills, which train the same two skills from the
+   forcing end of the matrix.
 
    TO REVERSE THIS ENTIRELY: set PILOT_MODE to false. Nothing is deleted
    and no file is removed — every game, variant, menu card and nav entry
@@ -1644,6 +1702,11 @@ const PILOT_SKILL_IDS = ['mult-facts', 'add-sub-large'];
 const PILOT_UNLOCKED_HREFS = [
   'scuttle-addition-subtraction.html', // procedures-style stats view
   'beeline-product.html',              // facts-style stats view
+  // Lightning drills the same two skills directly — it is the forcing-power
+  // instrument the design plan's strategy/forcing matrix calls for, so it
+  // belongs in the pilot alongside the two strategy games it backs up.
+  'lightning-multiplication.html',
+  'lightning-multi-step.html',
 ];
 function isPilotUnlocked(href){
   return !PILOT_MODE || PILOT_UNLOCKED_HREFS.indexOf(href) !== -1;
@@ -1743,7 +1806,16 @@ function renderGlobalNav(currentKey){
   const toggle = document.createElement('button');
   toggle.id = 'global-nav-toggle';
   toggle.type = 'button';
-  toggle.textContent = 'Games ▾';
+  // A grid glyph over the word, stacked — the rail is 76px wide, and
+  // "Games ▾" with a downward caret would be both too wide and wrong
+  // (the panel opens sideways now, not below).
+  toggle.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">' +
+    '<rect x="3" y="3" width="8" height="8" rx="1.5"></rect>' +
+    '<rect x="13" y="3" width="8" height="8" rx="1.5"></rect>' +
+    '<rect x="3" y="13" width="8" height="8" rx="1.5"></rect>' +
+    '<rect x="13" y="13" width="8" height="8" rx="1.5"></rect></svg>' +
+    '<span>Games</span>';
+  toggle.setAttribute('aria-label', 'Games menu');
   gamesWrap.appendChild(toggle);
 
   const dropdown = document.createElement('div');
